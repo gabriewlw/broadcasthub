@@ -77,7 +77,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('button', name='Add device', exact=True).click()
             page.locator('[name=name]').fill('Audio console')
             page.locator('[name=category]').fill('Audio console')
-            page.locator('#form-system-buttons').get_by_role('button', name='Audio', exact=True).click()
+            page.locator('#form-system').select_option('Audio')
             page.locator('#form-venue-buttons').get_by_role('button', name='Liquid Lounge', exact=True).click()
             assert page.locator('[name=venue]').input_value() == 'Liquid Lounge'
             page.locator('[name=venue]').fill('Theater')
@@ -99,9 +99,9 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('button', name='Clear', exact=True).click()
             assert page.locator('.device-row').count() == 2
             assert page.locator('#system-buttons').get_by_role('button', name='All systems', exact=True).get_attribute('aria-pressed') == 'true'
-            # Editing reflects the stored selection in both form button groups.
+            # Editing reflects the stored system dropdown and venue button.
             page.get_by_role('button', name='Edit ATEM main').click()
-            assert page.locator('#form-system-buttons').get_by_role('button', name='Video', exact=True).get_attribute('aria-pressed') == 'true'
+            assert page.locator('#form-system').input_value() == 'Video'
             assert page.locator('#form-venue-buttons').get_by_role('button', name='Liquid Lounge', exact=True).get_attribute('aria-pressed') == 'true'
             page.get_by_role('button', name='Cancel', exact=True).click()
             # Import an existing-style workbook with a cover sheet and custom columns.
@@ -173,12 +173,17 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#vlan-field').is_hidden()
             page.get_by_role('button', name='Cancel', exact=True).click()
             path = Path(temp) / 'iptv.csv'
-            path.write_text('Channel,IP Address,Port,Source\nMovie channel,239.1.1.12,5000,Onboard\n')
+            path.write_text('Channel,IP Address,Port,Source,Category,Inventory type,Notes\nMovie channel,239.1.1.12,5000,Onboard,Local program,iptv,Ignored spreadsheet note\n')
             page.locator('#import-file').set_input_files(str(path))
             page.locator('#map-channel_source').wait_for()
-            assert page.locator('#map-record_type').input_value() == ''
+            assert page.locator('#map-record_type').input_value() == '5'
+            assert page.locator('#map-category').input_value() == '4'
+            assert page.locator('#map-port').input_value() == '2'
+            assert not page.locator('#map-notes').count()
             page.locator('#confirm-import').click()
             page.get_by_role('button', name='Edit Movie channel').wait_for()
+            assert next(d for d in app.inventory() if d['name'] == 'Movie channel')['category'] == 'Local program'
+            assert next(d for d in app.inventory() if d['name'] == 'Movie channel')['notes'] == ''
             assert page.locator('.device-row').count() == 3
             page.screenshot(path='/tmp/iptracking-iptv-mobile.png', full_page=True)
             page.get_by_role('tab', name='AV devices', exact=True).click()
@@ -247,16 +252,16 @@ with tempfile.TemporaryDirectory() as temp:
             # skip repeated IPs across VLANs, and keep devices with text VLANs.
             page.get_by_role('tab', name='AV devices', exact=True).click()
             path = Path(temp) / 'venue-devices.csv'
-            path.write_text('Device ID,o.O,Name,Location,IP,DEVICE NAME,VENUE,IP Adress,VLAN,Notes\n'
+            path.write_text('Device ID,o.O,Name,Location,IP,DEVICE NAME,VENUE,IP Adress,VLAN,Notes,Category,Inventory type,Channel source,Port,System\n'
                             'old-id,unwanted,Wrong name,Wrong location,invalid,CSV switcher,RD MAIN LOUNGE,10.24.176.90,1500,o.O\n'
-                            'old-id,unwanted,Wrong name,Wrong location,invalid,CSV camera,rd MAIN LOUNGE,10.24.176.91,o.O,o.O\n'
+                            'old-id,unwanted,Wrong name,Wrong location,invalid,CSV camera,rd MAIN LOUNGE,10.24.176.91,o.O,Ignore this note,Ignored category,unknown,Cable,bad port,bad system\n'
                             'old-id,unwanted,Wrong name,Wrong location,invalid,CSV lights,RD POOL DECK,10.24.176.92,1.5,o.O\n'
                             'old-id,unwanted,Wrong name,Wrong location,invalid,Repeated switcher,RD MAIN LOUNGE,10.24.176.90,1501,o.O\n'
                             'old-id,unwanted,Wrong name,Wrong location,invalid,Existing ATEM,RD MAIN LOUNGE,10.24.176.66,1502,o.O\n')
             page.locator('#import-file').set_input_files(str(path))
             page.locator('#confirm-import').wait_for(state='visible')
             page.wait_for_function("() => !document.getElementById('confirm-import').disabled")
-            assert page.locator('#column-mappings select').evaluate_all('(nodes) => nodes.slice(0,4).map(n => n.id)') == ['map-venue','map-name','map-ip','map-vlan']
+            assert page.locator('#column-mappings select').evaluate_all('(nodes) => nodes.map(n => n.id)') == ['map-venue','map-name','map-ip','map-vlan']
             assert page.locator('#map-venue').input_value() == '4'
             assert page.locator('#map-name').input_value() == '3'
             assert page.locator('#map-ip').input_value() == '5'
@@ -280,6 +285,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('button', name='Edit CSV camera', exact=True).wait_for()
             assert len([r for r in app.inventory() if r['record_type'] == 'device']) == 6
             assert all(r['notes'] == '' for r in app.inventory() if r['name'].startswith('CSV '))
+            assert all(r['category'] == r['discipline'] == '' for r in app.inventory() if r['name'].startswith('CSV '))
             venues = page.locator('#venue-buttons button').all_text_contents()
             assert venues[-2:] == ['Main Lounge', 'POOL DECK'], venues
             assert venues.count('Main Lounge') == 1
@@ -327,8 +333,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#import-file').set_input_files(str(path))
             page.wait_for_function("() => document.getElementById('spreadsheet-dialog').open && !document.getElementById('confirm-import').disabled")
             assert not page.locator('[id^=default-]').count()
-            assert page.locator('#map-category').input_value() == ''
-            assert page.locator('#map-discipline').input_value() == ''
+            assert not page.locator('#map-category, #map-discipline, #map-notes, #map-record_type, #map-channel_source, #map-port').count()
             assert 'Missing' not in page.locator('#spreadsheet-preview').inner_text()
             page.locator('#confirm-import').click()
             page.get_by_role('button', name='Edit Unassigned camera', exact=True).wait_for()
@@ -338,9 +343,21 @@ with tempfile.TemporaryDirectory() as temp:
             assert unassigned.locator('.device-venue').inner_text() == ''
             assert not unassigned.locator('.badge, .ip-confirm').count()
             assert not warnings.is_visible()
+            system_select = page.get_by_role('combobox', name='System for Unassigned camera', exact=True)
+            assert system_select.input_value() == ''
+            system_select.select_option('Video')
+            page.wait_for_function("() => !document.querySelector('select[aria-label=\"System for Unassigned camera\"]').disabled")
+            assert next(r for r in app.inventory() if r['name'] == 'Unassigned camera')['discipline'] == 'Video'
+            notes_input = page.get_by_role('textbox', name='Notes for Unassigned camera', exact=True)
+            notes_input.fill('Rack B, review later')
+            with page.expect_response(lambda response: response.url.endswith('/notes') and response.request.method == 'POST'):
+                notes_input.press('Tab')
+            assert next(r for r in app.inventory() if r['name'] == 'Unassigned camera')['notes'] == 'Rack B, review later'
             page.get_by_role('button', name='Edit Unassigned camera', exact=True).click()
-            for field in ['category','venue','discipline','ip','vlan']:
+            assert page.locator('#device-form [name=notes]').input_value() == 'Rack B, review later'
+            for field in ['category','venue','ip','vlan']:
                 assert page.locator(f'#device-form [name={field}]').input_value() == ''
+            assert page.locator('#form-system').input_value() == 'Video'
             page.locator('#device-form [name=ip]').fill('10.24.176.94')
             page.get_by_role('button', name='Save changes', exact=True).click()
             page.get_by_role('button', name='Confirm IP for Unassigned camera', exact=True).wait_for()
@@ -350,6 +367,18 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#device-form [name=name]').fill('Backstage device')
             page.get_by_role('button', name='Save changes', exact=True).click()
             page.get_by_role('button', name='Edit Backstage device', exact=True).wait_for()
+            # Empty cells and entirely ignored columns submit successfully with no prompt.
+            before = len(app.inventory())
+            for filename, content in [('blank.csv', 'VENUE,DEVICE NAME,IP Adress,VLAN\n,,,\n,,,\n'),
+                                      ('ignored-only.csv', 'Notes,System,Category\nIgnore this,invalid,Unknown\n')]:
+                path = Path(temp) / filename
+                path.write_text(content)
+                page.locator('#import-file').set_input_files(str(path))
+                page.wait_for_function("() => document.getElementById('spreadsheet-dialog').open && !document.getElementById('confirm-import').disabled")
+                assert page.locator('#spreadsheet-error').is_hidden()
+                page.locator('#confirm-import').click()
+                page.locator('#spreadsheet-dialog').wait_for(state='hidden')
+                assert len(app.inventory()) == before
             page.get_by_role('tab', name='Equipment inventory', exact=True).click()
             path = Path(temp) / 'partial-equipment.csv'
             path.write_text('Description\nUnidentified spare\nUnidentified spare\n')
@@ -380,6 +409,13 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('tab', name='AV devices', exact=True).click()
             page.reload()
             page.locator('#venue-buttons').get_by_role('button', name='Main Lounge', exact=True).wait_for()
+            assert page.get_by_role('combobox', name='System for Unassigned camera', exact=True).input_value() == 'Video'
+            notes_input = page.get_by_role('textbox', name='Notes for Unassigned camera', exact=True)
+            assert notes_input.input_value() == 'Rack B, review later'
+            notes_input.fill('')
+            with page.expect_response(lambda response: response.url.endswith('/notes') and response.request.method == 'POST'):
+                notes_input.press('Tab')
+            assert next(r for r in app.inventory() if r['name'] == 'Unassigned camera')['notes'] == ''
             assert page.locator('#venue-buttons').get_by_role('button', name='Main Lounge', exact=True).evaluate('(n) => getComputedStyle(n).color') == main_color
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             page.screenshot(path='/tmp/iptracking-mobile.png', full_page=True)

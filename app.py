@@ -212,6 +212,39 @@ def device_identity(row):
     return (row['record_type'], row['ip'], row['port'] if row['record_type'] == 'iptv' else None)
 
 
+def blank_import_row(value, fields):
+    return isinstance(value, dict) and all(value.get(f) is None or (isinstance(value.get(f), str) and not value[f].strip()) for f in fields)
+
+
+def set_device_system(device_id, value):
+    if not isinstance(value, dict) or not isinstance(value.get('discipline', ''), str):
+        raise ValueError('System must be text.')
+    discipline = value.get('discipline', '').strip()
+    if discipline and discipline not in DISCIPLINES:
+        raise ValueError('Choose a valid system.')
+    with connect() as con:
+        con.execute('BEGIN IMMEDIATE')
+        record = con.execute('SELECT * FROM devices WHERE id=?', (device_id,)).fetchone()
+        if record is None:
+            raise LookupError('Device not found.')
+        if record['record_type'] != 'device':
+            raise ValueError('System dropdowns apply to AV devices.')
+        con.execute('UPDATE devices SET discipline=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', (discipline, device_id))
+        return serialize(con.execute('SELECT * FROM devices WHERE id=?', (device_id,)).fetchone())
+
+
+def set_device_notes(device_id, value):
+    if not isinstance(value, dict) or not isinstance(value.get('notes', ''), str):
+        raise ValueError('Notes must be text.')
+    notes = value.get('notes', '').strip()
+    if len(notes) > 2000:
+        raise ValueError('Notes are too long.')
+    with connect() as con:
+        if not con.execute('UPDATE devices SET notes=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', (notes, device_id)).rowcount:
+            raise LookupError('Device not found.')
+        return serialize(con.execute('SELECT * FROM devices WHERE id=?', (device_id,)).fetchone())
+
+
 def import_devices(payload):
     if not isinstance(payload, dict) or payload.get('version') != 1 or not isinstance(payload.get('devices'), list):
         raise ValueError('Choose a Broadcast Hub network JSON export (version 1).')
@@ -221,8 +254,11 @@ def import_devices(payload):
     row_numbers = payload.get('row_numbers') if spreadsheet else None
     if row_numbers is not None and (not isinstance(row_numbers, list) or len(row_numbers) != len(payload['devices']) or any(type(n) is not int or not 1 <= n <= 20050 for n in row_numbers)):
         raise ValueError('Invalid spreadsheet row numbers.')
-    rows = []
+    rows, numbers = [], []
     for index, value in enumerate(payload['devices'], 1):
+        number = row_numbers[index - 1] if row_numbers else index
+        if blank_import_row(value, FIELDS + ('channel_source', 'port')):
+            continue
         try:
             if spreadsheet and isinstance(value, dict) and value.get('record_type', 'device') == 'device':
                 value = dict(value)
@@ -232,8 +268,8 @@ def import_devices(payload):
                 # Ignore text or decimal VLAN values; never invent a VLAN number.
                 value['vlan'] = vlan if type(vlan) is int or (isinstance(vlan, str) and vlan.isascii() and vlan.isdigit()) else None
             rows.append(validate(value))
+            numbers.append(number)
         except ValueError as exc:
-            number = row_numbers[index - 1] if row_numbers else index
             raise ValueError(f'Device row {number}: {exc} Nothing was imported.') from None
     endpoints = [device_identity(row) for row in rows if row['record_type'] == 'iptv' and device_identity(row) is not None]
     if len(set(endpoints)) != len(endpoints):
@@ -249,7 +285,7 @@ def import_devices(payload):
             identity = device_identity(row)
             if identity is not None and identity in existing:
                 if row['record_type'] == 'device' and (spreadsheet or identity in seen):
-                    number = row_numbers[index - 1] if row_numbers else index
+                    number = numbers[index - 1]
                     reason = 'already appears earlier in this file' if identity in seen else 'already exists in the inventory'
                     warnings.append(f"Row {number}: {row['name']} · {row['venue']} · duplicate IP {row['ip']} {reason}. Skipped; the first record was kept.")
                 seen.add(identity)
@@ -325,6 +361,8 @@ def import_equipment(payload):
         raise ValueError('Import supports up to 10,000 inventory items.')
     rows = []
     for index, value in enumerate(payload['equipment'], 1):
+        if blank_import_row(value, EQUIPMENT_FIELDS):
+            continue
         try:
             rows.append(validate_equipment(value))
         except ValueError as exc:
@@ -431,6 +469,18 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, spreadsheet_preview(self.body()))
         elif self.command == 'POST' and path == '/api/import':
             return self.send(200, import_devices(self.body()))
+        elif self.command == 'POST' and path.startswith('/api/devices/') and path.endswith('/notes'):
+            try:
+                device_id = int(path.removeprefix('/api/devices/').removesuffix('/notes'))
+            except ValueError:
+                raise LookupError('Device not found.') from None
+            return self.send(200, set_device_notes(device_id, self.body()))
+        elif self.command == 'POST' and path.startswith('/api/devices/') and path.endswith('/system'):
+            try:
+                device_id = int(path.removeprefix('/api/devices/').removesuffix('/system'))
+            except ValueError:
+                raise LookupError('Device not found.') from None
+            return self.send(200, set_device_system(device_id, self.body()))
         elif self.command == 'POST' and path.startswith('/api/devices/') and path.endswith('/confirm'):
             try:
                 device_id = int(path.removeprefix('/api/devices/').removesuffix('/confirm'))

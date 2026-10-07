@@ -27,7 +27,7 @@ def preview(payload):
         raw = base64.b64decode(payload.get('content', ''), validate=True)
     except (binascii.Error, TypeError, ValueError):
         raise ValueError('Invalid file content.') from None
-    if not raw or len(raw) > 5_000_000:
+    if len(raw) > 5_000_000 or (not raw and filename.lower().endswith('.xlsx')):
         raise ValueError('Choose a spreadsheet between 1 byte and 5 MB.')
     header_row = payload.get('header_row', 1)
     if isinstance(header_row, bool) or not isinstance(header_row, int) or not 1 <= header_row <= 50:
@@ -58,7 +58,7 @@ def preview(payload):
                 dialect = csv.excel
             source = csv.reader(io.StringIO(text), dialect)
         headers, rows, row_numbers, characters = [], [], [], 0
-        kept_columns, ignored_columns, column_count = [], [], 0
+        kept_columns, ignored_columns, column_count = [], [], None
         for number, raw_row in enumerate(source, 1):
             if number < header_row:
                 continue
@@ -80,11 +80,9 @@ def preview(payload):
             characters += sum(map(len, values))
             if characters > 2_000_000:
                 raise ValueError('Spreadsheet text is too large. Split the file into smaller imports.')
-            if number == header_row:
+            if column_count is None:
                 if not values:
-                    if book is not None:
-                        break  # Still return worksheet names so another sheet can be selected.
-                    raise ValueError('The chosen header row is empty. Choose the row containing column names.')
+                    continue
                 column_count = len(values)
                 kept_columns = [i for i, value in enumerate(values) if not ignored_header(value)]
                 ignored_columns = [value for value in values if ignored_header(value)]
@@ -101,8 +99,6 @@ def preview(payload):
                     raise ValueError('Import supports up to 10,000 devices per file.')
                 rows.append(values)
                 row_numbers.append(number)
-        if (not headers or not rows) and book is None:
-            raise ValueError('No device rows found below the chosen header row.')
         return {'headers': headers, 'rows': rows, 'row_numbers': row_numbers, 'sheets': sheets, 'sheet': sheet, 'ignored_columns': ignored_columns}
     except (BadZipFile, InvalidFileException, ParseError, DefusedXmlException, KeyError, csv.Error, OSError):
         raise ValueError('Could not read this spreadsheet. Save a fresh .xlsx or CSV UTF-8 copy in Excel.') from None

@@ -273,3 +273,7 @@ textarea { resize: vertical; }
 .choice-button.venue-choice[aria-pressed="true"]{color:var(--venue-color);border-color:var(--venue-color);background:color-mix(in srgb,var(--venue-color) 24%,#14161b);box-shadow:inset 0 0 0 1px var(--venue-color)}
 .venue-editor-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:12px;margin-bottom:10px;align-items:center}.venue-editor-row label{min-width:0}.venue-editor-row input{width:100%}
 @media(max-width:600px){.venue-editor-row{grid-template-columns:1fr;gap:6px;margin-bottom:16px}}
+
+.system-select{width:100%;min-width:0;min-height:44px;font-size:12px;padding:8px;border-radius:5px}.system-cell .cell-caption{display:block;margin-top:5px}
+
+.device-notes-editor{display:block;width:100%;min-width:0;min-height:44px;resize:vertical;font-size:12px;padding:8px;margin-top:5px}.device-identity>div{min-width:0;flex:1}

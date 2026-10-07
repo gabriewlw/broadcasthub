@@ -92,6 +92,44 @@ class MissingInformationTests(unittest.TestCase):
         self.assertIsNone(partial['quantity'])
         self.assertEqual(next(row for row in app.equipment_inventory() if row['id'] == 42), before)
 
+    def test_blank_import_rows_skip_without_errors_and_keep_source_numbers(self):
+        payload = dict(version=1, source='spreadsheet', row_numbers=[2, 3, 4, 5],
+                       devices=[dict(name=' '), dict(ip='10.24.176.90'), {}, dict(ip='10.24.176.90')])
+        status, result = self.request('/api/import', 'POST', payload)
+        self.assertEqual(status, 200)
+        self.assertEqual((result['added'], result['skipped']), (1, 1))
+        self.assertIn('Row 5:', result['warnings'][0])
+        self.assertEqual(self.request('/api/import', 'POST', dict(version=1, devices=[{}, dict(record_type='iptv', port=None)]))[1], dict(added=0, skipped=0))
+        self.assertEqual(self.request('/api/equipment/import', 'POST', dict(version=1, equipment=[{}, dict(brand=' ', quantity=None)]))[1], dict(added=0, skipped=0))
+
+    def test_system_dropdown_changes_only_system_and_preserves_confirmation(self):
+        _, device = self.request('/api/devices', 'POST', dict(test_app.EXAMPLE, discipline=''))
+        path = f"/api/devices/{device['id']}"
+        self.request(path + '/confirm', 'POST', dict(ip=device['ip'], vlan=device['vlan']))
+        # Simulate a separate browser editing other fields before the dropdown saves.
+        self.request(path, 'PUT', dict(device, name='Updated name', notes='Updated notes'))
+        status, updated = self.request(path + '/system', 'POST', dict(discipline='Audio', notes='stale notes', ip='10.24.176.99'))
+        self.assertEqual(status, 200)
+        self.assertEqual((updated['name'], updated['notes'], updated['ip']), ('Updated name', 'Updated notes', device['ip']))
+        self.assertEqual(updated['discipline'], 'Audio')
+        self.assertEqual(updated['ip_confirmed'], 1)
+        self.assertEqual(self.request(path + '/system', 'POST', dict(discipline=''))[1]['discipline'], '')
+        self.assertEqual(self.request(path + '/system', 'POST', dict(discipline='invalid'))[0], 400)
+        self.assertEqual(self.request('/api/devices/999/system', 'POST', dict(discipline='Video'))[0], 404)
+
+    def test_notes_edit_accepts_blank_and_preserves_other_fields(self):
+        _, device = self.request('/api/devices', 'POST', test_app.EXAMPLE)
+        path = f"/api/devices/{device['id']}"
+        self.request(path + '/confirm', 'POST', dict(ip=device['ip'], vlan=device['vlan']))
+        self.request(path + '/system', 'POST', dict(discipline='Lighting'))
+        status, updated = self.request(path + '/notes', 'POST', dict(notes='New notes', discipline='stale'))
+        self.assertEqual(status, 200)
+        self.assertEqual((updated['notes'], updated['discipline'], updated['ip_confirmed']), ('New notes', 'Lighting', 1))
+        self.assertEqual(self.request(path + '/notes', 'POST', dict(notes=''))[1]['notes'], '')
+        self.assertEqual(self.request(path + '/notes', 'POST', dict(notes='x' * 2001))[0], 400)
+        _, channel = self.request('/api/devices', 'POST', dict(record_type='iptv', name='Channel'))
+        self.assertEqual(self.request(f"/api/devices/{channel['id']}/notes", 'POST', dict(notes='IPTV note'))[1]['notes'], 'IPTV note')
+
 
 if __name__ == '__main__':
     unittest.main()

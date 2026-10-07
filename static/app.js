@@ -2,6 +2,7 @@
 const $ = id => document.getElementById(id);
 let devices = [], editing = null, deleting = null, timer, currentTab = 'device';
 let importWarnings = [];
+const pendingNoteSaves = new Map();
 const tabDevices = () => devices.filter(d => (d.record_type || 'device') === currentTab);
 const form = $('device-form');
 const filters = ['search', 'venue-filter', 'system-filter', 'category-filter', 'vlan-filter', 'source-filter'];
@@ -13,6 +14,13 @@ const element = (tag, className, text) => {
 };
 const systems = ['Video', 'Audio', 'Lighting', 'Control', 'Network', 'Other'];
 const deviceLabel = device => device.name || `record ${device.id}`;
+async function saveNotes(deviceId, notes) {
+  const previous = pendingNoteSaves.get(deviceId) || Promise.resolve();
+  const request = previous.catch(() => {}).then(() => api(`/api/devices/${deviceId}/notes`, 'POST', {notes}));
+  pendingNoteSaves.set(deviceId, request);
+  try { return await request; }
+  finally { if (pendingNoteSaves.get(deviceId) === request) pendingNoteSaves.delete(deviceId); }
+}
 const cleanVenue = value => value.trim().replace(/^RD\s+/i, '').trim();
 const venueColors = new Map();
 const usedVenueColors = new Set();
@@ -57,7 +65,6 @@ function updateVenueButtons() {
   makeButtons('venue-buttons', venues, $('venue-filter').value, value => { $('venue-filter').value = value; render(); }, 'All venues');
 }
 makeButtons('system-buttons', systems, '', value => { $('system-filter').value = value; render(); }, 'All systems');
-makeButtons('form-system-buttons', systems, '', value => { form.elements.discipline.value = form.elements.discipline.value === value ? '' : value; syncButtons('form-system-buttons', form.elements.discipline.value); });
 makeButtons('source-buttons', ['Onboard','Satellite'], '', value => { $('source-filter').value = value; render(); }, 'All sources');
 makeButtons('form-source-buttons', ['Onboard','Satellite'], '', value => { form.elements.channel_source.value = form.elements.channel_source.value === value ? '' : value; syncButtons('form-source-buttons', form.elements.channel_source.value); });
 function updateFilterOptions() {
@@ -187,7 +194,27 @@ function render() {
     icon.setAttribute('aria-hidden','true');
     const title = element('div');
     title.append(element('div', 'device-name', device.name), element('span', 'device-category', device.category));
-    if (device.notes) title.append(element('div', 'device-notes', device.notes));
+    const notes = element('textarea', 'device-notes-editor');
+    notes.rows = 2; notes.maxLength = 2000; notes.value = device.notes;
+    notes.dataset.deviceId = device.id;
+    notes.setAttribute('aria-label', `Notes for ${deviceLabel(device)}`);
+    notes.title = 'Notes save when you leave this field.';
+    notes.onchange = async () => {
+      const draft = notes.value;
+      const previous = devices.find(row => row.id === device.id)?.notes || '';
+      devices = devices.map(row => row.id === device.id ? {...row,notes:draft} : row);
+      try {
+        const updated = await saveNotes(device.id, draft);
+        // Keep the current field and focus; update only notes in case another edit ran too.
+        devices = devices.map(row => row.id === updated.id && row.notes === draft ? {...row,notes:updated.notes} : row);
+        const currentField = document.querySelector(`.device-notes-editor[data-device-id="${device.id}"]`);
+        if (currentField?.value === draft) currentField.value = updated.notes;
+      } catch(error) {
+        devices = devices.map(row => row.id === device.id && row.notes === draft ? {...row,notes:previous} : row);
+        toast('Could not save notes: ' + error.message);
+      }
+    };
+    title.append(element('span', 'cell-caption', 'Notes'), notes);
     identity.append(icon, title);
     const ip = element('div', 'ip-cell');
     const iptv = device.record_type === 'iptv';
@@ -202,7 +229,7 @@ function render() {
       confirmation.disabled = true;
       try {
         const updated = await api(`/api/devices/${device.id}/confirm`, 'POST', {ip:device.ip, vlan:device.vlan});
-        devices = devices.map(row => row.id === updated.id ? updated : row);
+        devices = devices.map(row => row.id === updated.id ? {...row,ip_confirmed:updated.ip_confirmed} : row);
         render(); toast('IP assignment confirmed.');
       } catch(error) { confirmation.disabled = false; toast('Confirmation failed: ' + error.message); }
     };
@@ -210,8 +237,24 @@ function render() {
     const venue = element('div', 'venue-cell');
     venue.append(element('div', 'device-venue', cleanVenue(device.venue)), element('span', 'cell-caption', 'Venue'));
     const system = element('div','system-cell');
-    const systemLabel = iptv ? device.channel_source : device.discipline;
-    if (systemLabel) system.append(element('span', `badge ${device.discipline.toLowerCase()}`, systemLabel));
+    if (iptv) {
+      if (device.channel_source) system.append(element('span', `badge ${device.discipline.toLowerCase()}`, device.channel_source));
+    } else {
+      const select = element('select', 'system-select');
+      select.setAttribute('aria-label', `System for ${deviceLabel(device)}`);
+      select.add(new Option('', ''));
+      systems.forEach(value => select.add(new Option(value, value)));
+      select.value = device.discipline;
+      select.onchange = async () => {
+        select.disabled = true;
+        try {
+          const updated = await api(`/api/devices/${device.id}/system`, 'POST', {discipline:select.value});
+          devices = devices.map(row => row.id === updated.id ? {...row,discipline:updated.discipline} : row);
+          updateFilterOptions(); render();
+        } catch(error) { select.value = device.discipline; select.disabled = false; toast('Could not save system: ' + error.message); }
+      };
+      system.append(select, element('span', 'cell-caption', 'System'));
+    }
     const actions = element('div', 'row-actions');
     const edit = element('button', 'quiet', 'Edit'); edit.setAttribute('aria-label', `Edit ${deviceLabel(device)}`); edit.onclick = () => openForm(device);
     const remove = element('button', 'quiet', 'Delete'); remove.setAttribute('aria-label', `Delete ${deviceLabel(device)}`);
@@ -232,11 +275,13 @@ function renderImportWarnings() {
   $('import-warning-list').replaceChildren(...warnings.map(message => element('li', '', message)));
 }
 function openForm(device = null) {
+  if (device?.id) device = devices.find(row => row.id === device.id) || device;
   editing = device?.id ?? null;
   form.reset(); $('form-error').hidden = true;
   const iptv = currentTab === 'iptv';
   form.elements.record_type.value = currentTab;
-  $('category-field').hidden = $('form-system-group').hidden = iptv;
+  $('category-field').hidden = false;
+  $('form-system-group').hidden = iptv;
   $('form-source-group').hidden = !iptv;
   $('venue-field').hidden = $('vlan-field').hidden = iptv;
   form.elements.venue.disabled = form.elements.vlan.disabled = iptv;
@@ -250,7 +295,6 @@ function openForm(device = null) {
   $('form-title').textContent = editing ? (iptv ? 'Edit channel' : 'Edit device') : (iptv ? 'Add channel' : 'Add device');
   $('save-device').textContent = editing ? 'Save changes' : (iptv ? 'Save channel' : 'Save device');
   if (device) for (const field of ['name','category','venue','discipline','ip','vlan','notes','channel_source','port']) form.elements[field].value = device[field] ?? '';
-  syncButtons('form-system-buttons', form.elements.discipline.value);
   syncButtons('form-source-buttons', form.elements.channel_source.value);
   form.elements.venue.value = cleanVenue(form.elements.venue.value);
   const venues = savedVenues();
@@ -271,6 +315,8 @@ form.onsubmit = async event => {
   const data = Object.fromEntries(new FormData(form));
   $('save-device').disabled = true; $('form-error').hidden = true;
   try {
+    // Finish any inline note save before submitting newer changes from Edit.
+    if (editing && pendingNoteSaves.has(editing)) await pendingNoteSaves.get(editing).catch(() => {});
     await api(editing ? `/api/devices/${editing}` : '/api/devices', editing ? 'PUT' : 'POST', data);
     $('device-dialog').close();
     toast(editing ? 'Record updated.' : currentTab === 'iptv' ? 'Channel added to IPTV inventory.' : 'Device added to inventory.');
@@ -308,7 +354,9 @@ const equipmentImportFields = [
   ['location','Location',['location','venue','room','storage','storage location']],
   ['notes','Notes (optional)',['notes','note','comments']]
 ];
-const importFields = () => currentTab === 'equipment' ? equipmentImportFields : networkImportFields;
+const importFields = () => currentTab === 'equipment' ? equipmentImportFields : currentTab === 'device'
+  ? networkImportFields.filter(([field]) => ['venue','name','ip','vlan'].includes(field))
+  : networkImportFields.filter(([field]) => !['venue','vlan','notes','discipline'].includes(field));
 const normalizedHeader = value => value.toLowerCase().replace(/[_-]/g, ' ').replace(/\s+/g, ' ').trim();
 function mappedRows(applyVenueEdits = true) {
   return spreadsheetData.rows.map(row => {
@@ -325,6 +373,7 @@ function mappedRows(applyVenueEdits = true) {
       }
       return [field, value];
     }));
+    if (currentTab === 'device') mapped.record_type = 'device';
     const field = currentTab === 'equipment' ? 'location' : 'venue';
     if (applyVenueEdits && venueEdits.has(mapped[field])) mapped[field] = venueEdits.get(mapped[field]);
     return mapped;
@@ -386,7 +435,6 @@ async function loadSpreadsheet() {
     if (data.ignored_columns?.length) $('spreadsheet-summary').textContent += ` · Ignored columns: ${data.ignored_columns.join(', ')}`;
     $('column-mappings').replaceChildren(...importFields().map(([field, label, aliases]) => {
       const group = element('div', 'mapping-row');
-      group.hidden = currentTab === 'iptv' && ['venue','vlan','category','discipline'].includes(field);
       const columnLabel = element('label', '', label);
       const select = element('select'); select.id = 'map-' + field;
       select.add(new Option('Leave blank', ''));
@@ -400,11 +448,7 @@ async function loadSpreadsheet() {
     }));
     showVenueEditors(); showSpreadsheetPreview();
     $('confirm-import').textContent = `Import ${data.rows.length} records`;
-    $('confirm-import').disabled = !data.rows.length;
-    if (!data.rows.length) {
-      $('spreadsheet-error').textContent = 'No records in this selection. Choose another worksheet or header row and reload the preview.';
-      $('spreadsheet-error').hidden = false;
-    }
+    $('confirm-import').disabled = false;
   } catch (error) {
     $('spreadsheet-error').textContent = error.message;
     $('spreadsheet-error').hidden = false;
@@ -424,7 +468,6 @@ $('spreadsheet-form').onsubmit = async event => {
   $('confirm-import').disabled = true; $('spreadsheet-error').hidden = true;
   try {
     const entries = mappedRows().map((row,index) => ({row,number:spreadsheetData.row_numbers[index]})).filter(({row}) => Object.entries(row).some(([field,value]) => field !== 'record_type' && value !== ''));
-    if (!entries.length) throw new Error('No mapped information to import. Choose at least one column.');
     const rows = entries.map(entry => entry.row);
     const result = await api(currentTab === 'equipment' ? '/api/equipment/import' : '/api/import', 'POST', currentTab === 'equipment' ? {version:1,equipment:rows} : {version:1,devices:rows,source:'spreadsheet',row_numbers:entries.map(entry => entry.number)});
     if (currentTab === 'device') importWarnings = result.warnings || [];

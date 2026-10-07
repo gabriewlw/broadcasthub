@@ -41,10 +41,21 @@ class SpreadsheetParserTests(unittest.TestCase):
         self.assertEqual(result['rows'], [['ATEM; main', '10.24.176.66', '1500']])
 
     def test_unreadable_and_empty_files(self):
-        for payload in (encoded(b'not excel'), encoded(b'name,ip\n', 'empty.csv'), encoded(b'data', 'old.xls'), encoded(b'a\nb', 'a.csv', header_row=0)):
+        for payload in (encoded(b'not excel'), encoded(b'data', 'old.xls'), encoded(b'a\nb', 'a.csv', header_row=0)):
             with self.subTest(payload=payload['filename']):
                 with self.assertRaises(ValueError):
                     preview(payload)
+
+    def test_blank_csv_cells_and_empty_sheets_are_successful_noops(self):
+        for raw in (b'', b'\n\n', b'name,ip\n,,\n', b'Device ID,o.O\n123,o.O\n'):
+            with self.subTest(raw=raw):
+                result = preview(encoded(raw, 'empty.csv'))
+                self.assertEqual(result['rows'], [])
+                self.assertEqual(result['row_numbers'], [])
+        result = preview(encoded(b'\n\nVENUE,DEVICE NAME,IP Adress\nRD POOL,Camera,\n', 'leading-blanks.csv'))
+        self.assertEqual(result['headers'], ['VENUE', 'DEVICE NAME', 'IP Adress'])
+        self.assertEqual(result['rows'], [['RD POOL', 'Camera', '']])
+        self.assertEqual(result['row_numbers'], [4])
 
     def test_csv_ignored_columns_and_placeholder_cells_preserve_alignment(self):
         raw = (' Device_ID ,VENUE,o.O,DEVICE NAME,IP Adress,VLAN,Notes,o.O value\n'
