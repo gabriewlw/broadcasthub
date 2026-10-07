@@ -538,8 +538,8 @@ with tempfile.TemporaryDirectory() as temp:
             page.reload()
             page.locator('#venue-buttons').get_by_role('button', name='Main Lounge', exact=True).wait_for()
             assert page.get_by_role('combobox', name='System for Unassigned camera', exact=True).get_attribute('data-value') == 'Video'
-            assert page.locator('#directory-head span:not(.sr-only)').all_text_contents() == ['VENUE','DEVICE','IP','SYSTEM','NOTES']
-            assert page.locator('.device-row').first.locator(':scope > div').evaluate_all('(nodes) => nodes.map(n => n.className)') == ['venue-cell','device-identity identity-cell','ip-cell','system-cell','notes-cell','row-actions']
+            assert page.locator('#directory-head span:not(.sr-only)').all_text_contents() == ['VENUE','DEVICE','IP','VLAN','SYSTEM','NOTES']
+            assert page.locator('.device-row').first.locator(':scope > div').evaluate_all('(nodes) => nodes.map(n => n.className)') == ['venue-cell','device-identity identity-cell','ip-cell','vlan-cell','system-cell','notes-cell','row-actions']
             directory = page.locator('#device-directory')
             header_top = page.locator('#directory-head').evaluate('(node) => node.getBoundingClientRect().top')
             directory.evaluate('(node) => { node.scrollTop = 200; }')
@@ -560,6 +560,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#iptv-tab').evaluate('(node) => node.click()')
             assert not page.locator('.system-options').count()
             assert page.locator('#directory-venue-title').is_hidden()
+            assert page.locator('#directory-vlan-title').is_hidden()
             assert page.locator('#directory-system-title').inner_text() == 'SOURCE'
             page.get_by_role('tab', name='AV devices', exact=True).click()
             brand = page.locator('.topbar .brand-word')
@@ -697,6 +698,8 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#search').fill('Sorting fixture')
             assert names() == expectations['name-asc']
             assert page.locator('.system-select').evaluate_all("nodes => nodes.every(node => { const text = node.querySelector('span').getBoundingClientRect(), arrow = node.querySelector('svg').getBoundingClientRect(); return Math.abs((text.top+text.bottom-arrow.top-arrow.bottom)/2) < 1; })")
+            assert not page.locator('.device-row .device-icon').count()
+            assert page.locator('.device-row .vlan-cell').all_text_contents() == ['1500'] * 7
             assert page.locator('.device-row').evaluate_all('nodes => nodes.every(node => node.getBoundingClientRect().height < 75)')
             page.locator('#device-directory').screenshot(path='/tmp/broadcast-compact-sorted-directory.png')
             page.set_viewport_size({'width':390,'height':844})

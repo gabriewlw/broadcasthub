@@ -304,6 +304,7 @@ function render() {
   const iptvDirectory = currentTab === 'iptv';
   $('device-directory').classList.toggle('iptv-directory', iptvDirectory);
   $('directory-venue-title').hidden = iptvDirectory;
+  $('directory-vlan-title').hidden = iptvDirectory;
   $('directory-device-title').textContent = iptvDirectory ? 'CHANNEL' : 'DEVICE';
   $('directory-system-title').textContent = iptvDirectory ? 'SOURCE' : 'SYSTEM';
   syncButtons('venue-buttons', $('venue-filter').value);
@@ -335,8 +336,6 @@ function render() {
   const rows = results.map(device => {
     const row = element('article', 'device-row');
     const identity = element('div', 'device-identity identity-cell');
-    const icon = element('span', 'device-icon', {Video:'▣',Audio:'♫',Lighting:'☼',Network:'⌘',Control:'⌁',Other:'◇'}[device.discipline]);
-    icon.setAttribute('aria-hidden','true');
     const title = element('div');
     title.append(element('div', 'device-name', device.name), element('span', 'device-category', device.category));
     const notes = element('textarea', 'device-notes-editor');
@@ -361,13 +360,13 @@ function render() {
     };
     const notesCell = element('div', 'notes-cell');
     notesCell.append(notes);
-    identity.append(icon, title);
+    identity.append(title);
     const ip = element('div', 'ip-cell');
     const iptv = device.record_type === 'iptv';
     if (iptv) row.classList.add('iptv-row');
     const ipLine = element('div', 'ip-info-line');
     ipLine.append(element('div', 'device-ip', device.ip));
-    ip.append(ipLine, element('span', 'cell-caption', iptv ? (device.port ? `Port ${device.port}` : '') : device.vlan == null ? '' : `VLAN ${device.vlan}`));
+    ip.append(ipLine, element('span', 'cell-caption', iptv ? (device.port ? `Port ${device.port}` : '') : ''));
     const confirmation = element('button', `ip-confirm ${device.ip_confirmed ? 'confirmed' : 'pending'}`, device.ip_confirmed ? '✓ IP confirmed' : '● Confirm IP');
     confirmation.type = 'button';
     confirmation.disabled = Boolean(device.ip_confirmed);
@@ -402,7 +401,11 @@ function render() {
     const edit = element('button', 'quiet', 'Edit'); edit.setAttribute('aria-label', `Edit ${deviceLabel(device)}`); edit.onclick = () => openForm(device);
     const remove = element('button', 'quiet', 'Delete'); remove.setAttribute('aria-label', `Delete ${deviceLabel(device)}`);
     remove.onclick = () => { deleting = device; $('delete-description').textContent = `${device.name} · ${device.ip} · ${iptv ? 'Port ' + (device.port || 'not set') : 'VLAN ' + device.vlan}`; $('delete-error').hidden = true; $('delete-dialog').showModal(); $('cancel-delete').focus(); };
-    actions.append(edit,remove); if (!iptv) row.append(venue); row.append(identity,ip,system,notesCell,actions); return row;
+    actions.append(edit,remove);
+    if (!iptv) row.append(venue);
+    row.append(identity,ip);
+    if (!iptv) row.append(element('div', 'vlan-cell', device.vlan ?? ''));
+    row.append(system,notesCell,actions); return row;
   });
   $('device-list').replaceChildren(...rows);
   renderImportWarnings();
