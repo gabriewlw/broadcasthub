@@ -236,3 +236,21 @@ textarea { resize: vertical; }
   #equipment-table td.equipment-actions { display: flex; justify-content: flex-end; align-items: center; }
   #equipment-table td.equipment-actions::before { margin-right: auto; }
 }
+
+
+/* Keep the seven equipment fields visually distinct in entry and listing. */
+#equipment-form .form-grid { grid-template-columns: 1fr; gap: 12px; }
+#equipment-form .form-grid > label { padding: 12px; border: 1px solid #373b44; border-radius: 6px; background: #101318; gap: 10px; }
+#equipment-table th, #equipment-table td { border-right: 1px solid #373b44; }
+#equipment-table th:last-child, #equipment-table td:last-child { border-right: 0; }
+#equipment-table th { background: #1b1e24; }
+@media (min-width: 601px) { #equipment-table { min-width: 1050px; } }
+@media (max-width: 600px) {
+  #equipment-table td { display: block; padding: 12px; margin: 8px 0; border: 1px solid #373b44; border-radius: 5px; background: #101318; }
+  #equipment-table td::before { display: block; padding: 0 0 8px; }
+  #equipment-table td.equipment-actions { border: 0; background: transparent; padding: 6px 0; }
+  #equipment-table td.equipment-actions::before { padding: 0; }
+}
+
+.equipment-filters { grid-template-columns: 2fr 1fr auto; }
+@media (max-width: 600px) { .equipment-filters { grid-template-columns: 1fr; } }

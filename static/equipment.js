@@ -10,7 +10,6 @@
     try {
       items = (await api('/api/equipment')).equipment;
       $('equipment-error').hidden = true;
-      options('equipment-brand-filter', items.map(i => i.brand));
       options('equipment-location-filter', items.map(i => i.location));
       $('equipment-location-options').replaceChildren(...[...new Set(items.map(i => i.location))].map(v => new Option(v,v)));
       renderEquipment();
@@ -24,7 +23,6 @@
   function renderEquipment() {
     const query = $('equipment-search').value.trim().toLowerCase();
     const results = items.filter(item => fields.some(field => String(item[field]).toLowerCase().includes(query)) &&
-      (!$('equipment-brand-filter').value || item.brand === $('equipment-brand-filter').value) &&
       (!$('equipment-location-filter').value || item.location === $('equipment-location-filter').value));
     $('equipment-records').textContent = items.length;
     $('equipment-units').textContent = items.reduce((total,item) => total + item.quantity, 0);
@@ -74,8 +72,8 @@
   $('equipment-empty-add').onclick = () => openEquipment();
   $('equipment-refresh').onclick = loadEquipment;
   $('equipment-import').onclick = () => $('import-file').click();
-  for (const id of ['equipment-search','equipment-brand-filter','equipment-location-filter']) $(id).addEventListener(id.endsWith('search') ? 'input' : 'change', renderEquipment);
-  $('equipment-clear').onclick = () => { ['equipment-search','equipment-brand-filter','equipment-location-filter'].forEach(id => { $(id).value = ''; }); renderEquipment(); };
+  for (const id of ['equipment-search','equipment-location-filter']) $(id).addEventListener(id.endsWith('search') ? 'input' : 'change', renderEquipment);
+  $('equipment-clear').onclick = () => { ['equipment-search','equipment-location-filter'].forEach(id => { $(id).value = ''; }); renderEquipment(); };
   $('cancel-equipment-delete').onclick = () => $('equipment-delete-dialog').close();
   $('confirm-equipment-delete').onclick = async () => {
     $('confirm-equipment-delete').disabled = true;
