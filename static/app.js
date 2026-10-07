@@ -3,6 +3,7 @@ const $ = id => document.getElementById(id);
 let devices = [], editing = null, deleting = null, timer, currentTab = 'device';
 let importWarnings = [];
 const pendingNoteSaves = new Map();
+const pendingWrites = new Set();
 const tabDevices = () => devices.filter(d => (d.record_type || 'device') === currentTab);
 const form = $('device-form');
 const filters = ['search', 'venue-filter', 'system-filter', 'category-filter', 'vlan-filter', 'source-filter', 'address-filter'];
@@ -213,11 +214,35 @@ function toast(message) {
 async function api(path, method = 'GET', body) {
   const options = {method, headers: {'Content-Type': 'application/json'}};
   if (body !== undefined) options.body = JSON.stringify(body);
-  const response = await fetch(path, options);
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error || 'Request failed. Please try again.');
-  return data;
+  const request = (async () => {
+    const response = await fetch(path, options);
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Request failed. Please try again.');
+    return data;
+  })();
+  if (method !== 'GET') pendingWrites.add(request);
+  try { return await request; }
+  finally { pendingWrites.delete(request); }
 }
+document.querySelectorAll('.report-download').forEach(link => {
+  link.addEventListener('click', async event => {
+    event.preventDefault();
+    if (link.getAttribute('aria-disabled') === 'true') return;
+    link.setAttribute('aria-disabled', 'true');
+    try {
+      // A download immediately after a note edit must include that saved note.
+      if (document.activeElement?.matches('.device-notes-editor')) document.activeElement.blur();
+      await Promise.all([...pendingNoteSaves.values(), ...pendingWrites]);
+      const response = await fetch(link.href);
+      if (!response.ok) throw new Error((await response.json()).error || 'Could not export inventory.');
+      const url = URL.createObjectURL(await response.blob());
+      const download = element('a'); download.href = url; download.download = link.download;
+      document.body.append(download); download.click(); download.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch(error) { toast('Export failed: ' + error.message); }
+    finally { link.removeAttribute('aria-disabled'); }
+  });
+});
 function options(id, values) {
   const select = $(id), previous = select.value;
   while (select.options.length > 1) select.remove(1);

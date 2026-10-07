@@ -10,6 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
 from spreadsheets import preview as spreadsheet_preview
+from exports import network_xlsx, equipment_xlsx, network_pdf, equipment_pdf
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get('IPTRACKING_DB', ROOT / 'data' / 'inventory.sqlite3'))
@@ -433,6 +434,16 @@ class Handler(BaseHTTPRequestHandler):
     def dispatch(self):
         path = urlsplit(self.path).path
         if self.command == 'GET':
+            reports = {
+                '/api/export.xlsx': (network_xlsx, inventory, 'broadcast-network.xlsx'),
+                '/api/export.pdf': (network_pdf, inventory, 'broadcast-network.pdf'),
+                '/api/equipment/export.xlsx': (equipment_xlsx, equipment_inventory, 'broadcast-equipment.xlsx'),
+                '/api/equipment/export.pdf': (equipment_pdf, equipment_inventory, 'broadcast-equipment.pdf'),
+            }
+            if path in reports:
+                generate, read, filename = reports[path]
+                mime = 'application/pdf' if filename.endswith('.pdf') else 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+                return self.send(200, generate(read()), mime, filename)
             if path == '/api/equipment':
                 return self.send(200, {'equipment': equipment_inventory()})
             if path == '/api/equipment/export':

@@ -1,5 +1,6 @@
 """Optional end-to-end check: requires Playwright and Chromium."""
 import json
+import io
 import shutil
 import sys
 import tempfile
@@ -8,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import app
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 from playwright.sync_api import sync_playwright
 
 with tempfile.TemporaryDirectory() as temp:
@@ -577,6 +578,27 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#skip-review-row').click()
             page.locator('#spreadsheet-dialog').wait_for(state='hidden')
             assert len(app.inventory()) == before
+            # Exporting immediately after editing a note waits for that save.
+            notes_input = page.get_by_role('textbox', name='Notes for Unassigned camera', exact=True)
+            notes_input.fill('Exported immediately after edit')
+            with page.expect_download() as download:
+                page.locator('#inventory').get_by_role('link', name='XLSX ↓', exact=True).click()
+            assert download.value.suggested_filename == 'broadcast-network.xlsx'
+            workbook = load_workbook(io.BytesIO(Path(download.value.path()).read_bytes()))
+            assert workbook.sheetnames == ['AV devices','IPTV channels']
+            exported = next(row for row in list(workbook['AV devices'].values)[1:] if row[1] == 'Unassigned camera')
+            assert exported[4] == 'Video' and exported[5] == 'Exported immediately after edit'
+            with page.expect_download() as download:
+                page.locator('#inventory').get_by_role('link', name='PDF ↓', exact=True).click()
+            assert download.value.suggested_filename == 'broadcast-network.pdf'
+            assert Path(download.value.path()).read_bytes().startswith(b'%PDF-')
+            page.get_by_role('tab', name='Equipment inventory', exact=True).click()
+            for extension, label in [('xlsx','XLSX ↓'), ('pdf','PDF ↓')]:
+                with page.expect_download() as download:
+                    page.locator('#equipment-panel').get_by_role('link', name=label, exact=True).click()
+                assert download.value.suggested_filename == f'broadcast-equipment.{extension}'
+                data = Path(download.value.path()).read_bytes()
+                assert data.startswith(b'PK') if extension == 'xlsx' else data.startswith(b'%PDF-')
             assert not errors, errors
             browser.close()
             print('PASS: mobile create, all filters, validation, edit, export, delete, import, reload persistence; desktop/mobile overflow; no JS errors.')

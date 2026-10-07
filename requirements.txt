@@ -1,3 +1,6 @@
 openpyxl==3.1.5
 et_xmlfile==2.0.0
 defusedxml==0.7.1
+reportlab==4.4.9
+pillow==12.3.0
+charset-normalizer==3.5.2
