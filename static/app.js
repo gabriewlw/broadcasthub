@@ -210,7 +210,7 @@ function switchTab(type) {
 
   $('hero-title').replaceChildren(document.createTextNode(iptv ? 'Every channel.' : 'Every device.'), element('br'), document.createTextNode(iptv ? 'Every source.' : 'Every venue.'), element('br'), element('span', '', 'One clear view.'));
   $('hero-intro').textContent = iptv ? 'Keep your onboard and satellite channel lineup in view. Track stream addresses and ports, organize channels by source, and take your inventory from the control room to your phone.' : 'Manage your broadcast equipment, channel lineups, and AV connections. Keep your production workspace organized from the control room to your phone.';
-  $('example-ip').textContent = iptv ? '239.1.1.10' : '10.24.176.66';
+  $('example-ip').textContent = iptv ? '239.1.1.10' : '10.24.176.67';
   $('example-name').textContent = iptv ? 'Ship information' : 'ATEM 1 M/E Advanced Panel 10';
   $('example-tags').replaceChildren(...(iptv ? ['Onboard', 'Port 1234'] : ['Liquid Lounge', 'Video', 'VLAN 1500']).map(text => element('span', '', text)));
 

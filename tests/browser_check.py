@@ -583,30 +583,18 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#directory-vlan-title').is_hidden()
             assert page.locator('#directory-system-title').inner_text() == 'SOURCE'
             page.get_by_role('tab', name='AV devices', exact=True).click()
-            brand = page.locator('.site-footer .brand-word')
+            brand = page.locator('.site-footer strong')
             page.evaluate('document.fonts.ready')
             assert 'Poppins' in brand.evaluate('(node) => getComputedStyle(node).fontFamily')
             assert page.evaluate('document.fonts.check(\'12px "Poppins"\')')
             assert page.evaluate('Array.from(document.fonts).some(font => font.family === \'Poppins\' && font.status === \'loaded\')')
-            assert brand.evaluate('(node) => getComputedStyle(node).animationDuration') == '0.2s'
+            assert brand.inner_text() == 'BROADCAST HUB'
+            assert brand.evaluate('(node) => getComputedStyle(node).animationName') == 'none'
             assert page.locator('.topbar .brand-logo').get_attribute('src') == '/brand-logo.png'
             assert page.locator('.topbar .brand-logo').evaluate('(image) => image.complete && image.naturalWidth > 0')
             assert not page.locator('.topbar .brand-word').count()
             assert page.locator('.topbar .record-o').count() == 0
-            assert page.locator('.site-footer .record-o').evaluate('(node) => getComputedStyle(node, "::after").animationDelay') == '0.2s'
-            assert page.locator('.site-footer .brand-word').evaluate_all('''nodes => nodes.every(brand => {
-                const probe = document.createElement('span');
-                probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
-                brand.append(probe);
-                const baseline = probe.getBoundingClientRect().top;
-                const circle = brand.querySelector('.record-o').getBoundingClientRect();
-                const style = getComputedStyle(brand);
-                const context = document.createElement('canvas').getContext('2d');
-                context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-                const cap = context.measureText('H').actualBoundingBoxAscent;
-                probe.remove();
-                return Math.abs(circle.bottom - baseline) < .2 && Math.abs(circle.height - cap) < 1;
-            })''')
+            assert not page.locator('.site-footer .record-o').count()
             page.locator('.topbar .brand').screenshot(path='/tmp/broadcast-title-rec-alignment.png')
             notes_input = page.get_by_role('textbox', name='Notes for Unassigned camera', exact=True)
             assert notes_input.input_value() == 'Rack B, review later'

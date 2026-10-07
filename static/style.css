@@ -73,7 +73,7 @@ button.primary, button.secondary, button.danger { padding: 12px 18px; border-rad
 .danger { background: #c92f38; color: #fff; }
 .quiet { background: transparent; border: 0; border-radius: 5px; padding: 10px; color: var(--muted); font-size: 12px; min-height: 44px; }
 .quiet:hover { color: var(--accent-text); background: #202329; }
-.network-card { position: relative; overflow: hidden; width: 100%; max-width: 360px; justify-self: end; background: radial-gradient(circle at top right, #c92f3812, transparent 60%), linear-gradient(125deg, #15181d, #111418); border: 1px solid #30333a; border-radius: 12px; padding: 20px; box-shadow: 0 10px 28px #0002; }
+.network-card { position: relative; overflow: hidden; width: 100%; max-width: 384px; justify-self: end; background: radial-gradient(circle at top right, #c92f3812, transparent 60%), linear-gradient(125deg, #15181d, #111418); border: 1px solid #30333a; border-radius: 12px; padding: 20px; box-shadow: 0 10px 28px #0002; }
 .network-card::before { content: ""; pointer-events: none; position: absolute; inset: 0; opacity: .16; background: repeating-linear-gradient(90deg, transparent 0 47px, #282c32 48px 49px); }
 .network-card > * { position: relative; }
 .network-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; font: 8px var(--font-ui); letter-spacing: 1.4px; color: var(--muted); }
@@ -300,17 +300,6 @@ textarea { resize: vertical; }
 @media (max-width: 600px) { .equipment-filters { grid-template-columns: 1fr; } }
 
 
-/* Reveal the terminal lettering first, then start the recording light. */
-.brand-word { white-space: nowrap; display: inline-block; font-family: var(--font-ui); animation: brand-typing 200ms steps(13,end) both; }
-.record-o { display: inline-block; position: relative; width: .72em; height: .72em; width: 1cap; height: 1cap; vertical-align: baseline; margin-inline: .025em; }
-.record-o::after { content: ""; position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; background: var(--accent); animation: recording-pulse 1.8s ease-in-out 200ms infinite; }
-@keyframes brand-typing { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(-.5em); } }
-@keyframes recording-pulse {
-  0%, 100% { opacity: .65; box-shadow: 0 0 0 0 #ef444400; }
-  50% { opacity: 1; box-shadow: 0 0 0 .2em #ef444425, 0 0 .75em #ef444470; }
-}
-@media (prefers-reduced-motion: reduce) { .brand-word { animation: none; } .record-o::after { animation: none; opacity: 1; } }
-
 .import-warnings{margin:0 20px 20px;padding:18px;border:1px solid #a16207;border-radius:10px;background:#211b10;color:#fcd34d;overflow-wrap:anywhere}.import-warnings h3{margin:0 0 8px;font-size:16px}.import-warnings p,.import-warnings li{font-size:13px;line-height:1.6}.import-warnings ul{padding-left:20px;max-height:260px;overflow-y:auto}
 
 .choice-button.venue-choice{color:var(--venue-color);border-color:color-mix(in srgb,var(--venue-color) 50%,var(--border));background:color-mix(in srgb,var(--venue-color) 9%,#14161b)}
@@ -365,7 +354,7 @@ button.system-select{display:flex;justify-content:space-between;align-items:cent
 
 .device-ip,.network-ip,.vlan-cell{font-variant-numeric:tabular-nums}
 
-.brand-logo{display:block;width:250px;max-width:100%;height:42px;object-fit:cover;object-position:center}
+.brand-logo{display:block;width:250px;max-width:100%;height:42px;object-fit:cover;object-position:center;transform:translateX(-3%)}
 @media(max-width:600px){.brand-logo{width:220px;height:38px}}
 
 .network-card-top img{width:32px;height:32px;padding:6px;border:1px solid #4a2830;border-radius:8px;background:#21171b}
@@ -394,6 +383,12 @@ button.system-select{display:flex;justify-content:space-between;align-items:cent
 .network-card:has(.example-media:not([hidden])) .network-ip{margin-top:8px}
 
 .hero-side{display:flex;flex-direction:column;align-items:flex-end;gap:14px;min-width:0}
-.hero-side>#add-device{min-width:148px}
 
 .hero-copy{display:flex;flex-direction:column;align-items:flex-start}
+
+.workspace-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;border-bottom:1px solid var(--border)}
+.workspace-bar .inventory-tabs{flex:1;min-width:0;margin:0;border:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+.workspace-bar .inventory-tabs::-webkit-scrollbar{display:none}
+.workspace-bar .inventory-tabs button{flex-shrink:0;white-space:nowrap}
+.workspace-bar>#add-device{flex-shrink:0;min-width:148px;height:44px;white-space:nowrap}
+@media(max-width:600px){.workspace-bar{gap:10px}.workspace-bar>#add-device{min-width:120px;padding:8px 10px;font-size:12px}}
