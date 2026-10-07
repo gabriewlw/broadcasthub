@@ -226,7 +226,7 @@ function switchTab(type) {
   $('source-filter-group').hidden = !iptv;
   for (const id of ['venue-filter-group','venue-stat','vlan-stat','validation-note']) $(id).hidden = iptv;
   document.querySelector('.stats').classList.toggle('iptv-stats', iptv);
-  $('confirmation-legend').textContent = iptv ? 'Channel addresses and stream ports · Onboard / Satellite' : 'Yellow: awaiting confirmation · Green: manually confirmed';
+  $('confirmation-legend').textContent = iptv ? 'Channel addresses and stream ports · Onboard / Satellite' : 'Yellow: awaiting confirmation · Green: reachability confirmed';
   updateFilterOptions(); render();
 }
 const inventoryTabs = [['device-tab','device'],['iptv-tab','iptv'],['equipment-tab','equipment']];
@@ -392,7 +392,7 @@ function render() {
     confirmation.type = 'button';
     confirmation.disabled = Boolean(device.ip_confirmed);
     confirmation.setAttribute('aria-label', `${device.ip_confirmed ? 'IP confirmed for' : 'Confirm IP for'} ${deviceLabel(device)}`);
-    confirmation.title = device.ip_confirmed ? 'Manually confirmed. This is not a reachability test.' : 'Click to manually confirm this IP assignment.';
+    confirmation.title = device.ip_confirmed ? 'Network reachability confirmed by you.' : 'Click after verifying that this device is reachable on the network.';
     confirmation.onclick = async () => {
       confirmation.disabled = true;
       try {
