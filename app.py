@@ -298,9 +298,6 @@ def import_devices(payload):
             numbers.append(number)
         except ValueError as exc:
             raise ValueError(f'Device row {number}: {exc} Nothing was imported.') from None
-    endpoints = [device_identity(row) for row in rows if row['record_type'] == 'iptv' and device_identity(row) is not None]
-    if len(set(endpoints)) != len(endpoints):
-        raise ValueError('The file contains duplicate IPTV IP/port endpoints. Nothing was imported.')
     # A single transaction makes imports atomic. Existing records are never overwritten.
     with connect() as con:
         con.execute('BEGIN IMMEDIATE')

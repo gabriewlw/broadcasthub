@@ -561,10 +561,11 @@ const equipmentImportFields = [
 const iptvImportFields = [
   ['name', 'Channel Name', ['channel name','channel','name']],
   ['ip', 'MCAST IP [S]', ['mcast ip [s]','mcast ip','multicast ip','ip address','ip adress','ip','ipv4']],
-  ['port', 'MCAST PORT [S]', ['mcast port [s]','mcast port','multicast port','port','udp port','stream port','port number']]
+  ['port', 'MCAST PORT [S]', ['mcast port [s]','mcast port','multicast port','port','udp port','stream port','port number']],
+  ['notes', 'Notes (optional)', ['notes','note','comments','description']]
 ];
 const importFields = () => currentTab === 'equipment' ? equipmentImportFields : currentTab === 'device'
-  ? networkImportFields.filter(([field]) => ['venue','name','ip','vlan'].includes(field))
+  ? networkImportFields.filter(([field]) => ['venue','name','ip','vlan','notes'].includes(field))
   : iptvImportFields;
 const normalizedHeader = value => value.toLowerCase().replace(/[_-]/g, ' ').replace(/\s+/g, ' ').trim();
 function mappedRows(applyVenueEdits = true) {
@@ -628,6 +629,7 @@ function showSpreadsheetPreview() {
     card.append(element('strong', '', `Row ${spreadsheetData.row_numbers[index]} · ${row.name}`));
     card.append(element('p', '', (row.record_type === 'iptv' ? [row.ip, row.port ? `Port ${row.port}` : '', row.channel_source] : [row.ip, row.vlan ? `VLAN ${row.vlan}` : '', row.venue]).filter(Boolean).join(' · ')));
     card.append(element('p', '', [row.discipline, row.category].filter(Boolean).join(' / ')));
+    if (row.notes) card.append(element('p', '', row.notes));
     return card;
   }));
 }
@@ -677,6 +679,16 @@ $('reload-sheet').onclick = loadSpreadsheet;
 // Sheet/header changes must be loaded before an import can be confirmed.
 $('sheet-choice').onchange = $('header-row').oninput = () => { $('confirm-import').disabled = true; };
 const meaningfulImportRow = row => Object.entries(row).some(([field,value]) => field !== 'record_type' && value !== '');
+function importAddressKey(row) {
+  const ip = (row.ip || '').trim();
+  if (!/^(?:0|[1-9]\d{0,2})(?:\.(?:0|[1-9]\d{0,2})){3}$/.test(ip) || ip.split('.').some(part => Number(part) > 255)) return null;
+  if ((row.record_type || 'device') === 'device') return `device:${ip}`;
+  const port = String(row.port ?? '').trim();
+  return /^\d+$/.test(port) && Number(port) >= 1 && Number(port) <= 65535 ? `iptv:${ip}:${Number(port)}` : null;
+}
+function skippedDuplicateImport(entry, row = entry.row) {
+  return {added:0, skipped:1, warnings:[`Row ${entry.number}: ${row.name || ''} · ${row.venue || ''} · duplicate IP ${row.ip} already exists in the inventory. Skipped; the first record was kept.`]};
+}
 let finishRowReview = null, rowReviewSaving = false;
 function endRowReview(result) {
   if (rowReviewSaving || !finishRowReview) return;
@@ -686,7 +698,7 @@ function endRowReview(result) {
 $('stop-row-review').onclick = $('cancel-row-review').onclick = () => endRowReview(null);
 $('skip-review-row').onclick = () => endRowReview({skippedRow:true});
 $('row-review-dialog').addEventListener('cancel', event => { event.preventDefault(); endRowReview(null); });
-function reviewImportRow(entry, index, total, tab) {
+function reviewImportRow(entry, index, total, tab, knownAddresses) {
   return new Promise(resolve => {
     finishRowReview = resolve;
     const equipment = tab === 'equipment';
@@ -698,7 +710,8 @@ function reviewImportRow(entry, index, total, tab) {
     $('row-review-fields').style.setProperty('--review-columns', fields.length);
     $('row-review-fields').replaceChildren(...fields.map(([field, label]) => {
       const group = element('label', '', label.replace(' (optional)', ''));
-      const input = element('input'); input.id = `review-${field}`;
+      const input = element(field === 'notes' ? 'textarea' : 'input'); input.id = `review-${field}`;
+      if (field === 'notes') input.rows = 2;
       input.value = entry.row[field] ?? ''; input.autocomplete = 'off';
       input.maxLength = field === 'notes' || field === 'description' ? 2000 : 120;
       if (field === 'ip') input.spellcheck = false;
@@ -731,7 +744,9 @@ function reviewImportRow(entry, index, total, tab) {
       } else row.location = cleanVenue(row.location);
       // Clearing the final value makes this an empty row, which needs no write.
       if (!meaningfulImportRow(row)) { endRowReview({skippedRow:true}); return; }
-      const dialogControls = [...$('row-review-dialog').querySelectorAll('button,input')];
+      const addressKey = equipment ? null : importAddressKey(row);
+      if (addressKey && knownAddresses.has(addressKey)) { endRowReview(skippedDuplicateImport(entry, row)); return; }
+      const dialogControls = [...$('row-review-dialog').querySelectorAll('button,input,textarea')];
       rowReviewSaving = true; dialogControls.forEach(control => { control.disabled = true; });
       $('row-review-error').hidden = true;
       let result;
@@ -739,6 +754,7 @@ function reviewImportRow(entry, index, total, tab) {
         result = await api(equipment ? '/api/equipment/import' : '/api/import', 'POST', equipment
           ? {version:1,equipment:[row]}
           : {version:1,devices:[row],source:'spreadsheet',row_numbers:[entry.number]});
+        if (result.added && addressKey) knownAddresses.add(addressKey);
       } catch(error) {
         $('row-review-error').textContent = error.message.replace('Nothing was imported.', 'This row was not imported. Previously accepted rows remain saved.');
         $('row-review-error').hidden = false;
@@ -759,17 +775,22 @@ $('spreadsheet-form').onsubmit = async event => {
   try {
     const tab = currentTab;
     const entries = mappedRows().map((row,index) => ({row,number:spreadsheetData.row_numbers[index]})).filter(({row}) => meaningfulImportRow(row));
+    const saved = tab === 'equipment' ? [] : (await api('/api/devices')).devices;
+    const knownAddresses = new Set(saved.map(importAddressKey).filter(Boolean));
     let added = 0, existing = 0, skipped = 0, stopped = false;
     if (tab === 'device') importWarnings = [];
     for (let index = 0; index < entries.length; index++) {
       if (stopSpreadsheetReview) { stopped = true; break; }
-      const result = await reviewImportRow(entries[index], index, entries.length, tab);
+      const addressKey = tab === 'equipment' ? null : importAddressKey(entries[index].row);
+      const result = addressKey && knownAddresses.has(addressKey)
+        ? skippedDuplicateImport(entries[index])
+        : await reviewImportRow(entries[index], index, entries.length, tab, knownAddresses);
       if (result === null) { stopped = true; break; }
       if (result.skippedRow) skipped++;
       else {
         added += result.added; existing += result.skipped;
         if (tab === 'device') importWarnings.push(...(result.warnings || []));
-        await load();
+        if (result.added) await load();
       }
     }
     spreadsheetReviewing = false; closeSpreadsheet();

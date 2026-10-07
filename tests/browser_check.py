@@ -23,11 +23,12 @@ with tempfile.TemporaryDirectory() as temp:
             page = context.new_page()
             errors = []
 
-            def accept_rows(count):
+            def accept_rows(count, total=None):
+                total = count if total is None else total
                 for index in range(count):
                     page.locator('#row-review-dialog').wait_for(state='visible')
                     progress = page.locator('#row-review-progress').inner_text()
-                    assert f'{index + 1} of {count}' in progress
+                    assert f'{index + 1} of {total}' in progress
                     page.locator('#accept-review-row').click()
                     if index + 1 < count:
                         page.wait_for_function("previous => document.getElementById('row-review-dialog').open && document.getElementById('row-review-progress').textContent !== previous", arg=progress)
@@ -235,12 +236,12 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('button', name='Cancel', exact=True).click()
             path = Path(temp) / 'iptv.csv'
             path.write_text('Name,IP Address,Port,Channel Name,MCAST IP [S],MCAST PORT [S],Source,Category,Inventory type,Notes\n'
-                            'Wrong name,invalid,bad,Movie channel,239.1.1.12,5000,Onboard,Ignored category,device,Ignored note\n'
-                            'Wrong name,invalid,bad,Skipped channel,239.1.1.13,5001,Satellite,Ignored category,device,Ignored note\n'
-                            ',,,,,,Invalid source,Ignored category,unknown,Ignored note\n')
+                            'Wrong name,invalid,bad,Movie channel,239.1.1.12,5000,Onboard,Ignored category,device,Imported channel note\n'
+                            'Wrong name,invalid,bad,Skipped channel,239.1.1.13,5001,Satellite,Ignored category,device,Imported channel note\n'
+                            ',,,,,,Invalid source,Ignored category,unknown,\n')
             page.locator('#import-file').set_input_files(str(path))
             page.locator('#map-port').wait_for()
-            assert page.locator('#column-mappings select').evaluate_all('(nodes) => nodes.map(n => n.id)') == ['map-name','map-ip','map-port']
+            assert page.locator('#column-mappings select').evaluate_all('(nodes) => nodes.map(n => n.id)') == ['map-name','map-ip','map-port','map-notes']
             assert page.locator('#map-name').input_value() == '3'
             assert page.locator('#map-ip').input_value() == '4'
             assert page.locator('#map-port').input_value() == '5'
@@ -248,9 +249,11 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#confirm-import').click()
             page.locator('#row-review-dialog').wait_for(state='visible')
             assert page.locator('#row-review-fields input').evaluate_all('(nodes) => nodes.map(n => n.id)') == ['review-name','review-ip','review-port']
-            assert page.locator('#row-review-fields > label').evaluate_all('(nodes) => nodes.map(n => n.childNodes[0].textContent)') == ['Channel Name','MCAST IP [S]','MCAST PORT [S]']
+            assert page.locator('#row-review-fields > label').evaluate_all('(nodes) => nodes.map(n => n.childNodes[0].textContent)') == ['Channel Name','MCAST IP [S]','MCAST PORT [S]','Notes']
             assert page.locator('#review-ip').input_value() == '239.1.1.12'
             assert page.locator('#review-port').input_value() == '5000'
+            assert page.locator('#review-notes').input_value() == 'Imported channel note'
+            page.locator('#review-notes').fill('Reviewed channel notes\nSatellite rack')
             assert len(app.inventory()) == before
             page.locator('#accept-review-row').click()
             page.wait_for_function("() => document.getElementById('row-review-progress').textContent.includes('2 of 2')")
@@ -260,7 +263,8 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('button', name='Edit Movie channel').wait_for()
             imported = next(d for d in app.inventory() if d['name'] == 'Movie channel')
             assert imported['record_type'] == 'iptv' and imported['ip'] == '239.1.1.12' and imported['port'] == 5000
-            assert imported['category'] == imported['notes'] == imported['channel_source'] == imported['venue'] == ''
+            assert imported['category'] == imported['channel_source'] == imported['venue'] == ''
+            assert imported['notes'] == 'Reviewed channel notes\nSatellite rack'
             assert not any(d['name'] == 'Skipped channel' for d in app.inventory())
             assert not page.locator('.ip-confirm').count()
             assert page.locator('.device-row').count() == 3
@@ -335,14 +339,14 @@ with tempfile.TemporaryDirectory() as temp:
             path = Path(temp) / 'venue-devices.csv'
             path.write_text('Device ID,o.O,Name,Location,IP,DEVICE NAME,VENUE,IP Adress,VLAN,Notes,Category,Inventory type,Channel source,Port,System\n'
                             'old-id,unwanted,Wrong name,Wrong location,invalid,CSV switcher,RD MAIN LOUNGE,10.24.176.90,1500,o.O\n'
-                            'old-id,unwanted,Wrong name,Wrong location,invalid,CSV camera,rd MAIN LOUNGE,10.24.176.91,o.O,Ignore this note,Ignored category,unknown,Cable,bad port,bad system\n'
+                            'old-id,unwanted,Wrong name,Wrong location,invalid,CSV camera,rd MAIN LOUNGE,10.24.176.91,o.O,Imported camera notes,Ignored category,unknown,Cable,bad port,bad system\n'
                             'old-id,unwanted,Wrong name,Wrong location,invalid,CSV lights,RD POOL DECK,10.24.176.92,1.5,o.O\n'
                             'old-id,unwanted,Wrong name,Wrong location,invalid,Repeated switcher,RD MAIN LOUNGE,10.24.176.90,1501,o.O\n'
                             'old-id,unwanted,Wrong name,Wrong location,invalid,Existing ATEM,RD MAIN LOUNGE,10.24.176.66,1502,o.O\n')
             page.locator('#import-file').set_input_files(str(path))
             page.locator('#confirm-import').wait_for(state='visible')
             page.wait_for_function("() => !document.getElementById('confirm-import').disabled")
-            assert page.locator('#column-mappings select').evaluate_all('(nodes) => nodes.map(n => n.id)') == ['map-venue','map-name','map-ip','map-vlan']
+            assert page.locator('#column-mappings select').evaluate_all('(nodes) => nodes.map(n => n.id)') == ['map-venue','map-name','map-ip','map-vlan','map-notes']
             assert page.locator('#map-venue').input_value() == '4'
             assert page.locator('#map-name').input_value() == '3'
             assert page.locator('#map-ip').input_value() == '5'
@@ -363,10 +367,11 @@ with tempfile.TemporaryDirectory() as temp:
             assert len([r for r in app.inventory() if r['record_type'] == 'device']) == 3
             page.screenshot(path='/tmp/broadcasthub-venue-preview-mobile.png', full_page=True)
             page.locator('#confirm-import').click()
-            accept_rows(5)
+            accept_rows(3, total=5)
             page.get_by_role('button', name='Edit CSV camera', exact=True).wait_for()
             assert len([r for r in app.inventory() if r['record_type'] == 'device']) == 6
-            assert all(r['notes'] == '' for r in app.inventory() if r['name'].startswith('CSV '))
+            assert next(r['notes'] for r in app.inventory() if r['name'] == 'CSV camera') == 'Imported camera notes'
+            assert all(r['notes'] == '' for r in app.inventory() if r['name'] in ['CSV switcher', 'CSV lights'])
             assert all(r['category'] == '' for r in app.inventory() if r['name'].startswith('CSV '))
             assert {r['name']:r['discipline'] for r in app.inventory() if r['name'].startswith('CSV ')} == {'CSV switcher':'Network','CSV camera':'Video','CSV lights':'Lighting'}
             venues = page.locator('#venue-filter option').all_text_contents()
@@ -416,10 +421,11 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#import-file').set_input_files(str(path))
             page.wait_for_function("() => document.getElementById('spreadsheet-dialog').open && !document.getElementById('confirm-import').disabled")
             assert not page.locator('[id^=default-]').count()
-            assert not page.locator('#map-category, #map-discipline, #map-notes, #map-record_type, #map-channel_source, #map-port').count()
+            assert not page.locator('#map-category, #map-discipline, #map-record_type, #map-channel_source, #map-port').count()
             assert 'Missing' not in page.locator('#spreadsheet-preview').inner_text()
             page.locator('#confirm-import').click()
-            accept_rows(3)
+            accept_rows(4)
+            assert any(row['notes'] == 'Find this device later' for row in app.inventory())
             page.get_by_role('button', name='Edit Unassigned camera', exact=True).wait_for()
             unassigned = page.locator('.device-row').filter(has_text='Unassigned camera')
             assert unassigned.locator('.device-ip').inner_text() == ''
@@ -458,7 +464,7 @@ with tempfile.TemporaryDirectory() as temp:
             # Empty cells and entirely ignored columns submit successfully with no prompt.
             before = len(app.inventory())
             for filename, content in [('blank.csv', 'VENUE,DEVICE NAME,IP Adress,VLAN\n,,,\n,,,\n'),
-                                      ('ignored-only.csv', 'Notes,System,Category\nIgnore this,invalid,Unknown\n')]:
+                                      ('ignored-only.csv', 'System,Category\ninvalid,Unknown\n')]:
                 path = Path(temp) / filename
                 path.write_text(content)
                 page.locator('#import-file').set_input_files(str(path))
@@ -746,6 +752,50 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#sort-order').is_visible()
             page.locator('#sort-order').select_option('ip-desc')
             assert names() == expectations['ip-desc']
+            # Skip saved/just-accepted IPs before review; notes can be edited or blank.
+            page.locator('#clear-filters').click()
+            before = len(app.inventory())
+            original = next(row for row in app.inventory() if row['ip'] == '10.24.176.66')
+            path = Path(temp) / 'duplicate-review-notes.csv'
+            path.write_text('VENUE,DEVICE NAME,IP Address,VLAN,Notes\n'
+                            'RD CONTROL ROOM,Already saved,10.24.176.66,4095,Do not overwrite\n'
+                            'RD CONTROL ROOM,New review camera,10.24.177.1,1500,"Spreadsheet notes\nSecond line"\n'
+                            'RD CONTROL ROOM,Repeated new camera,10.24.177.1,4095,Do not overwrite\n'
+                            'RD CONTROL ROOM,Edited collision,10.24.177.2,1500,\n'
+                            'RD CONTROL ROOM,Next review camera,10.24.177.3,1500,\n')
+            page.locator('#import-file').set_input_files(str(path))
+            page.wait_for_function("() => !document.getElementById('confirm-import').disabled")
+            page.locator('#confirm-import').click()
+            page.locator('#row-review-dialog').wait_for(state='visible')
+            assert page.locator('#review-name').input_value() == 'New review camera'
+            assert '2 of 5' in page.locator('#row-review-progress').inner_text()
+            assert page.locator('#review-notes').input_value() == 'Spreadsheet notes\nSecond line'
+            page.locator('#review-notes').fill('Reviewed notes\nRack 3')
+            review_action('#accept-review-row')
+            assert page.locator('#review-name').input_value() == 'Edited collision'
+            assert '4 of 5' in page.locator('#row-review-progress').inner_text()
+            page.locator('#review-ip').fill('10.24.177.1')
+            page.locator('#review-vlan').fill('4095')
+            review_action('#accept-review-row')
+            assert page.locator('#review-name').input_value() == 'Next review camera'
+            assert page.locator('#review-notes').input_value() == ''
+            review_action('#accept-review-row')
+            assert len(app.inventory()) == before + 2
+            assert next(row['notes'] for row in app.inventory() if row['name'] == 'New review camera') == 'Reviewed notes\nRack 3'
+            assert next(row['notes'] for row in app.inventory() if row['name'] == 'Next review camera') == ''
+            assert next(row for row in app.inventory() if row['id'] == original['id']) == original
+            assert page.locator('#import-warning-list li').count() == 3
+            # A file containing only known IPs completes without asking Yes/Skip.
+            path.write_text('DEVICE NAME,IP Address,VLAN,Notes\n'
+                            'Duplicate original,10.24.176.66,4095,Keep saved notes\n'
+                            'Duplicate reviewed,10.24.177.1,4095,Keep saved notes\n')
+            page.locator('#import-file').set_input_files(str(path))
+            page.wait_for_function("() => !document.getElementById('confirm-import').disabled")
+            page.locator('#confirm-import').click()
+            page.locator('#spreadsheet-dialog').wait_for(state='hidden')
+            assert page.locator('#row-review-dialog').is_hidden()
+            assert len(app.inventory()) == before + 2
+            assert next(row['notes'] for row in app.inventory() if row['name'] == 'New review camera') == 'Reviewed notes\nRack 3'
             assert not errors, errors
             browser.close()
             print('PASS: mobile create, all filters, validation, edit, export, delete, import, reload persistence; desktop/mobile overflow; no JS errors.')

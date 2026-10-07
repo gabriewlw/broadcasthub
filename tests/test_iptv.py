@@ -69,6 +69,19 @@ class IPTVTests(unittest.TestCase):
         self.assertEqual(saved['port'], 1234)
         self.assertEqual(len(app.inventory()), 1)
 
+    def test_import_skips_repeated_endpoints_and_continues(self):
+        self.request('/api/devices', 'POST', dict(CHANNEL, notes='Keep this note'))
+        rows = [dict(CHANNEL, name='Existing endpoint', notes='Do not overwrite'),
+                dict(CHANNEL, name='New endpoint', ip='239.1.1.20', notes='Imported note'),
+                dict(CHANNEL, name='Repeated endpoint', ip='239.1.1.20'),
+                dict(CHANNEL, name='Next endpoint', ip='239.1.1.21')]
+        status, result = self.request('/api/import', 'POST', dict(version=1, devices=rows))
+        self.assertEqual(status, 200)
+        self.assertEqual((result['added'], result['skipped']), (2, 2))
+        self.assertEqual({row['name'] for row in app.inventory()}, {'Ship information', 'New endpoint', 'Next endpoint'})
+        self.assertEqual(next(row['notes'] for row in app.inventory() if row['name'] == 'Ship information'), 'Keep this note')
+        self.assertEqual(next(row['notes'] for row in app.inventory() if row['name'] == 'New endpoint'), 'Imported note')
+
     def test_mixed_export_import_and_old_record_defaults(self):
         self.request('/api/devices', 'POST', test_app.EXAMPLE)
         self.request('/api/devices', 'POST', CHANNEL)
