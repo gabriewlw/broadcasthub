@@ -1,9 +1,13 @@
-# Google Sans Flex
+# Poppins
 
-Source: Google Fonts, https://github.com/google/fonts/tree/main/ofl/googlesansflex
+Source: https://github.com/google/fonts/tree/main/ofl/poppins
 
-Official variable font: `GoogleSansFlex[GRAD,ROND,opsz,slnt,wdth,wght].ttf`.
-Source TTF SHA-256: `c31a482fbecbf2e07e6890134d20078723aadf732c9b9c6c9a44f86f8265b6fe`.
-Converted to WOFF2 with FontTools without changing glyphs or font axes.
-Distributed under the SIL Open Font License, included in `OFL.txt`.
-The application serves this file locally; visitors need no Google Fonts connection.
+Official TTFs converted to WOFF2 with FontTools, preserving all glyphs.
+SIL Open Font License included in OFL.txt. Fonts are served locally for offline localhost use.
+
+Source TTF SHA-256:
+
+- Regular: `7e65201e9b79159e2300267cc885e16c8dcef2424cdfa09a29bfb0980a94a7ba`
+- Medium: `90373e7d838d32468438fc3e152dca0bdb12edcab99ea639f158790b1ba1fd05`
+- SemiBold: `d3bf1bdaf0550e83da9ac0b1d1d9fe6db086835a83aa28578e609a394b9a0286`
+- Bold: `983676516167748b74de6f4771fb384c664fd913acb8b471122ecacf5da5ea6c`

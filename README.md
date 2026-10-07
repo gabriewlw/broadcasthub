@@ -1,6 +1,6 @@
 # Broadcast Hub
 
-A responsive broadcasting workspace for equipment inventory, AV network addresses, and IPTV channel lineups. The site uses Google Sans Flex, bundled locally so it also loads without internet access. System sans-serif fonts provide a fallback while the font loads. The official font is distributed under the SIL Open Font License; see `static/fonts/OFL.txt`. The top Broadcast Hub title has a normal O and types in over 200 ms. The footer retains the red recording light, sized to the capital-letter height and aligned with the letters’ baseline. Reduced-motion preferences show a steady title and light. Use the same web app in iPhone Safari and on a computer; all connected browsers share one SQLite database. No offline mode or App Store installation is required.
+A responsive broadcasting workspace for equipment inventory, AV network addresses, and IPTV channel lineups. The site uses Poppins, bundled locally so it also loads without internet access. System sans-serif fonts provide a fallback while the font loads. The official font is distributed under the SIL Open Font License; see `static/fonts/OFL.txt`. The supplied lowercase Broadcast Hub logo replaces the title at the top left. The footer retains the red recording light, sized to the capital-letter height and aligned with the letters’ baseline. Reduced-motion preferences show a steady title and light. Use the same web app in iPhone Safari and on a computer; all connected browsers share one SQLite database. No offline mode or App Store installation is required.
 
 ## Run
 

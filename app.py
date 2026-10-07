@@ -480,10 +480,10 @@ class Handler(BaseHTTPRequestHandler):
                     # Prevent spreadsheet formula injection in user-supplied strings.
                     writer.writerow({f: ("'" + str(row[f]) if str(row[f]).startswith(('=', '+', '-', '@', '\t', '\r', '\n')) else row[f]) for f in ALL_FIELDS})
                 return self.send(200, output.getvalue().encode('utf-8-sig'), 'text/csv; charset=utf-8', 'broadcast-network.csv')
-            assets = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css'), '/equipment.js': ('equipment.js', 'text/javascript'), '/icon.svg': ('icon.svg', 'image/svg+xml'), '/fonts/GoogleSansFlex.woff2': ('fonts/GoogleSansFlex.woff2', 'font/woff2')}
+            assets = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css'), '/equipment.js': ('equipment.js', 'text/javascript'), '/icon.svg': ('icon.svg', 'image/svg+xml'), '/brand-logo.png': ('brand-logo.png', 'image/png'), '/fonts/Poppins-Regular.woff2': ('fonts/Poppins-Regular.woff2', 'font/woff2'), '/fonts/Poppins-Medium.woff2': ('fonts/Poppins-Medium.woff2', 'font/woff2'), '/fonts/Poppins-SemiBold.woff2': ('fonts/Poppins-SemiBold.woff2', 'font/woff2'), '/fonts/Poppins-Bold.woff2': ('fonts/Poppins-Bold.woff2', 'font/woff2')}
             if path in assets:
                 file, mime = assets[path]
-                return self.send(200, (ROOT / 'static' / file).read_bytes(), mime if mime.startswith('font/') else mime + '; charset=utf-8')
+                return self.send(200, (ROOT / 'static' / file).read_bytes(), mime + '; charset=utf-8' if mime.startswith('text/') or mime == 'image/svg+xml' else mime)
         elif self.command == 'POST' and path == '/api/equipment':
             return self.send(201, save_equipment(self.body()))
         elif self.command == 'POST' and path == '/api/equipment/import':

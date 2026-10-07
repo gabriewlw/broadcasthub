@@ -563,13 +563,15 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#directory-vlan-title').is_hidden()
             assert page.locator('#directory-system-title').inner_text() == 'SOURCE'
             page.get_by_role('tab', name='AV devices', exact=True).click()
-            brand = page.locator('.topbar .brand-word')
+            brand = page.locator('.site-footer .brand-word')
             page.evaluate('document.fonts.ready')
-            assert 'Google Sans Flex' in brand.evaluate('(node) => getComputedStyle(node).fontFamily')
-            assert page.evaluate('document.fonts.check(\'12px "Google Sans Flex"\')')
-            assert page.evaluate('Array.from(document.fonts).some(font => font.family === \'Google Sans Flex\' && font.status === \'loaded\')')
+            assert 'Poppins' in brand.evaluate('(node) => getComputedStyle(node).fontFamily')
+            assert page.evaluate('document.fonts.check(\'12px "Poppins"\')')
+            assert page.evaluate('Array.from(document.fonts).some(font => font.family === \'Poppins\' && font.status === \'loaded\')')
             assert brand.evaluate('(node) => getComputedStyle(node).animationDuration') == '0.2s'
-            assert brand.inner_text() == 'BROADCAST HUB'
+            assert page.locator('.topbar .brand-logo').get_attribute('src') == '/brand-logo.png'
+            assert page.locator('.topbar .brand-logo').evaluate('(image) => image.complete && image.naturalWidth > 0')
+            assert not page.locator('.topbar .brand-word').count()
             assert page.locator('.topbar .record-o').count() == 0
             assert page.locator('.site-footer .record-o').evaluate('(node) => getComputedStyle(node, "::after").animationDelay') == '0.2s'
             assert page.locator('.site-footer .brand-word').evaluate_all('''nodes => nodes.every(brand => {

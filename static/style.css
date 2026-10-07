@@ -1,13 +1,34 @@
 @font-face {
-  font-family: "Google Sans Flex";
-  src: url("/fonts/GoogleSansFlex.woff2") format("woff2");
+  font-family: "Poppins";
+  src: url("/fonts/Poppins-Regular.woff2") format("woff2");
   font-style: normal;
-  font-weight: 1 1000;
+  font-weight: 400;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Poppins";
+  src: url("/fonts/Poppins-Medium.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Poppins";
+  src: url("/fonts/Poppins-SemiBold.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Poppins";
+  src: url("/fonts/Poppins-Bold.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 700;
   font-display: swap;
 }
 :root {
   color-scheme: dark;
-  --font-ui: "Google Sans Flex", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --font-ui: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
   font-family: var(--font-ui);
   font-synthesis: none;
   color: #eeeee9;
@@ -331,3 +352,6 @@ button.system-select{display:flex;justify-content:space-between;align-items:cent
 .device-directory .vlan-cell{font:12px var(--font-ui);line-height:30px}
 
 .device-ip,.network-ip,.vlan-cell{font-variant-numeric:tabular-nums}
+
+.brand-logo{display:block;width:250px;max-width:100%;height:42px;object-fit:cover;object-position:center}
+@media(max-width:600px){.brand-logo{width:220px;height:38px}}
