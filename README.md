@@ -24,7 +24,7 @@ This first version has no user authentication. Run it on a trusted private netwo
 ## Workflow
 
 - Add a device's name, category, venue, system, IPv4 address, VLAN, and optional notes.
-- Search device names, addresses, categories, venues, systems, VLANs, or notes. Combine venue, system, category, and VLAN filters.
+- Search device names, addresses, categories, venues, systems, VLANs, or notes. Tap venue and system buttons to combine filters with category and VLAN. In the device form, select a system button and choose a saved venue button or type a new venue.
 - Edit records or delete them with confirmation.
 - Use **Fill ATEM example** on an empty inventory to populate the form with `10.24.176.66`, Liquid Lounge, Video switcher, Video, VLAN `1500`. This does not insert sample data until you click Save.
 - IP validation checks IPv4 format and rejects loopback, multicast, unspecified, and limited broadcast addresses. VLANs must be integers from 1 to 4094. An IP/VLAN pair must be unique; the same address is allowed in different VLANs.

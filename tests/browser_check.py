@@ -27,10 +27,10 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('.device-name').filter(has_text='ATEM video switcher').wait_for()
             assert app.inventory()[0]['ip'] == '10.24.176.66'
             assert page.locator('#total').inner_text() == '1'
-            page.locator('#system-filter').select_option('Audio')
+            page.locator('#system-buttons').get_by_role('button', name='Audio', exact=True).click()
             assert page.locator('#no-results').is_visible()
             page.get_by_role('button', name='Clear', exact=True).click()
-            page.locator('#venue-filter').select_option('Liquid Lounge')
+            page.locator('#venue-buttons').get_by_role('button', name='Liquid Lounge', exact=True).click()
             page.locator('#category-filter').select_option('Video switcher')
             page.locator('#vlan-filter').select_option('1500')
             assert page.locator('.device-row').count() == 1
@@ -60,6 +60,37 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('button',name='Edit ATEM main').wait_for()
             page.reload()
             page.get_by_role('button',name='Edit ATEM main').wait_for()
+            # A second venue verifies combined button filters and form choices.
+            page.get_by_role('button', name='Add device', exact=True).click()
+            page.locator('[name=name]').fill('Audio console')
+            page.locator('[name=category]').fill('Audio console')
+            page.locator('#form-system-buttons').get_by_role('button', name='Audio', exact=True).click()
+            page.locator('#form-venue-buttons').get_by_role('button', name='Liquid Lounge', exact=True).click()
+            assert page.locator('[name=venue]').input_value() == 'Liquid Lounge'
+            page.locator('[name=venue]').fill('Theater')
+            assert page.locator('#form-venue-buttons button').get_attribute('aria-pressed') == 'false'
+            page.locator('[name=ip]').fill('10.24.176.67')
+            page.locator('[name=vlan]').fill('1500')
+            page.get_by_role('button', name='Save device', exact=True).click()
+            theater = page.locator('#venue-buttons').get_by_role('button', name='Theater', exact=True)
+            theater.wait_for()
+            theater.click()
+            page.locator('#system-buttons').get_by_role('button', name='Audio', exact=True).click()
+            assert theater.get_attribute('aria-pressed') == 'true'
+            assert page.locator('.device-row').count() == 1
+            assert page.locator('.device-name').inner_text() == 'Audio console'
+            page.locator('#system-buttons').get_by_role('button', name='Video', exact=True).click()
+            assert page.locator('#no-results').is_visible()
+            page.locator('#venue-buttons').get_by_role('button', name='All venues', exact=True).click()
+            assert page.locator('.device-name').inner_text() == 'ATEM main'
+            page.get_by_role('button', name='Clear', exact=True).click()
+            assert page.locator('.device-row').count() == 2
+            assert page.locator('#system-buttons').get_by_role('button', name='All systems', exact=True).get_attribute('aria-pressed') == 'true'
+            # Editing reflects the stored selection in both form button groups.
+            page.get_by_role('button', name='Edit ATEM main').click()
+            assert page.locator('#form-system-buttons').get_by_role('button', name='Video', exact=True).get_attribute('aria-pressed') == 'true'
+            assert page.locator('#form-venue-buttons').get_by_role('button', name='Liquid Lounge', exact=True).get_attribute('aria-pressed') == 'true'
+            page.get_by_role('button', name='Cancel', exact=True).click()
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             page.screenshot(path='/tmp/iptracking-mobile.png', full_page=True)
             page.set_viewport_size({'width':1440,'height':1000})

@@ -9,6 +9,28 @@ const element = (tag, className, text) => {
   if (text !== undefined) node.textContent = text;
   return node;
 };
+const systems = ['Video', 'Audio', 'Lighting', 'Control', 'Network', 'Other'];
+function makeButtons(id, values, selected, onSelect, allLabel = null) {
+  const choices = allLabel ? [['', allLabel], ...values.map(v => [v, v])] : values.map(v => [v, v]);
+  $(id).replaceChildren(...choices.map(([value, label]) => {
+    const button = element('button', 'choice-button', label);
+    button.type = 'button';
+    button.dataset.value = value;
+    button.setAttribute('aria-pressed', String(value === selected));
+    button.onclick = () => onSelect(value);
+    return button;
+  }));
+}
+function syncButtons(id, value) {
+  $(id).querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.value === value)));
+}
+function updateVenueButtons() {
+  const venues = [...new Set(devices.map(d => d.venue))].sort((a,b) => a.localeCompare(b));
+  if (!venues.includes($('venue-filter').value)) $('venue-filter').value = '';
+  makeButtons('venue-buttons', venues, $('venue-filter').value, value => { $('venue-filter').value = value; render(); }, 'All venues');
+}
+makeButtons('system-buttons', systems, '', value => { $('system-filter').value = value; render(); }, 'All systems');
+makeButtons('form-system-buttons', systems, '', value => { form.elements.discipline.value = value; syncButtons('form-system-buttons', value); });
 function toast(message) {
   $('toast').textContent = message; $('toast').hidden = false;
   clearTimeout(timer); timer = setTimeout(() => { $('toast').hidden = true; }, 6000);
@@ -36,7 +58,7 @@ async function load() {
     $('venue-count').textContent = new Set(devices.map(d => d.venue)).size;
     $('vlan-count').textContent = new Set(devices.map(d => d.vlan)).size;
     $('system-count').textContent = ['Video', 'Audio', 'Lighting'].map(s => devices.filter(d => d.discipline === s).length).join(' / ');
-    options('venue-filter', devices.map(d => d.venue));
+    updateVenueButtons();
     options('category-filter', devices.map(d => d.category));
     options('vlan-filter', devices.map(d => d.vlan));
     $('venues').replaceChildren(...[...new Set(devices.map(d => d.venue))].map(v => new Option(v, v)));
@@ -49,6 +71,8 @@ async function load() {
   } finally { $('loading').hidden = true; $('refresh').disabled = false; }
 }
 function render() {
+  syncButtons('venue-buttons', $('venue-filter').value);
+  syncButtons('system-buttons', $('system-filter').value);
   const query = $('search').value.trim().toLowerCase();
   const results = devices.filter(d =>
     [d.name,d.ip,d.venue,d.category,d.discipline,d.notes,String(d.vlan)].some(v => v.toLowerCase().includes(query)) &&
@@ -89,8 +113,13 @@ function openForm(device = null) {
   $('form-title').textContent = editing ? 'Edit device' : 'Add device';
   $('save-device').textContent = editing ? 'Save changes' : 'Save device';
   if (device) for (const field of ['name','category','venue','discipline','ip','vlan','notes']) form.elements[field].value = device[field] ?? '';
+  syncButtons('form-system-buttons', form.elements.discipline.value);
+  const venues = [...new Set(devices.map(d => d.venue))].sort((a,b) => a.localeCompare(b));
+  $('venue-suggestions').hidden = !venues.length;
+  makeButtons('form-venue-buttons', venues, form.elements.venue.value, value => { form.elements.venue.value = value; syncButtons('form-venue-buttons', value); });
   $('device-dialog').showModal();
 }
+form.elements.venue.addEventListener('input', () => syncButtons('form-venue-buttons', form.elements.venue.value));
 $('add-device').onclick = () => openForm();
 $('empty-add').onclick = () => openForm();
 $('use-example').onclick = () => openForm({name:'ATEM video switcher', category:'Video switcher', venue:'Liquid Lounge', discipline:'Video', ip:'10.24.176.66', vlan:1500, notes:''});
@@ -100,6 +129,12 @@ $('clear-filters').onclick = () => { filters.forEach(id => $(id).value = ''); re
 $('refresh').onclick = load;
 form.onsubmit = async event => {
   event.preventDefault();
+  if (!form.elements.discipline.value) {
+    $('form-error').textContent = 'Choose a system for this device.';
+    $('form-error').hidden = false;
+    $('form-system-buttons').querySelector('button').focus();
+    return;
+  }
   const data = Object.fromEntries(new FormData(form));
   $('save-device').disabled = true; $('form-error').hidden = true;
   try {

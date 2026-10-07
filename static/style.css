@@ -168,3 +168,20 @@ textarea { resize: vertical; }
   .site-footer a { margin-top: 10px; }
 }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+/* Shared touch-friendly choices for inventory filters and device entry. */
+.filters { grid-template-columns: 2fr 1fr 1fr auto; }
+.button-filter { grid-column: 1/-1; }
+.button-filter, .form-choices { min-width: 0; border: 0; padding: 0; margin: 4px 0 0; }
+.button-filter legend { font: 9px var(--mono); letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+.form-choices legend { font-size: 12px; font-weight: 600; margin-bottom: 8px; }
+.choice-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.choice-button { border: 1px solid #373b44; border-radius: 5px; background: #1b1e24; color: #c6c8d0; padding: 10px 14px; min-height: 44px; font-size: 12px; max-width: 100%; overflow-wrap: anywhere; text-align: left; }
+.choice-button:hover { border-color: #ff7278; color: #fff; }
+.choice-button[aria-pressed="true"] { border-color: var(--accent-text); background: #3b2027; color: #ffc3c6; box-shadow: inset 0 0 0 1px #ff727825; }
+.suggestion-label { font-size: 11px; color: var(--muted); line-height: 1.5; margin: 0 0 10px; }
+@media (max-width: 600px) {
+  .filters { grid-template-columns: 1fr 1fr; }
+  .choice-buttons { gap: 6px; }
+  .choice-button { padding: 10px 12px; }
+}
