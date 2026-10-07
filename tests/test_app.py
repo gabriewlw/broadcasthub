@@ -57,7 +57,7 @@ class AppTests(unittest.TestCase):
         for ip in ('10.24.176.999', 'hello', '127.0.0.1', '224.0.0.1', '0.0.0.0', '255.255.255.255', '10.24.176.066'):
             with self.subTest(ip=ip):
                 self.assertEqual(self.request('/api/devices', 'POST', dict(EXAMPLE, ip=ip))[0], 400)
-        for vlan in (0, 4095, 1.5, True, '1e3', None):
+        for vlan in (0, 4095, 1.5, True, '1e3', 'text'):
             with self.subTest(vlan=vlan):
                 self.assertEqual(self.request('/api/devices', 'POST', dict(EXAMPLE, vlan=vlan))[0], 400)
         self.assertEqual(self.request('/api/devices', 'POST', dict(EXAMPLE, name='  '))[0], 400)
@@ -66,7 +66,7 @@ class AppTests(unittest.TestCase):
     def test_duplicate_scope(self):
         self.assertEqual(self.request('/api/devices', 'POST', EXAMPLE)[0], 201)
         self.assertEqual(self.request('/api/devices', 'POST', EXAMPLE)[0], 409)
-        self.assertEqual(self.request('/api/devices', 'POST', dict(EXAMPLE, vlan=1501))[0], 201)
+        self.assertEqual(self.request('/api/devices', 'POST', dict(EXAMPLE, vlan=1501))[0], 409)
 
     def test_export_import_roundtrip_and_idempotence(self):
         self.request('/api/devices', 'POST', EXAMPLE)
@@ -84,8 +84,11 @@ class AppTests(unittest.TestCase):
         self.assertEqual(self.request('/api/import', 'POST', payload)[0], 400)
         self.assertEqual(app.inventory(), [])
         payload['devices'] = [EXAMPLE, EXAMPLE]
-        self.assertEqual(self.request('/api/import', 'POST', payload)[0], 400)
-        self.assertEqual(app.inventory(), [])
+        status, result = self.request('/api/import', 'POST', payload)
+        self.assertEqual(status, 200)
+        self.assertEqual((result['added'], result['skipped']), (1, 1))
+        self.assertIn(EXAMPLE['ip'], result['warnings'][0])
+        self.assertEqual(len(app.inventory()), 1)
 
     def test_csv_formula_protection(self):
         self.request('/api/devices', 'POST', dict(EXAMPLE, name='=HYPERLINK("evil")'))

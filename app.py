@@ -4,6 +4,7 @@ import io
 import ipaddress
 import json
 import os
+import re
 import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -55,6 +56,16 @@ def connect():
             con.close()
             raise
     con.execute("CREATE UNIQUE INDEX IF NOT EXISTS device_assignment ON devices(ip,vlan) WHERE record_type='device'")
+    # Preserve old records that share an IP across VLANs, but prevent new collisions.
+    con.execute("""CREATE TRIGGER IF NOT EXISTS device_unique_ip_insert
+        BEFORE INSERT ON devices WHEN NEW.record_type='device' AND EXISTS
+        (SELECT 1 FROM devices WHERE record_type='device' AND ip=NEW.ip)
+        BEGIN SELECT RAISE(ABORT, 'Duplicate AV IP address'); END""")
+    con.execute("""CREATE TRIGGER IF NOT EXISTS device_unique_ip_update
+        BEFORE UPDATE OF ip, record_type ON devices
+        WHEN NEW.record_type='device' AND (OLD.ip!=NEW.ip OR OLD.record_type!=NEW.record_type)
+        AND EXISTS (SELECT 1 FROM devices WHERE record_type='device' AND ip=NEW.ip AND id!=NEW.id)
+        BEGIN SELECT RAISE(ABORT, 'Duplicate AV IP address'); END""")
     con.execute("CREATE UNIQUE INDEX IF NOT EXISTS channel_endpoint ON devices(ip,port) WHERE record_type='iptv' AND port IS NOT NULL")
     con.execute("""CREATE TABLE IF NOT EXISTS equipment (
         id INTEGER PRIMARY KEY, brand TEXT NOT NULL, model TEXT NOT NULL,
@@ -70,7 +81,13 @@ def serialize(record):
     row = dict(record)
     if row['record_type'] == 'iptv':
         row.update(venue='', vlan=None, ip_confirmed=0)
+    else:
+        row['venue'] = clean_venue(row['venue'])
     return row
+
+
+def clean_venue(value):
+    return re.sub(r'^RD\s+', '', value.strip(), flags=re.IGNORECASE).strip()
 
 
 def validate(value):
@@ -92,6 +109,8 @@ def validate(value):
             raise ValueError(f'{field.capitalize()} is too long.')
     if record_type == 'iptv':
         result.update(category='IPTV channel', discipline='Video', venue='')
+    else:
+        result['venue'] = clean_venue(result['venue'])
     for field in (('name', 'ip') if record_type == 'iptv' else ('name', 'category', 'venue', 'discipline', 'ip')):
         if not result[field]:
             raise ValueError(f'{field.capitalize()} is required.')
@@ -111,6 +130,9 @@ def validate(value):
         result.update(port=int(port), vlan=None)
     else:
         vlan = value.get('vlan')
+        if vlan is None or vlan == '':
+            result.update(vlan=None, port=None)
+            return result
         if isinstance(vlan, bool) or not isinstance(vlan, (str, int)) or not str(vlan).isascii() or not str(vlan).isdigit():
             raise ValueError('VLAN must be a whole number from 1 to 4094.')
         result['vlan'] = int(vlan)
@@ -132,7 +154,7 @@ def save_device(value, device_id=None):
             cursor = con.execute('INSERT INTO devices (' + ','.join(ALL_FIELDS) + ') VALUES (' + ','.join('?' for _ in ALL_FIELDS) + ')', [row[f] for f in ALL_FIELDS])
             device_id = cursor.lastrowid
         else:
-            cursor = con.execute('UPDATE devices SET ' + ','.join(f + '=?' for f in ALL_FIELDS) + ', ip_confirmed=CASE WHEN ip=? AND vlan=? THEN ip_confirmed ELSE 0 END, updated_at=CURRENT_TIMESTAMP WHERE id=?', [row[f] for f in ALL_FIELDS] + [row['ip'], row['vlan'], device_id])
+            cursor = con.execute('UPDATE devices SET ' + ','.join(f + '=?' for f in ALL_FIELDS) + ', ip_confirmed=CASE WHEN ip=? AND vlan IS ? THEN ip_confirmed ELSE 0 END, updated_at=CURRENT_TIMESTAMP WHERE id=?', [row[f] for f in ALL_FIELDS] + [row['ip'], row['vlan'], device_id])
             if cursor.rowcount == 0:
                 raise LookupError('Device not found.')
         return serialize(con.execute('SELECT * FROM devices WHERE id=?', (device_id,)).fetchone())
@@ -151,7 +173,7 @@ def confirm_ip(device_id, value):
         row = validate(dict(record))
         if value.get('ip') != row['ip'] or value.get('vlan') != row['vlan']:
             raise ValueError('The IP or VLAN has changed. Refresh the inventory before confirming.')
-        cursor = con.execute('UPDATE devices SET ip_confirmed=1, updated_at=CURRENT_TIMESTAMP WHERE id=? AND ip=? AND vlan=?', (device_id, row['ip'], row['vlan']))
+        cursor = con.execute('UPDATE devices SET ip_confirmed=1, updated_at=CURRENT_TIMESTAMP WHERE id=? AND ip=? AND vlan IS ?', (device_id, row['ip'], row['vlan']))
         if not cursor.rowcount:
             raise ValueError('The assignment has changed. Refresh before confirming.')
         return serialize(con.execute('SELECT * FROM devices WHERE id=?', (device_id,)).fetchone())
@@ -162,25 +184,51 @@ def import_devices(payload):
         raise ValueError('Choose a Broadcast Hub network JSON export (version 1).')
     if len(payload['devices']) > 10000:
         raise ValueError('Import supports up to 10,000 devices per file.')
+    spreadsheet = payload.get('source') == 'spreadsheet'
+    row_numbers = payload.get('row_numbers') if spreadsheet else None
+    if row_numbers is not None and (not isinstance(row_numbers, list) or len(row_numbers) != len(payload['devices']) or any(type(n) is not int or not 1 <= n <= 20050 for n in row_numbers)):
+        raise ValueError('Invalid spreadsheet row numbers.')
     rows = []
     for index, value in enumerate(payload['devices'], 1):
         try:
+            if spreadsheet and isinstance(value, dict) and value.get('record_type', 'device') == 'device':
+                value = dict(value)
+                vlan = value.get('vlan')
+                if isinstance(vlan, str):
+                    vlan = vlan.strip()
+                # Ignore text or decimal VLAN values; never invent a VLAN number.
+                value['vlan'] = vlan if type(vlan) is int or (isinstance(vlan, str) and vlan.isascii() and vlan.isdigit()) else None
             rows.append(validate(value))
         except ValueError as exc:
-            raise ValueError(f'Device row {index}: {exc} Nothing was imported.') from None
-    identities = [(row['record_type'], row['ip'], row['port'] if row['record_type'] == 'iptv' else row['vlan']) for row in rows]
-    if len(set(identities)) != len(identities):
-        raise ValueError('The file contains duplicate AV IP/VLAN assignments or IPTV IP/port endpoints. Nothing was imported.')
+            number = row_numbers[index - 1] if row_numbers else index
+            raise ValueError(f'Device row {number}: {exc} Nothing was imported.') from None
+    endpoints = [(row['ip'], row['port']) for row in rows if row['record_type'] == 'iptv']
+    if len(set(endpoints)) != len(endpoints):
+        raise ValueError('The file contains duplicate IPTV IP/port endpoints. Nothing was imported.')
     # A single transaction makes imports atomic. Existing records are never overwritten.
     with connect() as con:
-        existing = {(row['record_type'], row['ip'], row['port'] if row['record_type'] == 'iptv' else row['vlan']) for row in con.execute('SELECT record_type, ip, vlan, port FROM devices')}
+        con.execute('BEGIN IMMEDIATE')
+        existing = {(row['record_type'], row['ip'], row['port'] if row['record_type'] == 'iptv' else None) for row in con.execute('SELECT record_type, ip, port FROM devices')}
         added = 0
-        for row in rows:
-            if (row['record_type'], row['ip'], row['port'] if row['record_type'] == 'iptv' else row['vlan']) in existing:
+        warnings = []
+        seen = set()
+        for index, row in enumerate(rows, 1):
+            identity = (row['record_type'], row['ip'], row['port'] if row['record_type'] == 'iptv' else None)
+            if identity in existing:
+                if row['record_type'] == 'device' and (spreadsheet or identity in seen):
+                    number = row_numbers[index - 1] if row_numbers else index
+                    reason = 'already appears earlier in this file' if identity in seen else 'already exists in the inventory'
+                    warnings.append(f"Row {number}: {row['name']} · {row['venue']} · duplicate IP {row['ip']} {reason}. Skipped; the first record was kept.")
+                seen.add(identity)
                 continue
             con.execute('INSERT INTO devices (' + ','.join(ALL_FIELDS) + ') VALUES (' + ','.join('?' for _ in ALL_FIELDS) + ')', [row[f] for f in ALL_FIELDS])
+            existing.add(identity)
+            seen.add(identity)
             added += 1
-    return {'added': added, 'skipped': len(rows) - added}
+    result = {'added': added, 'skipped': len(rows) - added}
+    if spreadsheet or warnings:
+        result['warnings'] = warnings
+    return result
 
 
 def validate_equipment(value):
@@ -367,8 +415,9 @@ class Handler(BaseHTTPRequestHandler):
             self.send(400, {'error': str(exc)})
         except LookupError as exc:
             self.send(404, {'error': str(exc)})
-        except sqlite3.IntegrityError:
-            self.send(409, {'error': 'This assignment, serial number, or stock record already exists in the inventory.'})
+        except sqlite3.IntegrityError as exc:
+            message = 'This IP address already exists in AV devices. Each AV IP must be unique, even across VLANs.' if 'Duplicate AV IP' in str(exc) else 'This assignment, serial number, or stock record already exists in the inventory.'
+            self.send(409, {'error': message})
         except Exception:
             self.log_error('Internal request error')
             self.send(500, {'error': 'Could not complete the request. Check server storage and try again.'})

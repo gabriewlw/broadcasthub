@@ -1,6 +1,7 @@
 'use strict';
 const $ = id => document.getElementById(id);
 let devices = [], editing = null, deleting = null, timer, currentTab = 'device';
+let importWarnings = [];
 const tabDevices = () => devices.filter(d => (d.record_type || 'device') === currentTab);
 const form = $('device-form');
 const filters = ['search', 'venue-filter', 'system-filter', 'category-filter', 'vlan-filter', 'source-filter'];
@@ -11,6 +12,9 @@ const element = (tag, className, text) => {
   return node;
 };
 const systems = ['Video', 'Audio', 'Lighting', 'Control', 'Network', 'Other'];
+const cleanVenue = value => value.trim().replace(/^RD\s+/i, '').trim();
+// IDs preserve first appearance across imports even when the device list is sorted.
+const savedVenues = () => [...new Set(tabDevices().slice().sort((a,b) => a.id-b.id).map(d => cleanVenue(d.venue)).filter(Boolean))];
 function makeButtons(id, values, selected, onSelect, allLabel = null) {
   const choices = allLabel ? [['', allLabel], ...values.map(v => [v, v])] : values.map(v => [v, v]);
   $(id).replaceChildren(...choices.map(([value, label]) => {
@@ -26,7 +30,7 @@ function syncButtons(id, value) {
   $(id).querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.value === value)));
 }
 function updateVenueButtons() {
-  const venues = [...new Set(tabDevices().map(d => d.venue))].sort((a,b) => a.localeCompare(b));
+  const venues = savedVenues();
   if (!venues.includes($('venue-filter').value)) $('venue-filter').value = '';
   makeButtons('venue-buttons', venues, $('venue-filter').value, value => { $('venue-filter').value = value; render(); }, 'All venues');
 }
@@ -37,8 +41,8 @@ makeButtons('form-source-buttons', ['Onboard','Satellite'], '', value => { form.
 function updateFilterOptions() {
   updateVenueButtons();
   options('category-filter', tabDevices().map(d => d.category));
-  options('vlan-filter', tabDevices().map(d => d.vlan));
-  $('venues').replaceChildren(...[...new Set(tabDevices().map(d => d.venue))].map(v => new Option(v, v)));
+  options('vlan-filter', tabDevices().map(d => d.vlan).filter(v => v !== null));
+  $('venues').replaceChildren(...savedVenues().map(v => new Option(v, v)));
 }
 function switchTab(type) {
   currentTab = type;
@@ -124,7 +128,7 @@ async function load() {
     devices = (await api('/api/devices')).devices;
     $('load-error').hidden = true;
     updateFilterOptions();
-    $('venues').replaceChildren(...[...new Set(tabDevices().map(d => d.venue))].map(v => new Option(v, v)));
+    $('venues').replaceChildren(...savedVenues().map(v => new Option(v, v)));
     render();
     return true;
   } catch (error) {
@@ -139,13 +143,13 @@ function render() {
   syncButtons('source-buttons', $('source-filter').value);
   const current = tabDevices();
   $('total').textContent = current.length;
-  $('venue-count').textContent = new Set(current.map(d => d.venue)).size;
-  $('vlan-count').textContent = new Set(current.map(d => d.vlan)).size;
+  $('venue-count').textContent = savedVenues().length;
+  $('vlan-count').textContent = new Set(current.map(d => d.vlan).filter(v => v !== null)).size;
   $('system-count').textContent = (currentTab === 'iptv' ? ['Onboard','Satellite'].map(source => current.filter(d => d.channel_source === source).length) : ['Video','Audio','Lighting'].map(system => current.filter(d => d.discipline === system).length)).join(' / ');
   const query = $('search').value.trim().toLowerCase();
   const results = current.filter(d =>
     [d.name,d.ip,d.venue,d.category,d.discipline,d.notes,d.channel_source || '',String(d.vlan || ''), String(d.port || '')].some(v => v.toLowerCase().includes(query)) &&
-    (!$('venue-filter').value || d.venue === $('venue-filter').value) &&
+    (!$('venue-filter').value || cleanVenue(d.venue) === $('venue-filter').value) &&
     (!$('system-filter').value || d.discipline === $('system-filter').value) &&
     (!$('category-filter').value || d.category === $('category-filter').value) &&
     (!$('vlan-filter').value || String(d.vlan) === $('vlan-filter').value) &&
@@ -166,7 +170,7 @@ function render() {
     const ip = element('div', 'ip-cell');
     const iptv = device.record_type === 'iptv';
     if (iptv) row.classList.add('iptv-row');
-    ip.append(element('div', 'device-ip', device.ip), element('span', 'cell-caption', iptv ? (device.port ? `Port ${device.port}` : 'Port not set · edit channel') : `VLAN ${device.vlan}`));
+    ip.append(element('div', 'device-ip', device.ip), element('span', 'cell-caption', iptv ? (device.port ? `Port ${device.port}` : 'Port not set · edit channel') : device.vlan == null ? 'VLAN not set' : `VLAN ${device.vlan}`));
     const confirmation = element('button', `ip-confirm ${device.ip_confirmed ? 'confirmed' : 'pending'}`, device.ip_confirmed ? '✓ IP confirmed' : '● Confirm IP');
     confirmation.type = 'button';
     confirmation.disabled = Boolean(device.ip_confirmed);
@@ -182,7 +186,7 @@ function render() {
     };
     if (!iptv) ip.append(confirmation);
     const venue = element('div', 'venue-cell');
-    venue.append(element('div', 'device-venue', device.venue), element('span', 'cell-caption', 'Venue'));
+    venue.append(element('div', 'device-venue', cleanVenue(device.venue)), element('span', 'cell-caption', 'Venue'));
     const system = element('div','system-cell');
     system.append(element('span', `badge ${device.discipline.toLowerCase()}`, device.record_type === 'iptv' ? device.channel_source : device.discipline));
     const actions = element('div', 'row-actions');
@@ -192,6 +196,17 @@ function render() {
     actions.append(edit,remove); row.append(identity,ip); if (!iptv) row.append(venue); row.append(system,actions); return row;
   });
   $('device-list').replaceChildren(...rows);
+  renderImportWarnings();
+}
+function renderImportWarnings() {
+  const duplicates = new Map();
+  devices.filter(d => (d.record_type || 'device') === 'device').forEach(d => {
+    if (!duplicates.has(d.ip)) duplicates.set(d.ip, []);
+    duplicates.get(d.ip).push(d.name);
+  });
+  const warnings = [...importWarnings, ...[...duplicates].filter(([, names]) => names.length > 1).map(([ip, names]) => `Duplicate IP ${ip} in existing inventory: ${names.join(', ')}. Edit or remove the repeated assignments.`)];
+  $('import-warnings').hidden = currentTab !== 'device' || !warnings.length;
+  $('import-warning-list').replaceChildren(...warnings.map(message => element('li', '', message)));
 }
 function openForm(device = null) {
   editing = device?.id ?? null;
@@ -215,7 +230,8 @@ function openForm(device = null) {
   if (device) for (const field of ['name','category','venue','discipline','ip','vlan','notes','channel_source','port']) form.elements[field].value = device[field] ?? '';
   syncButtons('form-system-buttons', form.elements.discipline.value);
   syncButtons('form-source-buttons', form.elements.channel_source.value);
-  const venues = [...new Set(tabDevices().map(d => d.venue))].sort((a,b) => a.localeCompare(b));
+  form.elements.venue.value = cleanVenue(form.elements.venue.value);
+  const venues = savedVenues();
   $('venue-suggestions').hidden = iptv || !venues.length;
   makeButtons('form-venue-buttons', venues, form.elements.venue.value, value => { form.elements.venue.value = value; syncButtons('form-venue-buttons', value); });
   $('device-dialog').showModal();
@@ -259,12 +275,12 @@ $('confirm-delete').onclick = async () => {
 };
 let spreadsheetFile = null, spreadsheetData = null;
 const networkImportFields = [
-  ['name', 'Device name', ['name','device','device name','equipment','equipment name','hostname','channel','channel name'], ''],
-  ['category', 'Category', ['category','device category','device type','type','model'], 'Other'],
   ['venue', 'Venue', ['venue','location','venue location','room','area'], ''],
+  ['name', 'Device name', ['device name','name','device','equipment','equipment name','hostname','channel','channel name'], ''],
+  ['ip', 'IP address', ['ip address','ip adress','ip','ipaddress','ipadress','ipv4','ipv4 address'], ''],
+  ['vlan', 'VLAN (optional)', ['vlan','vlan id','vlan number'], ''],
+  ['category', 'Category', ['category','device category','device type','type','model'], 'Other'],
   ['discipline', 'System', ['discipline','system','department','av system','function'], 'Other'],
-  ['ip', 'IP address', ['ip','ip address','ipaddress','ipv4','ipv4 address'], ''],
-  ['vlan', 'VLAN', ['vlan','vlan id','vlan number'], ''],
   ['notes', 'Notes (optional)', ['notes','note','comments','description'], ''],
   ['record_type', 'Inventory type', ['record type','inventory type'], 'device'],
   ['channel_source', 'Channel source (IPTV)', ['channel source','source','onboard or satellite'], ''],
@@ -286,6 +302,8 @@ function mappedRows() {
     const column = $('map-' + field).value;
     let value = (column === '' ? '' : row[Number(column)]) || $('default-' + field).value.trim();
     if (field === 'record_type') value = value.toLowerCase();
+    if (currentTab !== 'equipment' && field === 'venue') value = cleanVenue(value);
+    if (field === 'vlan' && !/^[0-9]+$/.test(value)) value = '';
     if (field === 'channel_source') value = ({onboard:'Onboard', satellite:'Satellite'})[value.toLowerCase()] || value;
     if (field === 'discipline') {
       const aliases = {video:'Video', audio:'Audio', lighting:'Lighting', lights:'Lighting', light:'Lighting', control:'Control', network:'Network', other:'Other'};
@@ -304,7 +322,7 @@ function showSpreadsheetPreview() {
       card.append(element('p','', row.description || 'No description')); return card;
     }
     card.append(element('strong', '', `Row ${spreadsheetData.row_numbers[index]} · ${row.name || 'Missing device name'}`));
-    card.append(element('p', '', row.record_type === 'iptv' ? `${row.ip || 'Missing IP'} · Port ${row.port || '?'} · ${row.channel_source || 'Missing source'}` : `${row.ip || 'Missing IP'} · VLAN ${row.vlan || '?'} · ${row.venue || 'Missing venue'}`));
+    card.append(element('p', '', row.record_type === 'iptv' ? `${row.ip || 'Missing IP'} · Port ${row.port || '?'} · ${row.channel_source || 'Missing source'}` : `${row.ip || 'Missing IP'} · ${row.vlan ? 'VLAN ' + row.vlan : 'VLAN not set'} · ${row.venue || 'Missing venue'}`));
     card.append(element('p', '', `${row.discipline || 'Missing system'} / ${row.category || 'Missing category'}`));
     return card;
   }));
@@ -326,7 +344,8 @@ async function loadSpreadsheet() {
       const select = element('select'); select.id = 'map-' + field;
       select.add(new Option('Use default only', ''));
       data.headers.forEach((header, index) => select.add(new Option(`${index+1}. ${header}`, String(index))));
-      const matched = data.headers.findIndex(header => aliases.includes(normalizedHeader(header)));
+      // Prefer the requested header before falling back to broader aliases.
+      const matched = aliases.map(alias => data.headers.findIndex(header => normalizedHeader(header) === alias)).find(index => index >= 0) ?? -1;
       if (matched >= 0) select.value = String(matched);
       const fallbackLabel = element('label', '', 'Default if missing');
       const fallback = element('input'); fallback.id = 'default-' + field; fallback.value = field === 'record_type' ? currentTab : currentTab === 'iptv' && field === 'category' ? 'IPTV channel' : currentTab === 'iptv' && field === 'discipline' ? 'Video' : defaultValue;
@@ -362,9 +381,10 @@ $('spreadsheet-form').onsubmit = async event => {
   $('confirm-import').disabled = true; $('spreadsheet-error').hidden = true;
   try {
     const rows = mappedRows();
-    const missing = rows.findIndex(row => (currentTab === 'equipment' ? ['brand','model','quantity','location'] : row.record_type === 'iptv' ? ['name','ip','channel_source','port'] : ['name','category','venue','discipline','ip','vlan']).some(field => !row[field]));
+    const missing = rows.findIndex(row => (currentTab === 'equipment' ? ['brand','model','quantity','location'] : row.record_type === 'iptv' ? ['name','ip','channel_source','port'] : ['name','category','venue','discipline','ip']).some(field => !row[field]));
     if (missing >= 0) throw new Error(`Spreadsheet row ${spreadsheetData.row_numbers[missing]} has a missing required field. Choose its column or enter a default.`);
-    const result = await api(currentTab === 'equipment' ? '/api/equipment/import' : '/api/import', 'POST', currentTab === 'equipment' ? {version:1,equipment:rows} : {version:1,devices:rows});
+    const result = await api(currentTab === 'equipment' ? '/api/equipment/import' : '/api/import', 'POST', currentTab === 'equipment' ? {version:1,equipment:rows} : {version:1,devices:rows,source:'spreadsheet',row_numbers:spreadsheetData.row_numbers});
+    if (currentTab === 'device') importWarnings = result.warnings || [];
     closeSpreadsheet();
     toast(`Imported ${result.added} records. Skipped ${result.skipped} existing assignments.`);
     await load();
@@ -389,6 +409,7 @@ $('import-file').onchange = async event => {
       await loadSpreadsheet();
     } else if (/\.json$/i.test(file.name)) {
       const result = await api(currentTab === 'equipment' ? '/api/equipment/import' : '/api/import', 'POST', JSON.parse(await file.text()));
+      if (currentTab === 'device') importWarnings = result.warnings || [];
       toast(`Imported ${result.added} records. Skipped ${result.skipped} existing assignments.`);
       await load();
     } else throw new Error('Choose .xlsx, .csv, or a Broadcast Hub .json export.');

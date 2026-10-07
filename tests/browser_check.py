@@ -243,6 +243,55 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('button', name='Edit equipment Neutrik XLR').wait_for()
             assert page.locator('#equipment-rows tr').count() == 2
             assert 'Broadcast Hub' in page.title()
+            # Requested CSV workflow: prioritize exact headers, clean venues,
+            # skip repeated IPs across VLANs, and keep devices with text VLANs.
+            page.get_by_role('tab', name='AV devices', exact=True).click()
+            path = Path(temp) / 'venue-devices.csv'
+            path.write_text('Name,Location,IP,DEVICE NAME,VENUE,IP Adress,VLAN\n'
+                            'Wrong name,Wrong location,invalid,CSV switcher,RD MAIN LOUNGE,10.24.176.90,1500\n'
+                            'Wrong name,Wrong location,invalid,CSV camera,rd MAIN LOUNGE,10.24.176.91,AV network\n'
+                            'Wrong name,Wrong location,invalid,CSV lights,RD POOL DECK,10.24.176.92,1.5\n'
+                            'Wrong name,Wrong location,invalid,Repeated switcher,RD MAIN LOUNGE,10.24.176.90,1501\n'
+                            'Wrong name,Wrong location,invalid,Existing ATEM,RD MAIN LOUNGE,10.24.176.66,1502\n')
+            page.locator('#import-file').set_input_files(str(path))
+            page.locator('#confirm-import').wait_for(state='visible')
+            page.wait_for_function("() => !document.getElementById('confirm-import').disabled")
+            assert page.locator('#column-mappings select').evaluate_all('(nodes) => nodes.slice(0,4).map(n => n.id)') == ['map-venue','map-name','map-ip','map-vlan']
+            assert page.locator('#map-venue').input_value() == '4'
+            assert page.locator('#map-name').input_value() == '3'
+            assert page.locator('#map-ip').input_value() == '5'
+            assert 'RD MAIN' not in page.locator('#spreadsheet-preview').inner_text()
+            assert 'VLAN not set' in page.locator('#spreadsheet-preview').inner_text()
+            page.locator('#confirm-import').click()
+            page.get_by_role('button', name='Edit CSV camera', exact=True).wait_for()
+            assert len([r for r in app.inventory() if r['record_type'] == 'device']) == 6
+            venues = page.locator('#venue-buttons button').all_text_contents()
+            assert venues[-2:] == ['MAIN LOUNGE', 'POOL DECK'], venues
+            assert venues.count('MAIN LOUNGE') == 1
+            warnings = page.locator('#import-warnings')
+            assert warnings.is_visible()
+            assert 'Row 5:' in warnings.inner_text() and '10.24.176.90' in warnings.inner_text()
+            assert 'Row 6:' in warnings.inner_text() and '10.24.176.66' in warnings.inner_text()
+            assert page.locator('#import-warning-list li').count() == 2
+            assert not page.get_by_role('button', name='Edit Repeated switcher', exact=True).count()
+            page.locator('#venue-buttons').get_by_role('button', name='MAIN LOUNGE', exact=True).click()
+            assert page.locator('.device-row').count() == 2
+            assert 'VLAN not set' in page.locator('.device-row').filter(has_text='CSV camera').inner_text()
+            page.get_by_role('button', name='Confirm IP for CSV camera', exact=True).click()
+            page.get_by_role('button', name='IP confirmed for CSV camera', exact=True).wait_for()
+            page.get_by_role('tab', name='IPTV channels', exact=True).click()
+            assert not warnings.is_visible()
+            page.get_by_role('tab', name='AV devices', exact=True).click()
+            assert warnings.is_visible()
+            page.get_by_role('button', name='Refresh', exact=True).click()
+            page.get_by_role('button', name='Edit CSV lights', exact=True).wait_for()
+            assert warnings.is_visible()
+            page.get_by_role('button', name='Edit CSV lights', exact=True).click()
+            page.locator('[name=ip]').fill('10.24.176.91')
+            page.get_by_role('button', name='Save changes', exact=True).click()
+            page.locator('#form-error').wait_for(state='visible')
+            assert 'Each AV IP must be unique' in page.locator('#form-error').inner_text()
+            page.get_by_role('button', name='Cancel', exact=True).click()
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             page.screenshot(path='/tmp/iptracking-mobile.png', full_page=True)
             page.set_viewport_size({'width':1440,'height':1000})
