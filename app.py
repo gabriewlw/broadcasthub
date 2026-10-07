@@ -1,4 +1,4 @@
-"""AV inventory server. Python 3.12+, no third-party dependencies."""
+"""AV inventory server. Python 3.12+; install requirements.txt for Excel import."""
 import csv
 import io
 import ipaddress
@@ -8,6 +8,7 @@ import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
+from spreadsheets import preview as spreadsheet_preview
 
 ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get('IPTRACKING_DB', ROOT / 'data' / 'inventory.sqlite3'))
@@ -84,7 +85,12 @@ def import_devices(payload):
         raise ValueError('Choose an IP Tracking JSON export (version 1).')
     if len(payload['devices']) > 10000:
         raise ValueError('Import supports up to 10,000 devices per file.')
-    rows = [validate(row) for row in payload['devices']]
+    rows = []
+    for index, value in enumerate(payload['devices'], 1):
+        try:
+            rows.append(validate(value))
+        except ValueError as exc:
+            raise ValueError(f'Device row {index}: {exc} Nothing was imported.') from None
     identities = [(row['ip'], row['vlan']) for row in rows]
     if len(set(identities)) != len(identities):
         raise ValueError('The file contains duplicate IP addresses within a VLAN. Nothing was imported.')
@@ -125,8 +131,8 @@ class Handler(BaseHTTPRequestHandler):
             size = int(self.headers.get('Content-Length', '0'))
         except ValueError:
             raise ValueError('Invalid request size.') from None
-        if size < 1 or size > 5_000_000:
-            raise ValueError('Request must be between 1 byte and 5 MB.')
+        if size < 1 or size > 8_000_000:
+            raise ValueError('Request must be between 1 byte and 8 MB.')
         return json.loads(self.rfile.read(size))
 
     def dispatch(self):
@@ -150,6 +156,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, (ROOT / 'static' / file).read_bytes(), mime + '; charset=utf-8')
         elif self.command == 'POST' and path == '/api/devices':
             return self.send(201, save_device(self.body()))
+        elif self.command == 'POST' and path == '/api/spreadsheet-preview':
+            return self.send(200, spreadsheet_preview(self.body()))
         elif self.command == 'POST' and path == '/api/import':
             return self.send(200, import_devices(self.body()))
         elif self.command in ('PUT', 'DELETE') and path.startswith('/api/devices/'):

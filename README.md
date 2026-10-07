@@ -4,17 +4,21 @@ A responsive AV device inventory for shipboard venues. Use the same web app in i
 
 ## Run
 
-Requires Python 3.12 or newer. There are no third-party runtime dependencies or build steps.
+Requires Python 3.12 or newer. Install the pinned Excel-reading dependencies once; no frontend build is needed.
 
 ```sh
-cd /workspace/iptracking
-python3 app.py
+cd /path/to/iptracking
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python app.py
 ```
+
+On Windows, open a terminal in the extracted project folder and run `py -m pip install -r requirements.txt`, then `py app.py`. On Mac/Linux, replace `/path/to/iptracking` above with the actual downloaded folder path. In the cloud workspace it is `/workspace/iptracking`.
 
 The default bind address is `127.0.0.1`, port `8000`. For a computer or private server reachable by your iPhone on the same network:
 
 ```sh
-HOST=0.0.0.0 PORT=8000 python3 app.py
+HOST=0.0.0.0 PORT=8000 .venv/bin/python app.py
 ```
 
 Open the server's actual IP address or hostname and port in Safari, for example `http://YOUR-SERVER-IP:8000`. On an iPhone, Safari → Share → Add to Home Screen provides quick access. Localhost on your phone points to the phone, not the server. The server must remain running and both clients need network access to it. Ship network VLAN isolation may prevent phone-to-server access; coordinate routing/firewall rules with the ship's network team.
@@ -32,9 +36,13 @@ This first version has no user authentication. Run it on a trusted private netwo
 
 ## Files and backup
 
-**JSON ↓** exports the entire inventory in the app's version-1 transfer format. On either phone or computer, **Import JSON** restores records from that export. Imports validate the complete file before inserting; existing IP/VLAN pairs are skipped and never overwritten. Duplicate pairs inside an import file or invalid records reject the whole file. IDs are assigned by the receiving database. Imports accept at most 10,000 records and 5 MB per file.
+**JSON ↓** exports the entire inventory in the app's version-1 transfer format. On either phone or computer, **Import data** restores records from that export. Imports validate the complete file before inserting; existing IP/VLAN pairs are skipped and never overwritten. Duplicate pairs inside an import file or invalid records reject the whole file. IDs are assigned by the receiving database. Imports accept at most 10,000 records and 5 MB per file.
 
-**CSV ↓** exports the entire inventory for spreadsheet use. CSV is not an import format. Formula-like text is escaped for spreadsheet safety. Exports include all devices, regardless of the current filters.
+**Import data** also accepts Excel **.xlsx** and UTF-8 **.csv** files from your phone or computer. Choose a worksheet and header row (1–50), then click **Reload preview**. Match columns to device name, category, venue, system, IP, VLAN, and notes. Common headers such as Equipment, IP Address, Location, and VLAN ID are matched automatically. Defaults fill missing columns or blank cells; provide a venue/VLAN default if your sheet does not have one. The first three mapped rows are shown before confirmation. Previewing never writes to the database. System names are case-insensitive; “Lights” maps to Lighting. Imported records must pass the same validation as manually entered devices. Existing assignments are skipped; invalid rows and duplicate assignments inside the file reject the complete import.
+
+Save older **.xls** files as **.xlsx** in Excel first. Password-protected files are unsupported. The chosen header row must contain column names, with device rows below it; completely blank rows are ignored. Limits: 5 MB upload, 10,000 devices, 50 columns, and 30 MB expanded workbook size. Excel formulas are never evaluated; only Excel's cached values are read. Recalculate and save the workbook in Excel if formula-derived cells are empty. Uploaded spreadsheets are parsed in memory and not retained as files.
+
+**CSV ↓** exports the entire inventory for spreadsheet use and can also be imported through column mapping. Formula-like text is escaped for spreadsheet safety. Exports include all devices, regardless of the current filters.
 
 The database defaults to `data/inventory.sqlite3`, excluded from Git. Set `IPTRACKING_DB` to a persistent database location when hosting. Do not use temporary container storage for your only copy. For a consistent live backup, use SQLite's backup API rather than copying an active WAL database:
 
@@ -52,16 +60,18 @@ Download the backup to safe storage or routinely export JSON. Startup is idempot
 ## Validation
 
 ```sh
-python3 -m unittest discover -s tests -v
+.venv/bin/python -m unittest discover -s tests -v
 node --check static/app.js
 ```
 
-Seven backend integration tests cover HTTP CRUD, persistence, invalid IPs/VLANs, duplicate assignments, atomic import, export round trips, CSV formula escaping, static routes, and cross-origin write rejection. Node is only needed for the optional JavaScript syntax check.
+Twelve backend and spreadsheet tests cover HTTP CRUD, persistence, invalid IPs/VLANs, duplicate assignments, atomic import, export round trips, CSV formula escaping, static routes, cross-origin write rejection, multi-sheet Excel parsing, header rows, numeric VLANs, CSV parsing, and spreadsheet preview/import. Node is only needed for the optional JavaScript syntax check.
 
 Optional browser check (requires Python Playwright and Chromium):
 
 ```sh
-python3 tests/browser_check.py
+.venv/bin/python tests/browser_check.py
 ```
 
-The browser check uses an isolated temporary database and exercises the example device, every filter, validation errors, edit/delete, JSON download/upload, reload persistence, mobile/desktop layouts, and JavaScript errors. It uses system Chromium when available. Its mobile viewport check is not a physical iPhone/Safari test.
+Install Playwright in the virtual environment (`.venv/bin/python -m pip install playwright`) and use system Chromium or install it through Playwright.
+
+The browser check uses an isolated temporary database and exercises the example device, every filter, validation errors, edit/delete, JSON download/upload, reload persistence, mobile/desktop layouts, Excel worksheet selection, manual column mapping, defaults, rejected CSV imports, and JavaScript errors. It uses system Chromium when available. Its mobile viewport check is not a physical iPhone/Safari test.

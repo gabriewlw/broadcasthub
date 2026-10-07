@@ -8,6 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import app
+from openpyxl import Workbook
 from playwright.sync_api import sync_playwright
 
 with tempfile.TemporaryDirectory() as temp:
@@ -90,6 +91,43 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('button', name='Edit ATEM main').click()
             assert page.locator('#form-system-buttons').get_by_role('button', name='Video', exact=True).get_attribute('aria-pressed') == 'true'
             assert page.locator('#form-venue-buttons').get_by_role('button', name='Liquid Lounge', exact=True).get_attribute('aria-pressed') == 'true'
+            page.get_by_role('button', name='Cancel', exact=True).click()
+            # Import an existing-style workbook with a cover sheet and custom columns.
+            book = Workbook()
+            book.active.title = 'Cover'
+            book.active.append(['AV list'])
+            sheet = book.create_sheet('Network')
+            sheet.append(['Equipment list'])
+            sheet.append(['Equipment', 'Address on network', 'VLAN ID', 'Room', 'Department'])
+            sheet.append(['Excel camera', '10.24.176.68', 1500, 'Liquid Lounge', 'video'])
+            path = Path(temp) / 'devices.xlsx'
+            book.save(path)
+            page.locator('#import-file').set_input_files(str(path))
+            page.locator('#sheet-choice').get_by_role('option', name='Network').wait_for(state='attached')
+            page.locator('#sheet-choice').select_option('Network')
+            page.locator('#header-row').fill('2')
+            assert page.locator('#confirm-import').is_disabled()
+            page.get_by_role('button', name='Reload preview').click()
+            page.locator('#map-ip').get_by_role('option', name='2. Address on network', exact=True).wait_for(state='attached')
+            page.locator('#map-ip').select_option('1')
+            page.locator('#default-category').fill('Camera')
+            assert 'Excel camera' in page.locator('#spreadsheet-preview').inner_text()
+            assert len(app.inventory()) == 2  # Preview never writes.
+            page.screenshot(path='/tmp/iptracking-excel-mobile.png', full_page=True)
+            page.locator('#confirm-import').click()
+            page.get_by_role('button', name='Edit Excel camera').wait_for()
+            assert len(app.inventory()) == 3
+            assert next(d for d in app.inventory() if d['name'] == 'Excel camera')['category'] == 'Camera'
+            # CSV defaults and an invalid address must leave all existing records intact.
+            path = Path(temp) / 'extra.csv'
+            path.write_text('Device,IP Address,VLAN\nCSV device,invalid,1500\n')
+            page.locator('#import-file').set_input_files(str(path))
+            page.locator('#default-venue').wait_for()
+            page.locator('#default-venue').fill('Theater')
+            page.locator('#confirm-import').click()
+            page.locator('#spreadsheet-error').wait_for(state='visible')
+            assert 'valid IPv4' in page.locator('#spreadsheet-error').inner_text()
+            assert len(app.inventory()) == 3
             page.get_by_role('button', name='Cancel', exact=True).click()
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             page.screenshot(path='/tmp/iptracking-mobile.png', full_page=True)

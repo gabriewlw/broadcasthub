@@ -152,16 +152,120 @@ $('confirm-delete').onclick = async () => {
   catch(error) { $('delete-error').textContent = error.message; $('delete-error').hidden = false; }
   finally { $('confirm-delete').disabled = false; }
 };
+let spreadsheetFile = null, spreadsheetData = null;
+const importFields = [
+  ['name', 'Device name', ['name','device','device name','equipment','equipment name','hostname'], ''],
+  ['category', 'Category', ['category','device category','device type','type','model'], 'Other'],
+  ['venue', 'Venue', ['venue','location','venue location','room','area'], ''],
+  ['discipline', 'System', ['discipline','system','department','av system','function'], 'Other'],
+  ['ip', 'IP address', ['ip','ip address','ipaddress','ipv4','ipv4 address'], ''],
+  ['vlan', 'VLAN', ['vlan','vlan id','vlan number'], ''],
+  ['notes', 'Notes (optional)', ['notes','note','comments','description'], '']
+];
+const normalizedHeader = value => value.toLowerCase().replace(/[_-]/g, ' ').replace(/\s+/g, ' ').trim();
+function mappedRows() {
+  return spreadsheetData.rows.map(row => Object.fromEntries(importFields.map(([field]) => {
+    const column = $('map-' + field).value;
+    let value = (column === '' ? '' : row[Number(column)]) || $('default-' + field).value.trim();
+    if (field === 'discipline') {
+      const aliases = {video:'Video', audio:'Audio', lighting:'Lighting', lights:'Lighting', light:'Lighting', control:'Control', network:'Network', other:'Other'};
+      value = aliases[value.toLowerCase()] || value;
+    }
+    return [field, value];
+  })));
+}
+function showSpreadsheetPreview() {
+  const rows = mappedRows();
+  $('spreadsheet-preview').replaceChildren(...rows.slice(0,3).map((row, index) => {
+    const card = element('div', 'spreadsheet-preview-row');
+    card.append(element('strong', '', `Row ${spreadsheetData.row_numbers[index]} · ${row.name || 'Missing device name'}`));
+    card.append(element('p', '', `${row.ip || 'Missing IP'} · VLAN ${row.vlan || '?'} · ${row.venue || 'Missing venue'}`));
+    card.append(element('p', '', `${row.discipline || 'Missing system'} / ${row.category || 'Missing category'}`));
+    return card;
+  }));
+}
+async function loadSpreadsheet() {
+  $('confirm-import').disabled = true; $('reload-sheet').disabled = true;
+  $('spreadsheet-error').hidden = true;
+  try {
+    const data = await api('/api/spreadsheet-preview', 'POST', {...spreadsheetFile, sheet: $('sheet-choice').value, header_row: Number($('header-row').value)});
+    spreadsheetData = data;
+    $('sheet-label').hidden = !data.sheets.length;
+    $('sheet-choice').replaceChildren(...data.sheets.map(sheet => new Option(sheet, sheet)));
+    $('sheet-choice').value = data.sheet;
+    $('spreadsheet-summary').textContent = `${spreadsheetFile.filename} · ${data.rows.length} device rows`;
+    $('column-mappings').replaceChildren(...importFields.map(([field, label, aliases, defaultValue]) => {
+      const group = element('div', 'mapping-row');
+      const columnLabel = element('label', '', label);
+      const select = element('select'); select.id = 'map-' + field;
+      select.add(new Option('Use default only', ''));
+      data.headers.forEach((header, index) => select.add(new Option(`${index+1}. ${header}`, String(index))));
+      const matched = data.headers.findIndex(header => aliases.includes(normalizedHeader(header)));
+      if (matched >= 0) select.value = String(matched);
+      const fallbackLabel = element('label', '', 'Default if missing');
+      const fallback = element('input'); fallback.id = 'default-' + field; fallback.value = defaultValue;
+      fallback.placeholder = field === 'notes' ? 'Optional' : `Default ${label.toLowerCase()}`;
+      fallback.maxLength = field === 'notes' ? 2000 : 120;
+      columnLabel.append(select); fallbackLabel.append(fallback); group.append(columnLabel, fallbackLabel);
+      select.onchange = fallback.oninput = showSpreadsheetPreview;
+      return group;
+    }));
+    showSpreadsheetPreview();
+    $('confirm-import').textContent = `Import ${data.rows.length} devices`;
+    $('confirm-import').disabled = !data.rows.length;
+    if (!data.rows.length) {
+      $('spreadsheet-error').textContent = 'No device rows in this selection. Choose another worksheet or header row and reload the preview.';
+      $('spreadsheet-error').hidden = false;
+    }
+  } catch (error) {
+    $('spreadsheet-error').textContent = error.message;
+    $('spreadsheet-error').hidden = false;
+  } finally { $('reload-sheet').disabled = false; }
+}
+function closeSpreadsheet() {
+  $('spreadsheet-dialog').close(); spreadsheetData = null; spreadsheetFile = null;
+}
+$('close-spreadsheet').onclick = $('cancel-spreadsheet').onclick = closeSpreadsheet;
+$('spreadsheet-dialog').addEventListener('cancel', () => { spreadsheetData = null; spreadsheetFile = null; });
+$('reload-sheet').onclick = loadSpreadsheet;
+// Sheet/header changes must be loaded before an import can be confirmed.
+$('sheet-choice').onchange = $('header-row').oninput = () => { $('confirm-import').disabled = true; };
+$('spreadsheet-form').onsubmit = async event => {
+  event.preventDefault();
+  if (!spreadsheetData || $('confirm-import').disabled) return;
+  $('confirm-import').disabled = true; $('spreadsheet-error').hidden = true;
+  try {
+    const rows = mappedRows();
+    const missing = rows.findIndex(row => ['name','category','venue','discipline','ip','vlan'].some(field => !row[field]));
+    if (missing >= 0) throw new Error(`Spreadsheet row ${spreadsheetData.row_numbers[missing]} has a missing required field. Choose its column or enter a default.`);
+    const result = await api('/api/import', 'POST', {version:1, devices:rows});
+    closeSpreadsheet();
+    toast(`Imported ${result.added} devices. Skipped ${result.skipped} existing IP/VLAN assignments.`);
+    await load();
+  } catch(error) { $('spreadsheet-error').textContent = error.message; $('spreadsheet-error').hidden = false; }
+  finally { $('confirm-import').disabled = false; }
+};
 $('import').onclick = () => $('import-file').click();
 $('import-file').onchange = async event => {
   const file = event.target.files[0]; if (!file) return;
   $('import').disabled = true;
   try {
-    if (file.size > 5_000_000) throw new Error('Choose a JSON file smaller than 5 MB.');
-    const payload = JSON.parse(await file.text());
-    const result = await api('/api/import', 'POST', payload);
-    toast(`Imported ${result.added} devices. Skipped ${result.skipped} existing IP/VLAN assignments.`);
-    await load();
+    if (file.size > 5_000_000) throw new Error('Choose a file smaller than 5 MB.');
+    if (/\.(xlsx|csv)$/i.test(file.name)) {
+      const content = await new Promise((resolve, reject) => {
+        const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = () => reject(new Error('Could not read file.')); reader.readAsDataURL(file);
+      });
+      spreadsheetFile = {filename:file.name, content};
+      spreadsheetData = null; $('header-row').value = '1'; $('sheet-choice').replaceChildren();
+      $('column-mappings').replaceChildren(); $('spreadsheet-preview').replaceChildren();
+      $('spreadsheet-summary').textContent = 'Reading ' + file.name + '…';
+      $('spreadsheet-dialog').showModal();
+      await loadSpreadsheet();
+    } else if (/\.json$/i.test(file.name)) {
+      const result = await api('/api/import', 'POST', JSON.parse(await file.text()));
+      toast(`Imported ${result.added} devices. Skipped ${result.skipped} existing IP/VLAN assignments.`);
+      await load();
+    } else throw new Error('Choose .xlsx, .csv, or an IP Tracking .json export.');
   } catch(error) { toast('Import failed: ' + error.message); }
   finally { event.target.value = ''; $('import').disabled = false; }
 };
