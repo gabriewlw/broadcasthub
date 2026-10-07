@@ -15,6 +15,14 @@ from exports import network_xlsx, equipment_xlsx, network_pdf, equipment_pdf
 ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get('IPTRACKING_DB', ROOT / 'data' / 'inventory.sqlite3'))
 DISCIPLINES = {'Video', 'Audio', 'Lighting', 'Control', 'Network', 'Other'}
+SYSTEM_NAME_RULES = (
+    ('audio', 'Audio'), ('amx', 'Control'), ('dsp', 'Audio'),
+    ('clickshare', 'Video'), ('pixera', 'Video'), ('tv', 'Video'),
+    ('video', 'Video'), ('light', 'Lighting'), ('cam', 'Video'),
+    ('camera', 'Video'), ('bgm', 'Audio'), ('decoder', 'Video'),
+    ('encoder', 'Video'), ('multiview', 'Video'), ('scala', 'Video'),
+    ('switch', 'Network'), ('dante', 'Audio'), ('cctv', 'Video'), ('iem', 'Audio'),
+)
 FIELDS = ('name', 'category', 'venue', 'discipline', 'ip', 'vlan', 'notes')
 ALL_FIELDS = FIELDS + ('record_type', 'channel_source', 'port')
 EQUIPMENT_FIELDS = ('brand', 'model', 'description', 'serial_number', 'quantity', 'location', 'notes')
@@ -254,6 +262,12 @@ def set_device_notes(device_id, value):
         return serialize(con.execute('SELECT * FROM devices WHERE id=?', (device_id,)).fetchone())
 
 
+def system_from_name(name):
+    # Follow the user's rule order when several keywords match the same name.
+    name = name.casefold()
+    return next((system for keyword, system in SYSTEM_NAME_RULES if keyword in name), '')
+
+
 def import_devices(payload):
     if not isinstance(payload, dict) or payload.get('version') != 1 or not isinstance(payload.get('devices'), list):
         raise ValueError('Choose a Broadcast Hub network JSON export (version 1).')
@@ -276,7 +290,10 @@ def import_devices(payload):
                     vlan = vlan.strip()
                 # Ignore text or decimal VLAN values; never invent a VLAN number.
                 value['vlan'] = vlan if type(vlan) is int or (isinstance(vlan, str) and vlan.isascii() and vlan.isdigit()) else None
-            rows.append(validate(value))
+            row = validate(value)
+            if row['record_type'] == 'device' and not row['discipline']:
+                row['discipline'] = system_from_name(row['name'])
+            rows.append(row)
             numbers.append(number)
         except ValueError as exc:
             raise ValueError(f'Device row {number}: {exc} Nothing was imported.') from None

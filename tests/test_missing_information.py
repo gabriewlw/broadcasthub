@@ -24,7 +24,7 @@ class MissingInformationTests(unittest.TestCase):
         self.assertEqual(sum(row['ip'] == '' for row in records), 2)
         camera = next(row for row in records if row['name'] == 'Camera')
         self.assertEqual(camera['venue'], 'MAIN LOUNGE')
-        self.assertEqual((camera['category'], camera['discipline'], camera['notes']), ('', '', ''))
+        self.assertEqual((camera['category'], camera['discipline'], camera['notes']), ('', 'Video', ''))
         self.assertIsNone(camera['vlan'])
         raw = self.request('/api/export.csv')[1].decode('utf-8-sig')
         exported = next(row for row in csv.DictReader(io.StringIO(raw)) if row['name'] == 'Camera')
@@ -38,7 +38,7 @@ class MissingInformationTests(unittest.TestCase):
         self.assertEqual(self.request(path + '/confirm', 'POST', dict(ip='', vlan=None))[0], 400)
         status, saved = self.request(path, 'PUT', dict(camera, ip='10.24.176.90'))
         self.assertEqual(status, 200)
-        self.assertEqual((saved['venue'], saved['category'], saved['discipline']), ('', '', ''))
+        self.assertEqual((saved['venue'], saved['category'], saved['discipline']), ('', '', 'Video'))
         self.assertEqual(self.request(path + '/confirm', 'POST', dict(ip=saved['ip'], vlan=None))[1]['ip_confirmed'], 1)
         payload = self.request('/api/export')[1]
         with app.connect() as con:

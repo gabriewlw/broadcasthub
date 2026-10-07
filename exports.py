@@ -1,5 +1,6 @@
 """Readable PDF reports and Excel workbooks generated from saved inventory."""
 import io
+import ipaddress
 import re
 import threading
 from pathlib import Path
@@ -120,11 +121,16 @@ def pdf_report(title, sections):
     def report_cell(label, value):
         if label == 'SYSTEM' and value in tag_colors:
             return paragraph(value, ParagraphStyle('HubTag', parent=body, textColor=colors.HexColor(tag_colors[value][1])))
-        if label == 'IP / VLAN / CONFIRMATION' and value.rsplit('\n', 1)[-1] in ('Confirmed', 'Pending'):
-            info, status = value.rsplit('\n', 1)
-            color = '#9ED3B8' if status == 'Confirmed' else '#E5C587'
-            markup = escape(clean_text(info)).replace('\n','<br/>') + f'<br/><font color="{color}">{status}</font>'
-            return Paragraph(markup, body)
+        if label == 'CONFIRMATION' and value in ('Confirmed', 'Pending'):
+            color = '#9ED3B8' if value == 'Confirmed' else '#E5C587'
+            return paragraph(value, ParagraphStyle('HubConfirmation', parent=body, textColor=colors.HexColor(color)))
+        if label == 'IP' and value not in ('', 'DHCP', None):
+            try:
+                address = str(ipaddress.IPv4Address(value))
+            except (ValueError, TypeError):
+                return paragraph(value)
+            # Standard external PDF links; the viewer chooses its tab/window behavior.
+            return Paragraph(f'<link href="http://{address}" color="#FF7278"><u>{address}</u></link>', body)
         return paragraph(value)
 
     class BrandHeading(Flowable):
@@ -202,14 +208,12 @@ def network_pdf(rows):
     for row in rows:
         name = '\n'.join(filter(None, [row['name'], row['category']]))
         if row['record_type'] == 'device':
-            ip = '\n'.join(filter(None, [row['ip'], f"VLAN {row['vlan']}" if row['vlan'] is not None else '', confirmation(row)]))
-            av.append([row['venue'], name, ip, row['discipline'], row['notes']])
+            av.append([row['venue'], name, row['ip'], row['vlan'], confirmation(row), row['discipline'], row['notes']])
         else:
-            ip = '\n'.join(filter(None, [row['ip'], f"Port {row['port']}" if row['port'] is not None else '']))
-            channels.append([name, ip, row['channel_source'], row['notes']])
+            channels.append([name, row['ip'], row['port'], row['channel_source'], row['notes']])
     return pdf_report('AV devices and IPTV channels', [
-        ('AV devices', ['VENUE','DEVICE','IP / VLAN / CONFIRMATION','SYSTEM','NOTES'], [.16,.22,.20,.12,.30], av),
-        ('IPTV channels', ['CHANNEL','IP / PORT','SOURCE','NOTES'], [.25,.22,.16,.37], channels)])
+        ('AV devices', ['VENUE','DEVICE','IP','VLAN','CONFIRMATION','SYSTEM','NOTES'], [.14,.16,.15,.07,.12,.11,.25], av),
+        ('IPTV channels', ['CHANNEL','IP','PORT','SOURCE','NOTES'], [.21,.20,.08,.15,.36], channels)])
 
 
 def equipment_pdf(rows):

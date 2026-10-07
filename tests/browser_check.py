@@ -324,7 +324,8 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('button', name='Edit CSV camera', exact=True).wait_for()
             assert len([r for r in app.inventory() if r['record_type'] == 'device']) == 6
             assert all(r['notes'] == '' for r in app.inventory() if r['name'].startswith('CSV '))
-            assert all(r['category'] == r['discipline'] == '' for r in app.inventory() if r['name'].startswith('CSV '))
+            assert all(r['category'] == '' for r in app.inventory() if r['name'].startswith('CSV '))
+            assert {r['name']:r['discipline'] for r in app.inventory() if r['name'].startswith('CSV ')} == {'CSV switcher':'Network','CSV camera':'Video','CSV lights':'Lighting'}
             venues = page.locator('#venue-buttons button').all_text_contents()
             assert venues[-2:] == ['Main Lounge', 'POOL DECK'], venues
             assert venues.count('Main Lounge') == 1
@@ -384,7 +385,10 @@ with tempfile.TemporaryDirectory() as temp:
             assert not unassigned.locator('.badge, .ip-confirm').count()
             assert not warnings.is_visible()
             system_select = page.get_by_role('combobox', name='System for Unassigned camera', exact=True)
-            assert system_select.get_attribute('data-value') == ''
+            assert system_select.get_attribute('data-value') == 'Video'
+            system_select.click()
+            page.get_by_role('option', name='Audio', exact=True).click()
+            page.wait_for_function("() => document.querySelector('button[aria-label=\"System for Unassigned camera\"]').dataset.value === 'Audio'")
             system_select.click()
             page.get_by_role('option', name='Video', exact=True).click()
             page.wait_for_function("() => !document.querySelector('button[aria-label=\"System for Unassigned camera\"]').disabled")
@@ -562,6 +566,20 @@ with tempfile.TemporaryDirectory() as temp:
             assert 'Consolas' in brand.evaluate('(node) => getComputedStyle(node).fontFamily')
             assert brand.evaluate('(node) => getComputedStyle(node).animationDuration') == '0.2s'
             assert page.locator('.topbar .record-o').evaluate('(node) => getComputedStyle(node, "::after").animationDelay') == '0.2s'
+            assert page.locator('.brand-word').evaluate_all('''nodes => nodes.every(brand => {
+                const probe = document.createElement('span');
+                probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+                brand.append(probe);
+                const baseline = probe.getBoundingClientRect().top;
+                const circle = brand.querySelector('.record-o').getBoundingClientRect();
+                const style = getComputedStyle(brand);
+                const context = document.createElement('canvas').getContext('2d');
+                context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+                const cap = context.measureText('H').actualBoundingBoxAscent;
+                probe.remove();
+                return Math.abs(circle.bottom - baseline) < .2 && Math.abs(circle.height - cap) < 1;
+            })''')
+            page.locator('.topbar .brand').screenshot(path='/tmp/broadcast-title-rec-alignment.png')
             notes_input = page.get_by_role('textbox', name='Notes for Unassigned camera', exact=True)
             assert notes_input.input_value() == 'Rack B, review later'
             notes_input.fill('')
