@@ -147,7 +147,7 @@ textarea { resize: vertical; }
   .stats strong { font-size: 25px; }
   .stats span { font-size: 8px; }
   .panel-heading { display: block; }
-  .file-actions { margin-top: 18px; justify-content: space-between; }
+  .file-actions { margin-top: 18px; justify-content: flex-start; }
   .file-actions .quiet { padding: 8px; }
   .export-links { margin: 0; }
   .filters { padding: 16px; grid-template-columns: 1fr 1fr; }
