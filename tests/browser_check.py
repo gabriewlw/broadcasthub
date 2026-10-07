@@ -146,34 +146,37 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#total').inner_text() == '0'
             page.get_by_role('button', name='Add channel', exact=True).click()
             page.locator('[name=name]').fill('Ship information')
-            page.locator('[name=venue]').fill('Broadcast center')
             page.locator('[name=ip]').fill('239.1.1.10')
-            page.locator('[name=vlan]').fill('1500')
+            page.locator('[name=port]').fill('1234')
             page.get_by_role('button', name='Save channel', exact=True).click()
             assert 'Choose Onboard or Satellite' in page.locator('#form-error').inner_text()
             page.locator('#form-source-buttons').get_by_role('button', name='Onboard', exact=True).click()
             page.get_by_role('button', name='Save channel', exact=True).click()
             page.get_by_role('button', name='Edit Ship information').wait_for()
             assert page.locator('.device-row').count() == 1
-            page.get_by_role('button', name='Confirm IP for Ship information').click()
-            page.get_by_role('button', name='IP confirmed for Ship information').wait_for()
+            assert page.locator('.ip-confirm').count() == 0
+            assert page.locator('#venue-filter-group').is_hidden()
+            assert page.locator('#vlan-filter-label').is_hidden()
+            assert 'Port 1234' in page.locator('.device-row').inner_text()
             page.locator('#source-buttons').get_by_role('button', name='Satellite', exact=True).click()
             assert page.locator('#no-results').is_visible()
             page.get_by_role('button', name='Clear', exact=True).click()
             page.get_by_role('button', name='Add channel', exact=True).click()
             page.locator('[name=name]').fill('BBC News')
-            page.locator('[name=venue]').fill('Broadcast center')
             page.locator('[name=ip]').fill('239.1.1.11')
-            page.locator('[name=vlan]').fill('1500')
+            page.locator('[name=port]').fill('1234')
             page.locator('#form-source-buttons').get_by_role('button', name='Satellite', exact=True).click()
             page.get_by_role('button', name='Save channel', exact=True).click()
             page.get_by_role('button', name='Edit BBC News').wait_for()
             assert page.locator('#system-count').inner_text() == '1 / 1'
             page.get_by_role('button', name='Edit BBC News').click()
             assert page.locator('#form-source-buttons').get_by_role('button', name='Satellite', exact=True).get_attribute('aria-pressed') == 'true'
+            assert page.locator('[name=port]').input_value() == '1234'
+            assert page.locator('#venue-field').is_hidden()
+            assert page.locator('#vlan-field').is_hidden()
             page.get_by_role('button', name='Cancel', exact=True).click()
             path = Path(temp) / 'iptv.csv'
-            path.write_text('Channel,IP Address,VLAN,Location,Source\nMovie channel,239.1.1.12,1500,Broadcast center,Onboard\n')
+            path.write_text('Channel,IP Address,Port,Source\nMovie channel,239.1.1.12,5000,Onboard\n')
             page.locator('#import-file').set_input_files(str(path))
             page.locator('#map-channel_source').wait_for()
             assert page.locator('#default-record_type').input_value() == 'iptv'
@@ -185,7 +188,8 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('.device-row').count() == 3
             assert page.get_by_role('button', name='Edit Ship information').count() == 0
             page.get_by_role('tab', name='IPTV channels', exact=True).click()
-            assert page.get_by_role('button', name='IP confirmed for Ship information').is_visible()
+            assert page.get_by_role('button', name='Edit Ship information').is_visible()
+            assert page.locator('.ip-confirm').count() == 0
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             page.screenshot(path='/tmp/iptracking-mobile.png', full_page=True)
             page.set_viewport_size({'width':1440,'height':1000})

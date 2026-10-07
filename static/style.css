@@ -207,3 +207,11 @@ textarea { resize: vertical; }
 .inventory-tabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--muted); padding: 14px 18px; min-height: 48px; font-size: 13px; font-weight: 600; }
 .inventory-tabs button[aria-selected="true"] { border-bottom-color: var(--accent-text); color: var(--accent-text); background: #20171c; }
 .inventory-tabs button:hover { color: #fff; }
+
+.stats.iptv-stats { grid-template-columns: repeat(2, 1fr); }
+.device-row.iptv-row { grid-template-columns: 2fr 1.5fr 1fr auto; }
+@media (max-width: 900px) { .iptv-row .row-actions { grid-column: 4; grid-row: auto; } }
+@media (max-width: 600px) {
+  .device-row.iptv-row { grid-template-columns: 1fr auto; }
+  .iptv-row .row-actions { grid-column: 1/-1; grid-row: 3; justify-content: flex-end; }
+}
