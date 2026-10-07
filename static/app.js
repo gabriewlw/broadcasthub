@@ -4,6 +4,8 @@ let devices = [], editing = null, deleting = null, timer, currentTab = 'device';
 let importWarnings = [];
 const pendingNoteSaves = new Map();
 const pendingWrites = new Set();
+const tabSortOrders = {device: '', iptv: ''};
+const nameCollator = new Intl.Collator(undefined, {sensitivity: 'base', numeric: true});
 const tabDevices = () => devices.filter(d => (d.record_type || 'device') === currentTab);
 const form = $('device-form');
 const filters = ['search', 'venue-filter', 'system-filter', 'category-filter', 'vlan-filter', 'source-filter', 'address-filter'];
@@ -16,6 +18,28 @@ const element = (tag, className, text) => {
 const systems = ['Video', 'Audio', 'Lighting', 'Control', 'Network', 'Other'];
 const deviceLabel = device => device.name || `record ${device.id}`;
 const isDHCP = value => value.trim().toUpperCase() === 'DHCP';
+function compareDirectoryRecords(a, b, order) {
+  const [field, direction] = order.split('-');
+  const sign = direction === 'desc' ? -1 : 1;
+  let comparison = 0;
+  if (field === 'ip') {
+    const number = ip => /^(?:\d{1,3}\.){3}\d{1,3}$/.test(ip) && ip.split('.').every(octet => Number(octet) <= 255)
+      ? ip.split('.').reduce((value, octet) => value * 256 + Number(octet), 0) : null;
+    const left = number(a.ip), right = number(b.ip);
+    // Static IPv4 addresses first, DHCP next, blank addresses last in either direction.
+    const group = (record, value) => value !== null ? 0 : isDHCP(record.ip) ? 1 : 2;
+    const grouping = group(a, left) - group(b, right);
+    if (grouping) return grouping;
+    if (left !== null && right !== null) comparison = left - right;
+  } else {
+    const key = field === 'system' ? (currentTab === 'iptv' ? 'channel_source' : 'discipline') : 'name';
+    const left = (a[key] || '').trim(), right = (b[key] || '').trim();
+    if (!left !== !right) return left ? -1 : 1;
+    comparison = nameCollator.compare(left, right);
+  }
+  return comparison * sign || nameCollator.compare(a.name, b.name) || a.id - b.id;
+}
+
 let activeSystemMenu = null;
 function closeSystemMenu(restoreFocus = false) {
   if (!activeSystemMenu) return;
@@ -37,7 +61,12 @@ function systemDropdown(device) {
   button.setAttribute('aria-label', `System for ${deviceLabel(device)}`);
   button.setAttribute('aria-haspopup', 'listbox'); button.setAttribute('aria-expanded', 'false');
   button.setAttribute('aria-controls', `system-menu-${device.id}`);
-  button.append(element('span', '', device.discipline), element('span', 'system-arrow', '⌄'));
+  const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  arrow.classList.add('system-arrow'); arrow.setAttribute('viewBox', '0 0 12 12');
+  arrow.setAttribute('aria-hidden', 'true'); arrow.setAttribute('focusable', 'false');
+  const chevron = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+  chevron.setAttribute('d', 'M3 4.5 6 7.5 9 4.5'); arrow.append(chevron);
+  button.append(element('span', '', device.discipline), arrow);
   const open = (last = false) => {
     closeSystemMenu();
     const menu = element('div', 'system-options'); menu.id = `system-menu-${device.id}`;
@@ -173,6 +202,11 @@ function switchTab(type) {
   }
   $('inventory').setAttribute('aria-labelledby', type === 'iptv' ? 'iptv-tab' : 'device-tab');
   const iptv = type === 'iptv';
+  $('sort-order').value = tabSortOrders[type];
+  for (const direction of ['asc', 'desc']) {
+    $('sort-order').querySelector(`option[value="system-${direction}"]`).textContent = `${iptv ? 'Source' : 'System'} · ${direction === 'asc' ? 'A–Z' : 'Z–A'}`;
+  }
+
   $('hero-title').replaceChildren(document.createTextNode(iptv ? 'Every channel.' : 'Every device.'), element('br'), document.createTextNode(iptv ? 'Every source.' : 'Every venue.'), element('br'), element('span', '', 'One clear view.'));
   $('hero-intro').textContent = iptv ? 'Keep your onboard and satellite channel lineup in view. Track stream addresses and ports, organize channels by source, and take your inventory from the control room to your phone.' : 'Manage your broadcast equipment, channel lineups, and AV connections. Keep your production workspace organized from the control room to your phone.';
   $('example-ip').textContent = iptv ? '239.1.1.10' : '10.24.176.66';
@@ -293,6 +327,7 @@ function render() {
     (!$('vlan-filter').value || String(d.vlan) === $('vlan-filter').value) &&
     (!$('source-filter').value || d.channel_source === $('source-filter').value) &&
     (!$('address-filter').value || isDHCP(d.ip)));
+  if ($('sort-order').value) results.sort((a, b) => compareDirectoryRecords(a, b, $('sort-order').value));
   $('result-count').textContent = results.length;
   $('showing').textContent = `${results.length} of ${current.length} ${currentTab === 'iptv' ? 'channels' : 'devices'}`;
   $('empty').hidden = current.length > 0;
@@ -305,7 +340,7 @@ function render() {
     const title = element('div');
     title.append(element('div', 'device-name', device.name), element('span', 'device-category', device.category));
     const notes = element('textarea', 'device-notes-editor');
-    notes.rows = 2; notes.maxLength = 2000; notes.value = device.notes;
+    notes.rows = 1; notes.maxLength = 2000; notes.value = device.notes;
     notes.dataset.deviceId = device.id;
     notes.setAttribute('aria-label', `Notes for ${deviceLabel(device)}`);
     notes.title = 'Notes save when you leave this field.';
@@ -416,6 +451,7 @@ $('empty-add').onclick = () => openForm();
 $('use-example').onclick = () => openForm({name:'ATEM video switcher', category:'Video switcher', venue:'Liquid Lounge', discipline:'Video', ip:'10.24.176.66', vlan:1500, notes:''});
 for (const id of ['close-dialog','cancel-dialog']) $(id).onclick = () => $('device-dialog').close();
 for (const id of filters) $(id).addEventListener(id === 'search' ? 'input' : 'change', render);
+$('sort-order').onchange = () => { tabSortOrders[currentTab] = $('sort-order').value; render(); };
 $('clear-filters').onclick = () => { filters.forEach(id => $(id).value = ''); render(); };
 $('refresh').onclick = load;
 form.onsubmit = async event => {

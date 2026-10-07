@@ -563,7 +563,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#directory-system-title').inner_text() == 'SOURCE'
             page.get_by_role('tab', name='AV devices', exact=True).click()
             brand = page.locator('.topbar .brand-word')
-            assert 'Consolas' in brand.evaluate('(node) => getComputedStyle(node).fontFamily')
+            assert 'Cascadia Mono' in brand.evaluate('(node) => getComputedStyle(node).fontFamily')
             assert brand.evaluate('(node) => getComputedStyle(node).animationDuration') == '0.2s'
             assert brand.inner_text() == 'BROADCAST HUB'
             assert page.locator('.topbar .record-o').count() == 0
@@ -636,6 +636,74 @@ with tempfile.TemporaryDirectory() as temp:
                 assert download.value.suggested_filename == f'broadcast-equipment.{extension}'
                 data = Path(download.value.path()).read_bytes()
                 assert data.startswith(b'PK') if extension == 'xlsx' else data.startswith(b'%PDF-')
+            # Numeric address ordering, missing values, system groups, and per-tab order.
+            fixture = [
+                ('Sort zulu', '10.99.0.2', 'Video'),
+                ('Sort Alpha', '10.99.0.10', 'Audio'),
+                ('Sort beta', '10.99.1.1', 'Lighting'),
+                ('Sort delta', 'DHCP', ''),
+                ('Sort echo', '', 'Control'),
+                ('Sort foxtrot', '200.1.1.1', 'Audio'),
+                ('', '10.99.0.3', ''),
+            ]
+            for name, address, system in fixture:
+                response = page.request.post(f'http://127.0.0.1:{server.server_port}/api/devices', data={
+                    'record_type':'device', 'name':name, 'ip':address, 'discipline':system,
+                    'notes':'Sorting fixture', 'venue':'Sort venue', 'vlan':1500,
+                })
+                assert response.status == 201, response.text()
+            page.get_by_role('tab', name='AV devices', exact=True).click()
+            page.locator('#refresh').click()
+            page.wait_for_function("() => !document.getElementById('refresh').disabled")
+            page.locator('#search').fill('Sorting fixture')
+            names = lambda: page.locator('.device-row .device-name').all_text_contents()
+            original_order = names()
+            expectations = {
+                'ip-asc':['Sort zulu', '', 'Sort Alpha', 'Sort beta', 'Sort foxtrot', 'Sort delta', 'Sort echo'],
+                'ip-desc':['Sort foxtrot', 'Sort beta', 'Sort Alpha', '', 'Sort zulu', 'Sort delta', 'Sort echo'],
+                'name-asc':['Sort Alpha', 'Sort beta', 'Sort delta', 'Sort echo', 'Sort foxtrot', 'Sort zulu', ''],
+                'name-desc':['Sort zulu', 'Sort foxtrot', 'Sort echo', 'Sort delta', 'Sort beta', 'Sort Alpha', ''],
+                'system-asc':['Sort Alpha', 'Sort foxtrot', 'Sort echo', 'Sort beta', 'Sort zulu', '', 'Sort delta'],
+                'system-desc':['Sort zulu', 'Sort beta', 'Sort echo', 'Sort Alpha', 'Sort foxtrot', '', 'Sort delta'],
+                '':original_order,
+            }
+            for order, expected in expectations.items():
+                page.locator('#sort-order').select_option(order)
+                assert names() == expected, (order, names())
+            page.locator('#sort-order').select_option('name-asc')
+            page.locator('#system-buttons').get_by_role('button', name='Audio', exact=True).click()
+            assert names() == ['Sort Alpha','Sort foxtrot']
+            page.locator('#clear-filters').click()
+            assert page.locator('#sort-order').input_value() == 'name-asc'
+            for name, address, source in [('IPTV sort A','239.99.0.10','Satellite'),('IPTV sort Z','239.99.0.2','Onboard')]:
+                response = page.request.post(f'http://127.0.0.1:{server.server_port}/api/devices', data={
+                    'record_type':'iptv', 'name':name, 'ip':address, 'channel_source':source,
+                })
+                assert response.status == 201, response.text()
+            page.get_by_role('tab', name='IPTV channels', exact=True).click()
+            page.locator('#refresh').click()
+            page.wait_for_function("() => !document.getElementById('refresh').disabled")
+            page.locator('#search').fill('IPTV sort')
+            page.locator('#sort-order').select_option('ip-asc')
+            assert names() == ['IPTV sort Z','IPTV sort A']
+            page.locator('#sort-order').select_option('system-desc')
+            assert names() == ['IPTV sort A','IPTV sort Z']
+            assert page.locator('#sort-order option[value="system-desc"]').inner_text() == 'Source · Z–A'
+            page.get_by_role('tab', name='AV devices', exact=True).click()
+            assert page.locator('#sort-order').input_value() == 'name-asc'
+            page.locator('#refresh').click()
+            page.wait_for_function("() => !document.getElementById('refresh').disabled")
+            assert page.locator('#sort-order').input_value() == 'name-asc'
+            page.locator('#search').fill('Sorting fixture')
+            assert names() == expectations['name-asc']
+            assert page.locator('.system-select').evaluate_all("nodes => nodes.every(node => { const text = node.querySelector('span').getBoundingClientRect(), arrow = node.querySelector('svg').getBoundingClientRect(); return Math.abs((text.top+text.bottom-arrow.top-arrow.bottom)/2) < 1; })")
+            assert page.locator('.device-row').evaluate_all('nodes => nodes.every(node => node.getBoundingClientRect().height < 75)')
+            page.locator('#device-directory').screenshot(path='/tmp/broadcast-compact-sorted-directory.png')
+            page.set_viewport_size({'width':390,'height':844})
+            assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+            assert page.locator('#sort-order').is_visible()
+            page.locator('#sort-order').select_option('ip-desc')
+            assert names() == expectations['ip-desc']
             assert not errors, errors
             browser.close()
             print('PASS: mobile create, all filters, validation, edit, export, delete, import, reload persistence; desktop/mobile overflow; no JS errors.')
