@@ -372,3 +372,11 @@ button.system-select{display:flex;justify-content:space-between;align-items:cent
 .network-card-top>span{display:inline-flex;align-items:center;gap:7px}
 .network-card-top>span::before{content:"";width:5px;height:5px;flex-shrink:0;border-radius:50%;background:var(--accent)}
 @media(max-width:600px){.network-card{justify-self:start}}
+
+.directory-filters{grid-template-columns:minmax(150px,220px) auto minmax(0,1fr)}
+.directory-filters>.search{grid-column:3;grid-row:1;width:100%;max-width:360px;justify-self:end}
+.directory-toolbar{display:flex;justify-content:flex-end;margin-top:20px;padding:10px 12px;background:#1c2027;border:1px solid var(--border);border-bottom:0;border-radius:8px 8px 0 0}
+.directory-toolbar>label{display:flex;flex-direction:row;align-items:center;gap:10px;font-size:11px;color:var(--muted);white-space:nowrap}
+.directory-toolbar select{width:180px;font-size:12px}
+.directory-toolbar+.device-directory{margin-top:0;border-radius:0 0 8px 8px}
+@media(max-width:600px){.directory-filters{grid-template-columns:1fr auto}.directory-filters>.search{grid-column:1/-1;grid-row:1;max-width:none}.directory-filters>#clear-filters{grid-column:2}.directory-toolbar select{width:175px}}

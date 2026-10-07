@@ -75,7 +75,6 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('button', name='Clear', exact=True).click()
             page.locator('#venue-buttons').get_by_role('button', name='Liquid Lounge', exact=True).click()
             page.locator('#category-filter').select_option('Video switcher')
-            page.locator('#vlan-filter').select_option('1500')
             assert page.locator('.device-row').count() == 1
             page.locator('#search').fill('not found')
             assert page.locator('#no-results').is_visible()
@@ -192,7 +191,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('.device-row').count() == 1
             assert page.locator('.ip-confirm').count() == 0
             assert page.locator('#venue-filter-group').is_hidden()
-            assert page.locator('#vlan-filter-label').is_hidden()
+            assert page.locator('#vlan-filter-label').count() == 0
             assert 'Port 1234' in page.locator('.device-row').inner_text()
             page.locator('#source-buttons').get_by_role('button', name='Satellite', exact=True).click()
             assert page.locator('#no-results').is_visible()
