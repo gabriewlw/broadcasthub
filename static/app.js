@@ -180,6 +180,7 @@ function switchTab(type) {
   closeExportMenus();
   currentTab = type;
   const equipment = type === 'equipment';
+  $('example-media').hidden = type === 'iptv';
   $('nav-transfer').href = equipment ? '#equipment-transfer' : '#transfer';
   $('equipment-panel').hidden = !equipment;
   $('inventory').hidden = equipment;
