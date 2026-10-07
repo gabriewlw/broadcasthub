@@ -463,9 +463,14 @@ const equipmentImportFields = [
   ['location','Location',['location','venue','room','storage','storage location']],
   ['notes','Notes (optional)',['notes','note','comments']]
 ];
+const iptvImportFields = [
+  ['name', 'Channel Name', ['channel name','channel','name']],
+  ['ip', 'MCAST IP [S]', ['mcast ip [s]','mcast ip','multicast ip','ip address','ip adress','ip','ipv4']],
+  ['port', 'MCAST PORT [S]', ['mcast port [s]','mcast port','multicast port','port','udp port','stream port','port number']]
+];
 const importFields = () => currentTab === 'equipment' ? equipmentImportFields : currentTab === 'device'
   ? networkImportFields.filter(([field]) => ['venue','name','ip','vlan'].includes(field))
-  : networkImportFields.filter(([field]) => !['venue','vlan','notes','discipline'].includes(field));
+  : iptvImportFields;
 const normalizedHeader = value => value.toLowerCase().replace(/[_-]/g, ' ').replace(/\s+/g, ' ').trim();
 function mappedRows(applyVenueEdits = true) {
   return spreadsheetData.rows.map(row => {
@@ -483,7 +488,7 @@ function mappedRows(applyVenueEdits = true) {
       }
       return [field, value];
     }));
-    if (currentTab === 'device') mapped.record_type = 'device';
+    if (currentTab !== 'equipment') mapped.record_type = currentTab;
     const field = currentTab === 'equipment' ? 'location' : 'venue';
     if (applyVenueEdits && venueEdits.has(mapped[field])) mapped[field] = venueEdits.get(mapped[field]);
     return mapped;

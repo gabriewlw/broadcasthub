@@ -192,18 +192,35 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#vlan-field').is_hidden()
             page.get_by_role('button', name='Cancel', exact=True).click()
             path = Path(temp) / 'iptv.csv'
-            path.write_text('Channel,IP Address,Port,Source,Category,Inventory type,Notes\nMovie channel,239.1.1.12,5000,Onboard,Local program,iptv,Ignored spreadsheet note\n')
+            path.write_text('Name,IP Address,Port,Channel Name,MCAST IP [S],MCAST PORT [S],Source,Category,Inventory type,Notes\n'
+                            'Wrong name,invalid,bad,Movie channel,239.1.1.12,5000,Onboard,Ignored category,device,Ignored note\n'
+                            'Wrong name,invalid,bad,Skipped channel,239.1.1.13,5001,Satellite,Ignored category,device,Ignored note\n'
+                            ',,,,,,Invalid source,Ignored category,unknown,Ignored note\n')
             page.locator('#import-file').set_input_files(str(path))
-            page.locator('#map-channel_source').wait_for()
-            assert page.locator('#map-record_type').input_value() == '5'
-            assert page.locator('#map-category').input_value() == '4'
-            assert page.locator('#map-port').input_value() == '2'
-            assert not page.locator('#map-notes').count()
+            page.locator('#map-port').wait_for()
+            assert page.locator('#column-mappings select').evaluate_all('(nodes) => nodes.map(n => n.id)') == ['map-name','map-ip','map-port']
+            assert page.locator('#map-name').input_value() == '3'
+            assert page.locator('#map-ip').input_value() == '4'
+            assert page.locator('#map-port').input_value() == '5'
+            before = len(app.inventory())
             page.locator('#confirm-import').click()
-            accept_rows(1)
+            page.locator('#row-review-dialog').wait_for(state='visible')
+            assert page.locator('#row-review-fields input').evaluate_all('(nodes) => nodes.map(n => n.id)') == ['review-name','review-ip','review-port']
+            assert page.locator('#row-review-fields > label').evaluate_all('(nodes) => nodes.map(n => n.childNodes[0].textContent)') == ['Channel Name','MCAST IP [S]','MCAST PORT [S]']
+            assert page.locator('#review-ip').input_value() == '239.1.1.12'
+            assert page.locator('#review-port').input_value() == '5000'
+            assert len(app.inventory()) == before
+            page.locator('#accept-review-row').click()
+            page.wait_for_function("() => document.getElementById('row-review-progress').textContent.includes('2 of 2')")
+            assert len(app.inventory()) == before + 1
+            page.locator('#skip-review-row').click()
+            page.locator('#spreadsheet-dialog').wait_for(state='hidden')
             page.get_by_role('button', name='Edit Movie channel').wait_for()
-            assert next(d for d in app.inventory() if d['name'] == 'Movie channel')['category'] == 'Local program'
-            assert next(d for d in app.inventory() if d['name'] == 'Movie channel')['notes'] == ''
+            imported = next(d for d in app.inventory() if d['name'] == 'Movie channel')
+            assert imported['record_type'] == 'iptv' and imported['ip'] == '239.1.1.12' and imported['port'] == 5000
+            assert imported['category'] == imported['notes'] == imported['channel_source'] == imported['venue'] == ''
+            assert not any(d['name'] == 'Skipped channel' for d in app.inventory())
+            assert not page.locator('.ip-confirm').count()
             assert page.locator('.device-row').count() == 3
             page.screenshot(path='/tmp/iptracking-iptv-mobile.png', full_page=True)
             page.get_by_role('tab', name='AV devices', exact=True).click()
