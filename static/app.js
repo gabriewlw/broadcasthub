@@ -179,7 +179,7 @@ function makeButtons(id, values, selected, onSelect, allLabel = null) {
     const button = element('button', 'choice-button', label);
     button.type = 'button';
     button.dataset.value = value;
-    if (['venue-buttons', 'form-venue-buttons'].includes(id)) colorVenueButton(button, value);
+    if (id === 'form-venue-buttons') colorVenueButton(button, value);
     button.setAttribute('aria-pressed', String(value === selected));
     button.onclick = () => onSelect(value);
     return button;
@@ -188,17 +188,22 @@ function makeButtons(id, values, selected, onSelect, allLabel = null) {
 function syncButtons(id, value) {
   $(id).querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.value === value)));
 }
-function updateVenueButtons() {
+function updateVenueFilter() {
   const venues = savedVenues();
-  if (!venues.includes($('venue-filter').value)) $('venue-filter').value = '';
-  makeButtons('venue-buttons', venues, $('venue-filter').value, value => { $('venue-filter').value = value; render(); }, 'All venues');
+  const selected = $('venue-filter').value;
+  $('venue-filter').replaceChildren(new Option('All venues', ''), ...venues.map(venue => {
+    const option = new Option(venue, venue);
+    colorVenueButton(option, venue);
+    return option;
+  }));
+  $('venue-filter').value = venues.includes(selected) ? selected : '';
 }
 makeButtons('system-buttons', systems, '', value => { $('system-filter').value = value; render(); }, 'All systems');
 makeButtons('source-buttons', ['Onboard','Satellite'], '', value => { $('source-filter').value = value; render(); }, 'All sources');
 makeButtons('address-buttons', ['DHCP'], '', value => { $('address-filter').value = value; render(); }, 'All addresses');
 makeButtons('form-source-buttons', ['Onboard','Satellite'], '', value => { form.elements.channel_source.value = form.elements.channel_source.value === value ? '' : value; syncButtons('form-source-buttons', form.elements.channel_source.value); });
 function updateFilterOptions() {
-  updateVenueButtons();
+  updateVenueFilter();
   options('category-filter', tabDevices().map(d => d.category));
   $('venues').replaceChildren(...savedVenues().map(v => new Option(v, v)));
 }
@@ -357,7 +362,9 @@ function render() {
   $('directory-vlan-title').hidden = iptvDirectory;
   $('directory-device-title').textContent = iptvDirectory ? 'CHANNEL' : 'DEVICE';
   $('directory-system-title').textContent = iptvDirectory ? 'SOURCE' : 'SYSTEM';
-  syncButtons('venue-buttons', $('venue-filter').value);
+  $('venue-filter').classList.remove('venue-choice');
+  $('venue-filter').style.removeProperty('--venue-color');
+  colorVenueButton($('venue-filter'), $('venue-filter').value);
   syncButtons('system-buttons', $('system-filter').value);
   syncButtons('source-buttons', $('source-filter').value);
   syncButtons('address-buttons', $('address-filter').value);

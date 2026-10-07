@@ -97,7 +97,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#system-buttons').get_by_role('button', name='Audio', exact=True).click()
             assert page.locator('#no-results').is_visible()
             page.get_by_role('button', name='Clear', exact=True).click()
-            page.locator('#venue-buttons').get_by_role('button', name='Liquid Lounge', exact=True).click()
+            page.locator('#venue-filter').select_option('Liquid Lounge')
             page.locator('#category-filter').select_option('Video switcher')
             assert page.locator('.device-row').count() == 1
             page.locator('#search').fill('not found')
@@ -141,16 +141,15 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('[name=ip]').fill('10.24.176.67')
             page.locator('[name=vlan]').fill('1500')
             page.get_by_role('button', name='Save device', exact=True).click()
-            theater = page.locator('#venue-buttons').get_by_role('button', name='Theater', exact=True)
-            theater.wait_for()
-            theater.click()
+            theater = page.locator('#venue-filter')
+            theater.select_option('Theater')
             page.locator('#system-buttons').get_by_role('button', name='Audio', exact=True).click()
-            assert theater.get_attribute('aria-pressed') == 'true'
+            assert theater.input_value() == 'Theater'
             assert page.locator('.device-row').count() == 1
             assert page.locator('.device-name').inner_text() == 'Audio console'
             page.locator('#system-buttons').get_by_role('button', name='Video', exact=True).click()
             assert page.locator('#no-results').is_visible()
-            page.locator('#venue-buttons').get_by_role('button', name='All venues', exact=True).click()
+            page.locator('#venue-filter').select_option('')
             assert page.locator('.device-name').inner_text() == 'ATEM main'
             page.get_by_role('button', name='Clear', exact=True).click()
             assert page.locator('.device-row').count() == 2
@@ -370,11 +369,11 @@ with tempfile.TemporaryDirectory() as temp:
             assert all(r['notes'] == '' for r in app.inventory() if r['name'].startswith('CSV '))
             assert all(r['category'] == '' for r in app.inventory() if r['name'].startswith('CSV '))
             assert {r['name']:r['discipline'] for r in app.inventory() if r['name'].startswith('CSV ')} == {'CSV switcher':'Network','CSV camera':'Video','CSV lights':'Lighting'}
-            venues = page.locator('#venue-buttons button').all_text_contents()
+            venues = page.locator('#venue-filter option').all_text_contents()
             assert venues[-2:] == ['Main Lounge', 'POOL DECK'], venues
             assert venues.count('Main Lounge') == 1
             assert all(r['venue'] == 'Main Lounge' for r in app.inventory() if r['name'] in ['CSV camera', 'CSV switcher'])
-            colors = page.locator('#venue-buttons .venue-choice').evaluate_all('(nodes) => nodes.map(n => getComputedStyle(n).color)')
+            colors = page.locator('#venue-filter option.venue-choice').evaluate_all('(nodes) => nodes.map(n => getComputedStyle(n).color)')
             assert len(set(colors)) == len(colors)
             warnings = page.locator('#import-warnings')
             assert warnings.is_visible()
@@ -382,11 +381,11 @@ with tempfile.TemporaryDirectory() as temp:
             assert 'Row 6:' in warnings.inner_text() and '10.24.176.66' in warnings.inner_text()
             assert page.locator('#import-warning-list li').count() == 2
             assert not page.get_by_role('button', name='Edit Repeated switcher', exact=True).count()
-            main_venue = page.locator('#venue-buttons').get_by_role('button', name='Main Lounge', exact=True)
-            main_color = main_venue.evaluate('(n) => getComputedStyle(n).color')
+            main_venue = page.locator('#venue-filter')
+            main_color = main_venue.locator('option[value="Main Lounge"]').evaluate('(n) => getComputedStyle(n).color')
             assert main_color == preview_colors[0]
-            main_venue.click()
-            assert main_venue.get_attribute('aria-pressed') == 'true'
+            main_venue.select_option('Main Lounge')
+            assert main_venue.input_value() == 'Main Lounge'
             assert main_venue.evaluate('(n) => getComputedStyle(n).color') == main_color
             assert page.locator('.device-row').count() == 2
             assert page.locator('.device-row').filter(has_text='CSV camera').locator('.ip-cell .cell-caption').inner_text() == ''
@@ -564,7 +563,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#address-buttons').get_by_role('button', name='DHCP', exact=True).click()
             assert page.locator('.device-row').count() == 3
             assert not page.locator('.device-row .ip-confirm').count()
-            page.locator('#venue-buttons').get_by_role('button', name='DHCP LOUNGE', exact=True).click()
+            page.locator('#venue-filter').select_option('DHCP LOUNGE')
             assert page.locator('.device-row').count() == 2
             page.locator('#clear-filters').click()
             # Stopping leaves accepted DHCP rows saved and remaining rows untouched.
@@ -580,7 +579,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert any(d['name'] == 'Accepted before stop' for d in app.inventory())
             assert not any(d['name'] == 'Never accepted' for d in app.inventory())
             page.reload()
-            page.locator('#venue-buttons').get_by_role('button', name='Main Lounge', exact=True).wait_for()
+            page.locator('#venue-filter option[value="Main Lounge"]').wait_for(state='attached')
             assert page.get_by_role('combobox', name='System for Unassigned camera', exact=True).get_attribute('data-value') == 'Video'
             assert page.locator('#directory-head span:not(.sr-only)').all_text_contents() == ['VENUE','DEVICE','IP','VLAN','SYSTEM','NOTES']
             assert page.locator('.device-row').first.locator(':scope > div').evaluate_all('(nodes) => nodes.map(n => n.className)') == ['venue-cell','device-identity identity-cell','ip-cell','vlan-cell','system-cell','notes-cell','row-actions']
@@ -626,7 +625,7 @@ with tempfile.TemporaryDirectory() as temp:
             with page.expect_response(lambda response: response.url.endswith('/notes') and response.request.method == 'POST'):
                 notes_input.press('Tab')
             assert next(r for r in app.inventory() if r['name'] == 'Unassigned camera')['notes'] == ''
-            assert page.locator('#venue-buttons').get_by_role('button', name='Main Lounge', exact=True).evaluate('(n) => getComputedStyle(n).color') == main_color
+            assert page.locator('#venue-filter option[value="Main Lounge"]').evaluate('(n) => getComputedStyle(n).color') == main_color
             page.locator('#address-buttons').get_by_role('button', name='DHCP', exact=True).click()
             assert page.locator('.device-row').count() == 4
             assert not page.locator('.device-row .ip-confirm').count()
