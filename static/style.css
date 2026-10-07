@@ -254,3 +254,14 @@ textarea { resize: vertical; }
 
 .equipment-filters { grid-template-columns: 2fr 1fr auto; }
 @media (max-width: 600px) { .equipment-filters { grid-template-columns: 1fr; } }
+
+
+/* The O keeps its letter width while the recording light pulses inside it. */
+.brand-word { white-space: nowrap; }
+.record-o { display: inline-block; position: relative; color: transparent; }
+.record-o::after { content: ""; position: absolute; width: .7em; height: .7em; left: .01em; top: 50%; transform: translateY(-50%); border-radius: 50%; background: var(--accent); animation: recording-pulse 1.8s ease-in-out infinite; }
+@keyframes recording-pulse {
+  0%, 100% { opacity: .65; box-shadow: 0 0 0 0 #ef444400; }
+  50% { opacity: 1; box-shadow: 0 0 0 .2em #ef444425, 0 0 .75em #ef444470; }
+}
+@media (prefers-reduced-motion: reduce) { .record-o::after { animation: none; opacity: 1; } }
