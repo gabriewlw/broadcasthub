@@ -30,6 +30,7 @@ This first version has no user authentication. Run it on a trusted private netwo
 - Add a device's name, category, venue, system, IPv4 address, VLAN, and optional notes.
 - Search device names, addresses, categories, venues, systems, VLANs, or notes. Tap venue and system buttons to combine filters with category and VLAN. In the device form, select a system button and choose a saved venue button or type a new venue.
 - Edit records or delete them with confirmation.
+- Each device starts with a yellow **Confirm IP** button. Click it after reviewing the assignment to save a green **IP confirmed** status. This is manual review, not a ping or reachability test. Confirmation persists in the database. Editing the IP address or VLAN resets it to yellow; other edits preserve it. Existing databases upgrade automatically, and newly imported records start unconfirmed even if the export contains confirmation metadata.
 - Use **Fill ATEM example** on an empty inventory to populate the form with `10.24.176.66`, Liquid Lounge, Video switcher, Video, VLAN `1500`. This does not insert sample data until you click Save.
 - IP validation checks IPv4 format and rejects loopback, multicast, unspecified, and limited broadcast addresses. VLANs must be integers from 1 to 4094. An IP/VLAN pair must be unique; the same address is allowed in different VLANs.
 - Validation does not ping devices, infer subnets, verify a gateway, or detect directed broadcast/network addresses without a subnet mask. A stored device may be powered off or unreachable.
@@ -64,7 +65,7 @@ Download the backup to safe storage or routinely export JSON. Startup is idempot
 node --check static/app.js
 ```
 
-Twelve backend and spreadsheet tests cover HTTP CRUD, persistence, invalid IPs/VLANs, duplicate assignments, atomic import, export round trips, CSV formula escaping, static routes, cross-origin write rejection, multi-sheet Excel parsing, header rows, numeric VLANs, CSV parsing, and spreadsheet preview/import. Node is only needed for the optional JavaScript syntax check.
+Fourteen backend and spreadsheet tests cover HTTP CRUD, persistence, invalid IPs/VLANs, duplicate assignments, atomic import, export round trips, CSV formula escaping, static routes, cross-origin write rejection, multi-sheet Excel parsing, header rows, numeric VLANs, CSV parsing, spreadsheet preview/import, confirmation persistence, assignment resets, and legacy database migration. Node is only needed for the optional JavaScript syntax check.
 
 Optional browser check (requires Python Playwright and Chromium):
 

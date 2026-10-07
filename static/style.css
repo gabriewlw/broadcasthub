@@ -195,3 +195,10 @@ textarea { resize: vertical; }
 .spreadsheet-preview-row { padding: 14px; border: 1px solid var(--border); border-radius: 5px; background: #0e1115; overflow-wrap: anywhere; font-size: 12px; }
 .spreadsheet-preview-row p { color: var(--muted); font-size: 11px; margin: 8px 0 0; }
 @media (max-width: 600px) { .mapping-row { grid-template-columns: 1fr; gap: 10px; } }
+
+
+.ip-confirm { display: inline-flex; align-items: center; margin-top: 8px; min-height: 44px; padding: 8px 10px; border-radius: 5px; font-size: 11px; font-weight: 600; border: 1px solid; max-width: 100%; text-align: left; }
+.ip-confirm.pending { background: #302817; border-color: #9b782f; color: #ffdc85; }
+.ip-confirm.pending:hover { background: #44371b; border-color: #ffdc85; }
+.ip-confirm.confirmed { background: #173326; border-color: #398a5c; color: #99edb9; }
+.ip-confirm:disabled { opacity: 1; cursor: default; }

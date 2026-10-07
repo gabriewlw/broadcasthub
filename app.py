@@ -25,8 +25,12 @@ def connect():
         id INTEGER PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL,
         venue TEXT NOT NULL, discipline TEXT NOT NULL, ip TEXT NOT NULL,
         vlan INTEGER NOT NULL, notes TEXT NOT NULL DEFAULT '',
+        ip_confirmed INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(ip, vlan))''')
+    # Upgrade existing inventories without replacing or deleting their records.
+    if 'ip_confirmed' not in {row['name'] for row in con.execute('PRAGMA table_info(devices)')}:
+        con.execute('ALTER TABLE devices ADD COLUMN ip_confirmed INTEGER NOT NULL DEFAULT 0')
     return con
 
 
@@ -74,9 +78,26 @@ def save_device(value, device_id=None):
             cursor = con.execute('INSERT INTO devices (' + ','.join(FIELDS) + ') VALUES (?,?,?,?,?,?,?)', [row[f] for f in FIELDS])
             device_id = cursor.lastrowid
         else:
-            cursor = con.execute('UPDATE devices SET ' + ','.join(f + '=?' for f in FIELDS) + ', updated_at=CURRENT_TIMESTAMP WHERE id=?', [row[f] for f in FIELDS] + [device_id])
+            cursor = con.execute('UPDATE devices SET ' + ','.join(f + '=?' for f in FIELDS) + ', ip_confirmed=CASE WHEN ip=? AND vlan=? THEN ip_confirmed ELSE 0 END, updated_at=CURRENT_TIMESTAMP WHERE id=?', [row[f] for f in FIELDS] + [row['ip'], row['vlan'], device_id])
             if cursor.rowcount == 0:
                 raise LookupError('Device not found.')
+        return dict(con.execute('SELECT * FROM devices WHERE id=?', (device_id,)).fetchone())
+
+
+def confirm_ip(device_id, value):
+    if not isinstance(value, dict):
+        raise ValueError('Provide the IP and VLAN being confirmed.')
+    with connect() as con:
+        record = con.execute('SELECT * FROM devices WHERE id=?', (device_id,)).fetchone()
+        if record is None:
+            raise LookupError('Device not found.')
+        # Check the stored address and assignment, not just a stale browser value.
+        row = validate(dict(record))
+        if value.get('ip') != row['ip'] or value.get('vlan') != row['vlan']:
+            raise ValueError('The IP or VLAN has changed. Refresh the inventory before confirming.')
+        cursor = con.execute('UPDATE devices SET ip_confirmed=1, updated_at=CURRENT_TIMESTAMP WHERE id=? AND ip=? AND vlan=?', (device_id, row['ip'], row['vlan']))
+        if not cursor.rowcount:
+            raise ValueError('The assignment has changed. Refresh before confirming.')
         return dict(con.execute('SELECT * FROM devices WHERE id=?', (device_id,)).fetchone())
 
 
@@ -160,6 +181,12 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, spreadsheet_preview(self.body()))
         elif self.command == 'POST' and path == '/api/import':
             return self.send(200, import_devices(self.body()))
+        elif self.command == 'POST' and path.startswith('/api/devices/') and path.endswith('/confirm'):
+            try:
+                device_id = int(path.removeprefix('/api/devices/').removesuffix('/confirm'))
+            except ValueError:
+                raise LookupError('Device not found.') from None
+            return self.send(200, confirm_ip(device_id, self.body()))
         elif self.command in ('PUT', 'DELETE') and path.startswith('/api/devices/'):
             try:
                 device_id = int(path.removeprefix('/api/devices/'))

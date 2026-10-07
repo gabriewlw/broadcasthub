@@ -28,6 +28,17 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('.device-name').filter(has_text='ATEM video switcher').wait_for()
             assert app.inventory()[0]['ip'] == '10.24.176.66'
             assert page.locator('#total').inner_text() == '1'
+            confirm = page.get_by_role('button', name='Confirm IP for ATEM video switcher', exact=True)
+            assert 'pending' in confirm.get_attribute('class')
+            confirm.click()
+            green = page.get_by_role('button', name='IP confirmed for ATEM video switcher', exact=True)
+            green.wait_for()
+            assert 'confirmed' in green.get_attribute('class')
+            assert green.is_disabled()
+            page.reload()
+            page.get_by_role('button', name='IP confirmed for ATEM video switcher', exact=True).wait_for()
+            assert app.inventory()[0]['ip_confirmed'] == 1
+
             page.locator('#system-buttons').get_by_role('button', name='Audio', exact=True).click()
             assert page.locator('#no-results').is_visible()
             page.get_by_role('button', name='Clear', exact=True).click()
@@ -48,6 +59,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('[name=name]').fill('ATEM main')
             page.get_by_role('button', name='Save changes').click()
             page.get_by_role('button', name='Edit ATEM main').wait_for()
+            assert page.get_by_role('button', name='IP confirmed for ATEM main', exact=True).is_visible()
             with page.expect_download() as download:
                 page.get_by_role('link',name='JSON ↓').click()
             payload = json.loads(Path(download.value.path()).read_text())

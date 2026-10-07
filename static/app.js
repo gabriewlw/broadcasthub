@@ -94,7 +94,21 @@ function render() {
     if (device.notes) title.append(element('div', 'device-notes', device.notes));
     identity.append(icon, title);
     const ip = element('div', 'ip-cell');
-    ip.append(element('div', 'device-ip', device.ip), element('span', 'cell-caption', `VLAN ${device.vlan} · Format valid`));
+    ip.append(element('div', 'device-ip', device.ip), element('span', 'cell-caption', `VLAN ${device.vlan}`));
+    const confirmation = element('button', `ip-confirm ${device.ip_confirmed ? 'confirmed' : 'pending'}`, device.ip_confirmed ? '✓ IP confirmed' : '● Confirm IP');
+    confirmation.type = 'button';
+    confirmation.disabled = Boolean(device.ip_confirmed);
+    confirmation.setAttribute('aria-label', `${device.ip_confirmed ? 'IP confirmed for' : 'Confirm IP for'} ${device.name}`);
+    confirmation.title = device.ip_confirmed ? 'Manually confirmed. This is not a reachability test.' : 'Click to manually confirm this IP assignment.';
+    confirmation.onclick = async () => {
+      confirmation.disabled = true;
+      try {
+        const updated = await api(`/api/devices/${device.id}/confirm`, 'POST', {ip:device.ip, vlan:device.vlan});
+        devices = devices.map(row => row.id === updated.id ? updated : row);
+        render(); toast('IP assignment confirmed.');
+      } catch(error) { confirmation.disabled = false; toast('Confirmation failed: ' + error.message); }
+    };
+    ip.append(confirmation);
     const venue = element('div', 'venue-cell');
     venue.append(element('div', 'device-venue', device.venue), element('span', 'cell-caption', 'Venue'));
     const system = element('div','system-cell');
