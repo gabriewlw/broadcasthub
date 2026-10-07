@@ -1,5 +1,32 @@
 'use strict';
 const $ = id => document.getElementById(id);
+const navToggle = $('nav-toggle');
+const mainNavigation = $('main-navigation');
+const header = navToggle.closest('.header-inner');
+const mobileNavigation = window.matchMedia('(max-width: 600px)');
+function setNavigationOpen(open, restoreFocus = false) {
+  header.classList.toggle('menu-open', open);
+  navToggle.setAttribute('aria-expanded', String(open));
+  navToggle.setAttribute('aria-label', open ? 'Close navigation menu' : 'Open navigation menu');
+  if (restoreFocus && mobileNavigation.matches) navToggle.focus();
+}
+navToggle.addEventListener('click', () => setNavigationOpen(navToggle.getAttribute('aria-expanded') !== 'true'));
+mainNavigation.addEventListener('click', event => {
+  if (event.target.closest('a')) setNavigationOpen(false, true);
+});
+document.addEventListener('pointerdown', event => {
+  if (!header.contains(event.target)) setNavigationOpen(false, mainNavigation.contains(document.activeElement));
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && navToggle.getAttribute('aria-expanded') === 'true') {
+    event.preventDefault();
+    setNavigationOpen(false, true);
+  }
+});
+header.addEventListener('focusout', event => {
+  if (event.relatedTarget && !header.contains(event.relatedTarget)) setNavigationOpen(false);
+});
+mobileNavigation.addEventListener('change', () => setNavigationOpen(false, mainNavigation.contains(document.activeElement)));
 let devices = [], editing = null, deleting = null, timer, currentTab = 'device';
 let importWarnings = [];
 const pendingNoteSaves = new Map();

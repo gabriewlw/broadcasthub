@@ -42,6 +42,30 @@ with tempfile.TemporaryDirectory() as temp:
 
             page.on('pageerror', lambda error: errors.append(str(error)))
             page.goto(f'http://127.0.0.1:{server.server_port}')
+            navigation = page.get_by_role('navigation', name='Main navigation')
+            nav_toggle = page.locator('#nav-toggle')
+            assert nav_toggle.is_visible() and navigation.is_hidden()
+            assert nav_toggle.get_attribute('aria-expanded') == 'false'
+            nav_toggle.focus(); nav_toggle.press('Enter')
+            assert navigation.is_visible()
+            assert navigation.get_by_role('link', name='Devices', exact=True).is_visible()
+            nav_toggle.press('Tab')
+            assert navigation.get_by_role('link', name='Workspace', exact=True).evaluate('(node) => node === document.activeElement')
+            page.keyboard.press('Escape')
+            assert navigation.is_hidden()
+            assert nav_toggle.evaluate('(node) => node === document.activeElement')
+            nav_toggle.click()
+            page.locator('#hero-intro').click()
+            assert navigation.is_hidden()
+            nav_toggle.click()
+            navigation.get_by_role('link', name='Devices', exact=True).click()
+            assert navigation.is_hidden() and nav_toggle.get_attribute('aria-expanded') == 'false'
+            nav_toggle.click()
+            page.set_viewport_size({'width':1440,'height':1000})
+            assert nav_toggle.is_hidden() and navigation.is_visible()
+            page.set_viewport_size({'width':390,'height':844})
+            assert navigation.is_hidden() and nav_toggle.get_attribute('aria-expanded') == 'false'
+            page.evaluate('window.scrollTo(0, 0)')
             menu = page.locator('#inventory .export-dropdown')
             assert menu.get_attribute('open') is None
             summary = menu.locator('summary')
