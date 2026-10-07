@@ -122,20 +122,19 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('button', name='Reload preview').click()
             page.locator('#map-ip').get_by_role('option', name='2. Address on network', exact=True).wait_for(state='attached')
             page.locator('#map-ip').select_option('1')
-            page.locator('#default-category').fill('Camera')
+            assert not page.locator('[id^=default-]').count()
             assert 'Excel camera' in page.locator('#spreadsheet-preview').inner_text()
             assert len(app.inventory()) == 2  # Preview never writes.
             page.screenshot(path='/tmp/iptracking-excel-mobile.png', full_page=True)
             page.locator('#confirm-import').click()
             page.get_by_role('button', name='Edit Excel camera').wait_for()
             assert len(app.inventory()) == 3
-            assert next(d for d in app.inventory() if d['name'] == 'Excel camera')['category'] == 'Camera'
-            # CSV defaults and an invalid address must leave all existing records intact.
+            assert next(d for d in app.inventory() if d['name'] == 'Excel camera')['category'] == ''
+            # A supplied invalid address must leave all existing records intact.
             path = Path(temp) / 'extra.csv'
             path.write_text('Device,IP Address,VLAN\nCSV device,invalid,1500\n')
             page.locator('#import-file').set_input_files(str(path))
-            page.locator('#default-venue').wait_for()
-            page.locator('#default-venue').fill('Theater')
+            page.locator('#map-venue').wait_for()
             page.locator('#confirm-import').click()
             page.locator('#spreadsheet-error').wait_for(state='visible')
             assert 'valid IPv4' in page.locator('#spreadsheet-error').inner_text()
@@ -148,8 +147,6 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('[name=name]').fill('Ship information')
             page.locator('[name=ip]').fill('239.1.1.10')
             page.locator('[name=port]').fill('1234')
-            page.get_by_role('button', name='Save channel', exact=True).click()
-            assert 'Choose Onboard or Satellite' in page.locator('#form-error').inner_text()
             page.locator('#form-source-buttons').get_by_role('button', name='Onboard', exact=True).click()
             page.get_by_role('button', name='Save channel', exact=True).click()
             page.get_by_role('button', name='Edit Ship information').wait_for()
@@ -179,7 +176,7 @@ with tempfile.TemporaryDirectory() as temp:
             path.write_text('Channel,IP Address,Port,Source\nMovie channel,239.1.1.12,5000,Onboard\n')
             page.locator('#import-file').set_input_files(str(path))
             page.locator('#map-channel_source').wait_for()
-            assert page.locator('#default-record_type').input_value() == 'iptv'
+            assert page.locator('#map-record_type').input_value() == ''
             page.locator('#confirm-import').click()
             page.get_by_role('button', name='Edit Movie channel').wait_for()
             assert page.locator('.device-row').count() == 3
@@ -215,13 +212,16 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#equipment-dialog').wait_for(state='hidden')
             page.wait_for_function("() => document.getElementById('equipment-units').textContent === '2'")
             path = Path(temp) / 'equipment.csv'
-            path.write_text('BRAND,MODEL,DESCRIPTION,SERIAL NUMBER,QUANTITY,LOCATION,NOTES\nNeutrik,XLR,Audio cable,,20,Storeroom,Spare stock\n')
+            path.write_text('BRAND,MODEL,DESCRIPTION,SERIAL NUMBER,QUANTITY,VENUE,NOTES\nNeutrik,XLR,Audio cable,,20,RD Storeroom,Spare stock\n')
             page.locator('#import-file').set_input_files(str(path))
             page.locator('#map-brand').wait_for()
+            page.get_by_label('Edit location Storeroom', exact=True).fill('Store 2')
+            assert 'Store 2' in page.locator('#spreadsheet-preview').inner_text()
+            assert len(app.equipment_inventory()) == 1
             page.locator('#confirm-import').click()
             page.get_by_role('button', name='Edit equipment Neutrik XLR').wait_for()
             assert page.locator('#equipment-units').inner_text() == '22'
-            page.locator('#equipment-location-filter').select_option('Storeroom')
+            page.locator('#equipment-location-filter').select_option('Store 2')
             assert page.locator('#equipment-rows tr').count() == 1
             page.locator('#equipment-clear').click()
             with page.expect_download() as download:
@@ -264,23 +264,42 @@ with tempfile.TemporaryDirectory() as temp:
             assert not page.locator('#map-name option').filter(has_text='Device ID').count()
             assert not page.locator('#map-name option').filter(has_text='o.O').count()
             assert 'RD MAIN' not in page.locator('#spreadsheet-preview').inner_text()
-            assert 'VLAN not set' in page.locator('#spreadsheet-preview').inner_text()
+            assert 'Missing' not in page.locator('#spreadsheet-preview').inner_text()
+            assert page.locator('#import-venue-list button').all_text_contents() == ['MAIN LOUNGE', 'POOL DECK']
+            page.locator('#import-venue-list').get_by_role('button', name='MAIN LOUNGE', exact=True).click()
+            venue_input = page.get_by_label('Edit venue MAIN LOUNGE', exact=True)
+            assert venue_input.evaluate('(node) => node === document.activeElement')
+            venue_input.fill('Main Lounge')
+            assert 'Main Lounge' in page.locator('#spreadsheet-preview').inner_text()
+            assert 'MAIN LOUNGE' not in page.locator('#spreadsheet-preview').inner_text()
+            preview_colors = page.locator('#import-venue-list button').evaluate_all('(nodes) => nodes.map(n => getComputedStyle(n).color)')
+            assert len(set(preview_colors)) == 2
+            assert len([r for r in app.inventory() if r['record_type'] == 'device']) == 3
+            page.screenshot(path='/tmp/iptracking-venue-preview-mobile.png', full_page=True)
             page.locator('#confirm-import').click()
             page.get_by_role('button', name='Edit CSV camera', exact=True).wait_for()
             assert len([r for r in app.inventory() if r['record_type'] == 'device']) == 6
             assert all(r['notes'] == '' for r in app.inventory() if r['name'].startswith('CSV '))
             venues = page.locator('#venue-buttons button').all_text_contents()
-            assert venues[-2:] == ['MAIN LOUNGE', 'POOL DECK'], venues
-            assert venues.count('MAIN LOUNGE') == 1
+            assert venues[-2:] == ['Main Lounge', 'POOL DECK'], venues
+            assert venues.count('Main Lounge') == 1
+            assert all(r['venue'] == 'Main Lounge' for r in app.inventory() if r['name'] in ['CSV camera', 'CSV switcher'])
+            colors = page.locator('#venue-buttons .venue-choice').evaluate_all('(nodes) => nodes.map(n => getComputedStyle(n).color)')
+            assert len(set(colors)) == len(colors)
             warnings = page.locator('#import-warnings')
             assert warnings.is_visible()
             assert 'Row 5:' in warnings.inner_text() and '10.24.176.90' in warnings.inner_text()
             assert 'Row 6:' in warnings.inner_text() and '10.24.176.66' in warnings.inner_text()
             assert page.locator('#import-warning-list li').count() == 2
             assert not page.get_by_role('button', name='Edit Repeated switcher', exact=True).count()
-            page.locator('#venue-buttons').get_by_role('button', name='MAIN LOUNGE', exact=True).click()
+            main_venue = page.locator('#venue-buttons').get_by_role('button', name='Main Lounge', exact=True)
+            main_color = main_venue.evaluate('(n) => getComputedStyle(n).color')
+            assert main_color == preview_colors[0]
+            main_venue.click()
+            assert main_venue.get_attribute('aria-pressed') == 'true'
+            assert main_venue.evaluate('(n) => getComputedStyle(n).color') == main_color
             assert page.locator('.device-row').count() == 2
-            assert 'VLAN not set' in page.locator('.device-row').filter(has_text='CSV camera').inner_text()
+            assert page.locator('.device-row').filter(has_text='CSV camera').locator('.ip-cell .cell-caption').inner_text() == ''
             page.get_by_role('button', name='Confirm IP for CSV camera', exact=True).click()
             page.get_by_role('button', name='IP confirmed for CSV camera', exact=True).wait_for()
             page.get_by_role('tab', name='IPTV channels', exact=True).click()
@@ -291,11 +310,77 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('button', name='Edit CSV lights', exact=True).wait_for()
             assert warnings.is_visible()
             page.get_by_role('button', name='Edit CSV lights', exact=True).click()
+            assert page.locator('#form-venue-buttons').get_by_role('button', name='Main Lounge', exact=True).evaluate('(n) => getComputedStyle(n).color') == main_color
             page.locator('[name=ip]').fill('10.24.176.91')
             page.get_by_role('button', name='Save changes', exact=True).click()
             page.locator('#form-error').wait_for(state='visible')
             assert 'Each AV IP must be unique' in page.locator('#form-error').inner_text()
             page.get_by_role('button', name='Cancel', exact=True).click()
+            # Missing cells and columns remain blank, with no defaults, and can
+            # be completed through Edit without requiring other missing fields.
+            path = Path(temp) / 'partial-devices.csv'
+            path.write_text('DEVICE NAME,VENUE,IP Adress,Notes\n'
+                            'Unassigned camera,,,\n'
+                            ',RD BACKSTAGE,,\n'
+                            ',,10.24.176.93,\n'
+                            ',,,Find this device later\n')
+            page.locator('#import-file').set_input_files(str(path))
+            page.wait_for_function("() => document.getElementById('spreadsheet-dialog').open && !document.getElementById('confirm-import').disabled")
+            assert not page.locator('[id^=default-]').count()
+            assert page.locator('#map-category').input_value() == ''
+            assert page.locator('#map-discipline').input_value() == ''
+            assert 'Missing' not in page.locator('#spreadsheet-preview').inner_text()
+            page.locator('#confirm-import').click()
+            page.get_by_role('button', name='Edit Unassigned camera', exact=True).wait_for()
+            unassigned = page.locator('.device-row').filter(has_text='Unassigned camera')
+            assert unassigned.locator('.device-ip').inner_text() == ''
+            assert unassigned.locator('.device-category').inner_text() == ''
+            assert unassigned.locator('.device-venue').inner_text() == ''
+            assert not unassigned.locator('.badge, .ip-confirm').count()
+            assert not warnings.is_visible()
+            page.get_by_role('button', name='Edit Unassigned camera', exact=True).click()
+            for field in ['category','venue','discipline','ip','vlan']:
+                assert page.locator(f'#device-form [name={field}]').input_value() == ''
+            page.locator('#device-form [name=ip]').fill('10.24.176.94')
+            page.get_by_role('button', name='Save changes', exact=True).click()
+            page.get_by_role('button', name='Confirm IP for Unassigned camera', exact=True).wait_for()
+            assert next(r for r in app.inventory() if r['name'] == 'Unassigned camera')['category'] == ''
+            backstage = next(r for r in app.inventory() if r['venue'] == 'BACKSTAGE')
+            page.get_by_role('button', name=f"Edit record {backstage['id']}", exact=True).click()
+            page.locator('#device-form [name=name]').fill('Backstage device')
+            page.get_by_role('button', name='Save changes', exact=True).click()
+            page.get_by_role('button', name='Edit Backstage device', exact=True).wait_for()
+            page.get_by_role('tab', name='Equipment inventory', exact=True).click()
+            path = Path(temp) / 'partial-equipment.csv'
+            path.write_text('Description\nUnidentified spare\nUnidentified spare\n')
+            page.locator('#import-file').set_input_files(str(path))
+            page.wait_for_function("() => document.getElementById('spreadsheet-dialog').open && !document.getElementById('confirm-import').disabled")
+            assert page.locator('#map-quantity').input_value() == ''
+            page.locator('#confirm-import').click()
+            page.wait_for_function("() => document.getElementById('equipment-records').textContent === '4'")
+            partial = page.locator('#equipment-rows tr').filter(has_text='Unidentified spare')
+            assert partial.count() == 2
+            assert partial.locator('[data-label=Quantity]').all_text_contents() == ['', '']
+            spare = next(r for r in app.equipment_inventory() if r['description'] == 'Unidentified spare')
+            page.get_by_role('button', name=f"Edit equipment record {spare['id']}", exact=True).click()
+            assert page.locator('#equipment-quantity').input_value() == ''
+            page.locator('#equipment-brand').fill('Sony')
+            page.locator('#equipment-quantity').fill('3')
+            page.get_by_role('button', name='Save changes', exact=True).click()
+            page.get_by_role('button', name='Edit equipment Sony', exact=True).wait_for()
+            assert next(r for r in app.equipment_inventory() if r['id'] == spare['id'])['model'] == ''
+            page.get_by_role('tab', name='IPTV channels', exact=True).click()
+            path = Path(temp) / 'partial-iptv.csv'
+            path.write_text('Channel\nUnassigned channel\n')
+            page.locator('#import-file').set_input_files(str(path))
+            page.wait_for_function("() => document.getElementById('spreadsheet-dialog').open && !document.getElementById('confirm-import').disabled")
+            page.locator('#confirm-import').click()
+            page.get_by_role('button', name='Edit Unassigned channel', exact=True).wait_for()
+            assert next(r for r in app.inventory() if r['name'] == 'Unassigned channel')['channel_source'] == ''
+            page.get_by_role('tab', name='AV devices', exact=True).click()
+            page.reload()
+            page.locator('#venue-buttons').get_by_role('button', name='Main Lounge', exact=True).wait_for()
+            assert page.locator('#venue-buttons').get_by_role('button', name='Main Lounge', exact=True).evaluate('(n) => getComputedStyle(n).color') == main_color
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             page.screenshot(path='/tmp/iptracking-mobile.png', full_page=True)
             page.set_viewport_size({'width':1440,'height':1000})

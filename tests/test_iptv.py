@@ -29,7 +29,7 @@ class IPTVTests(unittest.TestCase):
         self.assertEqual(channel['venue'], '')
 
     def test_source_and_address_validation(self):
-        for source in ('', 'Cable', None):
+        for source in ('Cable', 123):
             self.assertEqual(self.request('/api/devices', 'POST', dict(CHANNEL, channel_source=source))[0], 400)
         for ip in ('127.0.0.1', '0.0.0.0', '255.255.255.255', '239.1.1.999'):
             self.assertEqual(self.request('/api/devices', 'POST', dict(CHANNEL, ip=ip))[0], 400)
@@ -37,7 +37,7 @@ class IPTVTests(unittest.TestCase):
         self.assertEqual(self.request('/api/devices', 'POST', dict(CHANNEL, record_type='unknown'))[0], 400)
 
     def test_port_validation_and_endpoint_uniqueness(self):
-        for port in (None, '', 0, 65536, 1.5, True, '1e3'):
+        for port in (0, 65536, 1.5, True, '1e3'):
             with self.subTest(port=port):
                 self.assertEqual(self.request('/api/devices', 'POST', dict(CHANNEL, port=port))[0], 400)
         self.assertEqual(self.request('/api/devices', 'POST', CHANNEL)[0], 201)

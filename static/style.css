@@ -189,7 +189,7 @@ textarea { resize: vertical; }
 #spreadsheet-dialog { width: 760px; }
 .spreadsheet-options { display: flex; align-items: end; gap: 12px; flex-wrap: wrap; }
 .spreadsheet-options label { flex: 1; min-width: 100px; }
-.mapping-row { display: grid; grid-template-columns: 1.1fr 1fr; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.mapping-row { display: grid; grid-template-columns: 1fr; gap: 14px; padding: 12px 0; border-bottom: 1px solid var(--border); }
 .preview-title { font-size: 14px; margin-top: 24px; }
 .spreadsheet-preview { display: grid; gap: 8px; }
 .spreadsheet-preview-row { padding: 14px; border: 1px solid var(--border); border-radius: 5px; background: #0e1115; overflow-wrap: anywhere; font-size: 12px; }
@@ -267,3 +267,9 @@ textarea { resize: vertical; }
 @media (prefers-reduced-motion: reduce) { .record-o::after { animation: none; opacity: 1; } }
 
 .import-warnings{margin:0 20px 20px;padding:18px;border:1px solid #a16207;border-radius:10px;background:#211b10;color:#fcd34d;overflow-wrap:anywhere}.import-warnings h3{margin:0 0 8px;font-size:16px}.import-warnings p,.import-warnings li{font-size:13px;line-height:1.6}.import-warnings ul{padding-left:20px;max-height:260px;overflow-y:auto}
+
+.choice-button.venue-choice{color:var(--venue-color);border-color:color-mix(in srgb,var(--venue-color) 50%,var(--border));background:color-mix(in srgb,var(--venue-color) 9%,#14161b)}
+.choice-button.venue-choice:hover,.choice-button.venue-choice:focus-visible{border-color:var(--venue-color);color:var(--venue-color)}
+.choice-button.venue-choice[aria-pressed="true"]{color:var(--venue-color);border-color:var(--venue-color);background:color-mix(in srgb,var(--venue-color) 24%,#14161b);box-shadow:inset 0 0 0 1px var(--venue-color)}
+.venue-editor-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);gap:12px;margin-bottom:10px;align-items:center}.venue-editor-row label{min-width:0}.venue-editor-row input{width:100%}
+@media(max-width:600px){.venue-editor-row{grid-template-columns:1fr;gap:6px;margin-bottom:16px}}

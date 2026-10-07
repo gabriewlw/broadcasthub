@@ -4,7 +4,7 @@
   const equipmentForm = $('equipment-form');
   const fields = ['brand','model','description','serial_number','quantity','location','notes'];
   const label = field => field.replaceAll('_', ' ').replace(/^./, s => s.toUpperCase());
-  const displayName = item => `${item.brand} ${item.model}`;
+  const displayName = item => [item.brand, item.model].filter(Boolean).join(' ') || `record ${item.id}`;
   async function loadEquipment() {
     $('equipment-refresh').disabled = true;
     try {
@@ -22,12 +22,13 @@
   }
   function renderEquipment() {
     const query = $('equipment-search').value.trim().toLowerCase();
-    const results = items.filter(item => fields.some(field => String(item[field]).toLowerCase().includes(query)) &&
+    const results = items.filter(item => fields.some(field => String(item[field] ?? '').toLowerCase().includes(query)) &&
       (!$('equipment-location-filter').value || item.location === $('equipment-location-filter').value));
     $('equipment-records').textContent = items.length;
-    $('equipment-units').textContent = items.reduce((total,item) => total + item.quantity, 0);
-    $('equipment-locations').textContent = new Set(items.map(i => i.location)).size;
-    $('equipment-brands').textContent = new Set(items.map(i => i.brand)).size;
+    $('equipment-units').textContent = items.reduce((total,item) => total + (item.quantity ?? 0), 0);
+    $('equipment-units').title = 'Sum of known quantities; blank quantities are not counted.';
+    $('equipment-locations').textContent = new Set(items.map(i => i.location).filter(Boolean)).size;
+    $('equipment-brands').textContent = new Set(items.map(i => i.brand).filter(Boolean)).size;
     $('equipment-result-count').textContent = results.length;
     $('equipment-showing').textContent = `${results.length} of ${items.length} inventory records`;
     $('equipment-empty').hidden = items.length > 0;
@@ -36,7 +37,7 @@
     $('equipment-rows').replaceChildren(...results.map(item => {
       const row = element('tr');
       fields.forEach(field => {
-        const cell = element('td', '', item[field] === '' ? '—' : item[field]);
+        const cell = element('td', '', item[field] ?? '');
         cell.dataset.label = label(field); row.append(cell);
       });
       const actions = element('td', 'equipment-actions'); actions.dataset.label = 'Actions';
@@ -56,7 +57,7 @@
     equipmentForm.reset(); $('equipment-form-error').hidden = true;
     $('equipment-form-title').textContent = editingId ? 'Edit equipment' : 'Add equipment';
     $('save-equipment').textContent = editingId ? 'Save changes' : 'Save equipment';
-    if (item) fields.forEach(field => { equipmentForm.elements[field].value = item[field]; });
+    if (item) fields.forEach(field => { equipmentForm.elements[field].value = item[field] ?? ''; });
     $('equipment-dialog').showModal();
   }
   equipmentForm.onsubmit = async event => {

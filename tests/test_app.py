@@ -60,7 +60,7 @@ class AppTests(unittest.TestCase):
         for vlan in (0, 4095, 1.5, True, '1e3', 'text'):
             with self.subTest(vlan=vlan):
                 self.assertEqual(self.request('/api/devices', 'POST', dict(EXAMPLE, vlan=vlan))[0], 400)
-        self.assertEqual(self.request('/api/devices', 'POST', dict(EXAMPLE, name='  '))[0], 400)
+        self.assertEqual(self.request('/api/devices', 'POST', dict(EXAMPLE, name=123))[0], 400)
         self.assertEqual(self.request('/api/devices', 'POST', dict(EXAMPLE, discipline='invalid'))[0], 400)
 
     def test_duplicate_scope(self):

@@ -30,7 +30,7 @@ class EquipmentTests(unittest.TestCase):
         for quantity in (-1, 1.5, True, 'lots', 1000001):
             self.assertEqual(self.request('/api/equipment', 'POST', dict(ITEM, quantity=quantity))[0], 400)
         for field in ('brand','model','location'):
-            self.assertEqual(self.request('/api/equipment', 'POST', dict(ITEM, **{field:' '}))[0], 400)
+            self.assertEqual(self.request('/api/equipment', 'POST', dict(ITEM, **{field:123}))[0], 400)
         self.assertEqual(self.request('/api/equipment', 'POST', ITEM)[0], 201)
         self.assertEqual(self.request('/api/equipment', 'POST', dict(ITEM, serial_number='atem-001', location='Theater'))[0], 409)
 
