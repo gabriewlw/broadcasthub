@@ -13,7 +13,8 @@ from spreadsheets import preview as spreadsheet_preview
 from exports import network_xlsx, equipment_xlsx, network_pdf, equipment_pdf
 
 ROOT = Path(__file__).resolve().parent
-DB_PATH = Path(os.environ.get('IPTRACKING_DB', ROOT / 'data' / 'inventory.sqlite3'))
+# Keep existing hosted database configurations working during the project rename.
+DB_PATH = Path(os.environ.get('BROADCASTHUB_DB') or os.environ.get('IPTRACKING_DB') or ROOT / 'data' / 'inventory.sqlite3')
 DISCIPLINES = {'Video', 'Audio', 'Lighting', 'Control', 'Network', 'Other'}
 SYSTEM_NAME_RULES = (
     ('audio', 'Audio'), ('amx', 'Control'), ('dsp', 'Audio'),

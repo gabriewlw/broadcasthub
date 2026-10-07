@@ -7,13 +7,15 @@ A responsive broadcasting workspace for equipment inventory, AV network addresse
 Requires Python 3.12 or newer. Install the pinned Excel and PDF dependencies once; no frontend build is needed.
 
 ```sh
-cd /path/to/iptracking
+cd /path/to/broadcasthub
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python app.py
 ```
 
-On Windows, open a terminal in the extracted project folder and run `py -m pip install -r requirements.txt`, then `py app.py`. On Mac/Linux, replace `/path/to/iptracking` above with the actual downloaded folder path. In the cloud workspace it is `/workspace/iptracking`.
+On Windows, open a terminal in the extracted project folder and run `py -m pip install -r requirements.txt`, then `py app.py`. On Mac/Linux, replace `/path/to/broadcasthub` above with the actual downloaded folder path. In the cloud workspace it is `/workspace/broadcasthub`.
+
+You can rename an existing extracted project folder to `broadcasthub` (or use the new GitHub ZIP folder `broadcasthub-main`). Stop the server first, keep the complete `data` folder inside the project, then reopen PowerShell in the renamed folder and run `py app.py`. The folder name does not affect the page or database.
 
 The default bind address is `127.0.0.1`, port `8000`. For a computer or private server reachable by your iPhone on the same network:
 
@@ -75,13 +77,13 @@ To update an existing Windows installation, replace `app.py`, add `exports.py`, 
 
 **CSV ↓** exports the entire inventory for spreadsheet use and can also be imported through column mapping. Formula-like text is escaped for spreadsheet safety. Exports include both AV devices and IPTV channels, regardless of the current tab or filters. JSON and CSV include `record_type` (`device` or `iptv`) , `channel_source` (`Onboard` or `Satellite` for IPTV), and `port` (IPTV only). Old JSON exports default to AV devices. AV spreadsheet imports always create AV device records. The **IPTV channels** spreadsheet importer contains only **Channel Name**, **MCAST IP [S]**, and **MCAST PORT [S]**, in that order. These exact headers take priority over aliases such as Channel, IP Address, and Port. CSV and Excel imports use the same one-by-one review as AV devices: edit the three values, choose **Yes** to save the channel immediately, or **SKIP** to move on without saving it. The IPTV tab supplies the channel inventory type; spreadsheet category, source, inventory type, venue, VLAN, system, and notes are ignored. Missing values remain blank. Choose Onboard/Satellite through Edit and enter notes after import. IPTV has no manual IP confirmation button; supplied addresses and ports still receive format/range checks. JSON transfers continue to restore every exported field in both inventories. Legacy IPTV exports with missing ports can be imported and completed later. Imports skip existing AV IP addresses and IPTV IP/port endpoints. Identical IP addresses can exist in separate inventories. Blank AV IPs, DHCP assignments, incomplete IPTV endpoints, and equipment without a known identity are kept separately rather than treated as duplicates; repeatedly importing these incomplete records may add another copy. JSON and CSV exports preserve all blank fields.
 
-The database defaults to `data/inventory.sqlite3`, excluded from Git. Set `IPTRACKING_DB` to a persistent database location when hosting. Do not use temporary container storage for your only copy. For a consistent live backup, use SQLite's backup API rather than copying an active WAL database:
+The database defaults to `data/inventory.sqlite3`, excluded from Git. Set `BROADCASTHUB_DB` to a persistent database location when hosting. Existing `IPTRACKING_DB` settings remain supported as a compatibility fallback; `BROADCASTHUB_DB` takes priority. Do not use temporary container storage for your only copy. For a consistent live backup, use SQLite's backup API rather than copying an active WAL database:
 
 ```sh
 python3 - <<'PY'
 import sqlite3
 from app import connect
-with connect() as source, sqlite3.connect('/tmp/iptracking-backup.sqlite3') as backup:
+with connect() as source, sqlite3.connect('/tmp/broadcasthub-backup.sqlite3') as backup:
     source.backup(backup)
 PY
 ```
