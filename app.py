@@ -1,4 +1,4 @@
-"""AV inventory server. Python 3.12+; install requirements.txt for Excel import."""
+"""Broadcast Manager server. Python 3.12+; install requirements.txt for Excel import."""
 import csv
 import io
 import ipaddress
@@ -15,6 +15,7 @@ DB_PATH = Path(os.environ.get('IPTRACKING_DB', ROOT / 'data' / 'inventory.sqlite
 DISCIPLINES = {'Video', 'Audio', 'Lighting', 'Control', 'Network', 'Other'}
 FIELDS = ('name', 'category', 'venue', 'discipline', 'ip', 'vlan', 'notes')
 ALL_FIELDS = FIELDS + ('record_type', 'channel_source', 'port')
+EQUIPMENT_FIELDS = ('brand', 'model', 'description', 'serial_number', 'quantity', 'location', 'notes')
 
 
 SCHEMA = """CREATE TABLE {table} (
@@ -55,6 +56,13 @@ def connect():
             raise
     con.execute("CREATE UNIQUE INDEX IF NOT EXISTS device_assignment ON devices(ip,vlan) WHERE record_type='device'")
     con.execute("CREATE UNIQUE INDEX IF NOT EXISTS channel_endpoint ON devices(ip,port) WHERE record_type='iptv' AND port IS NOT NULL")
+    con.execute("""CREATE TABLE IF NOT EXISTS equipment (
+        id INTEGER PRIMARY KEY, brand TEXT NOT NULL, model TEXT NOT NULL,
+        description TEXT NOT NULL DEFAULT '', serial_number TEXT NOT NULL DEFAULT '',
+        quantity INTEGER NOT NULL, location TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '',
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""")
+    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS equipment_serial ON equipment(serial_number COLLATE NOCASE) WHERE serial_number != ''")
+    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS equipment_stock ON equipment(brand COLLATE NOCASE, model COLLATE NOCASE, description, location COLLATE NOCASE) WHERE serial_number = ''")
     return con
 
 
@@ -151,7 +159,7 @@ def confirm_ip(device_id, value):
 
 def import_devices(payload):
     if not isinstance(payload, dict) or payload.get('version') != 1 or not isinstance(payload.get('devices'), list):
-        raise ValueError('Choose an IP Tracking JSON export (version 1).')
+        raise ValueError('Choose a Broadcast Manager network JSON export (version 1).')
     if len(payload['devices']) > 10000:
         raise ValueError('Import supports up to 10,000 devices per file.')
     rows = []
@@ -173,6 +181,85 @@ def import_devices(payload):
             con.execute('INSERT INTO devices (' + ','.join(ALL_FIELDS) + ') VALUES (' + ','.join('?' for _ in ALL_FIELDS) + ')', [row[f] for f in ALL_FIELDS])
             added += 1
     return {'added': added, 'skipped': len(rows) - added}
+
+
+def validate_equipment(value):
+    if not isinstance(value, dict):
+        raise ValueError('Each inventory item must be an object.')
+    row = {}
+    for field in EQUIPMENT_FIELDS:
+        if field == 'quantity':
+            continue
+        raw = value.get(field, '')
+        if not isinstance(raw, str):
+            raise ValueError(f'{field.replace("_", " ").title()} must be text.')
+        row[field] = raw.strip()
+        if len(row[field]) > (2000 if field in ('description', 'notes') else 120):
+            raise ValueError(f'{field.replace("_", " ").title()} is too long.')
+    for field in ('brand', 'model', 'location'):
+        if not row[field]:
+            raise ValueError(f'{field.title()} is required.')
+    quantity = value.get('quantity', 1)
+    if isinstance(quantity, bool) or not isinstance(quantity, (str, int)) or not str(quantity).isascii() or not str(quantity).isdigit() or not 0 <= int(quantity) <= 1000000:
+        raise ValueError('Quantity must be a whole number from 0 to 1,000,000.')
+    row['quantity'] = int(quantity)
+    return row
+
+
+def equipment_inventory():
+    with connect() as con:
+        return [dict(row) for row in con.execute('SELECT * FROM equipment ORDER BY location COLLATE NOCASE, brand COLLATE NOCASE, model COLLATE NOCASE')]
+
+
+def save_equipment(value, item_id=None):
+    row = validate_equipment(value)
+    with connect() as con:
+        if item_id is None:
+            cursor = con.execute('INSERT INTO equipment (' + ','.join(EQUIPMENT_FIELDS) + ') VALUES (?,?,?,?,?,?,?)', [row[f] for f in EQUIPMENT_FIELDS])
+            item_id = cursor.lastrowid
+        else:
+            cursor = con.execute('UPDATE equipment SET ' + ','.join(f+'=?' for f in EQUIPMENT_FIELDS) + ', updated_at=CURRENT_TIMESTAMP WHERE id=?', [row[f] for f in EQUIPMENT_FIELDS]+[item_id])
+            if not cursor.rowcount:
+                raise LookupError('Inventory item not found.')
+        return dict(con.execute('SELECT * FROM equipment WHERE id=?', (item_id,)).fetchone())
+
+
+def equipment_identity(row):
+    return ('serial', row['serial_number'].casefold()) if row['serial_number'] else ('stock', row['brand'].casefold(), row['model'].casefold(), row['description'], row['location'].casefold())
+
+
+def import_equipment(payload):
+    if not isinstance(payload, dict) or payload.get('version') != 1 or not isinstance(payload.get('equipment'), list):
+        raise ValueError('Choose a Broadcast Manager equipment JSON export.')
+    if len(payload['equipment']) > 10000:
+        raise ValueError('Import supports up to 10,000 inventory items.')
+    rows = []
+    for index, value in enumerate(payload['equipment'], 1):
+        try:
+            rows.append(validate_equipment(value))
+        except ValueError as exc:
+            raise ValueError(f'Inventory row {index}: {exc} Nothing was imported.') from None
+    identities = [equipment_identity(row) for row in rows]
+    if len(set(identities)) != len(identities):
+        raise ValueError('Duplicate serial numbers or stock records in this file. Nothing was imported.')
+    with connect() as con:
+        existing = {equipment_identity(dict(row)) for row in con.execute('SELECT * FROM equipment')}
+        added = 0
+        for row in rows:
+            if equipment_identity(row) in existing:
+                continue
+            con.execute('INSERT INTO equipment (' + ','.join(EQUIPMENT_FIELDS) + ') VALUES (?,?,?,?,?,?,?)', [row[f] for f in EQUIPMENT_FIELDS])
+            added += 1
+    return {'added': added, 'skipped': len(rows)-added}
+
+
+def equipment_csv():
+    output = io.StringIO(newline='')
+    writer = csv.DictWriter(output, fieldnames=EQUIPMENT_FIELDS, extrasaction='ignore')
+    writer.writeheader()
+    for row in equipment_inventory():
+        writer.writerow({f: ("'"+str(row[f]) if str(row[f]).startswith(('=', '+', '-', '@', '\t', '\r', '\n')) else row[f]) for f in EQUIPMENT_FIELDS})
+    return output.getvalue().encode('utf-8-sig')
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -207,10 +294,16 @@ class Handler(BaseHTTPRequestHandler):
     def dispatch(self):
         path = urlsplit(self.path).path
         if self.command == 'GET':
+            if path == '/api/equipment':
+                return self.send(200, {'equipment': equipment_inventory()})
+            if path == '/api/equipment/export':
+                return self.send(200, {'version':1, 'equipment':equipment_inventory()}, filename='broadcast-equipment.json')
+            if path == '/api/equipment/export.csv':
+                return self.send(200, equipment_csv(), 'text/csv; charset=utf-8', 'broadcast-equipment.csv')
             if path == '/api/devices':
                 return self.send(200, {'devices': inventory()})
             if path == '/api/export':
-                return self.send(200, {'version': 1, 'devices': inventory()}, filename='ip-tracking.json')
+                return self.send(200, {'version': 1, 'devices': inventory()}, filename='broadcast-network.json')
             if path == '/api/export.csv':
                 output = io.StringIO(newline='')
                 writer = csv.DictWriter(output, fieldnames=ALL_FIELDS, extrasaction='ignore')
@@ -218,11 +311,27 @@ class Handler(BaseHTTPRequestHandler):
                 for row in inventory():
                     # Prevent spreadsheet formula injection in user-supplied strings.
                     writer.writerow({f: ("'" + str(row[f]) if str(row[f]).startswith(('=', '+', '-', '@', '\t', '\r', '\n')) else row[f]) for f in ALL_FIELDS})
-                return self.send(200, output.getvalue().encode('utf-8-sig'), 'text/csv; charset=utf-8', 'ip-tracking.csv')
-            assets = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css'), '/icon.svg': ('icon.svg', 'image/svg+xml')}
+                return self.send(200, output.getvalue().encode('utf-8-sig'), 'text/csv; charset=utf-8', 'broadcast-network.csv')
+            assets = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css'), '/equipment.js': ('equipment.js', 'text/javascript'), '/icon.svg': ('icon.svg', 'image/svg+xml')}
             if path in assets:
                 file, mime = assets[path]
                 return self.send(200, (ROOT / 'static' / file).read_bytes(), mime + '; charset=utf-8')
+        elif self.command == 'POST' and path == '/api/equipment':
+            return self.send(201, save_equipment(self.body()))
+        elif self.command == 'POST' and path == '/api/equipment/import':
+            return self.send(200, import_equipment(self.body()))
+        elif self.command in ('PUT','DELETE') and path.startswith('/api/equipment/'):
+            try:
+                item_id = int(path.removeprefix('/api/equipment/'))
+            except ValueError:
+                raise LookupError('Inventory item not found.') from None
+            if self.command == 'PUT':
+                return self.send(200, save_equipment(self.body(), item_id))
+            self.body()
+            with connect() as con:
+                if not con.execute('DELETE FROM equipment WHERE id=?', (item_id,)).rowcount:
+                    raise LookupError('Inventory item not found.')
+            return self.send(200, {'deleted':item_id})
         elif self.command == 'POST' and path == '/api/devices':
             return self.send(201, save_device(self.body()))
         elif self.command == 'POST' and path == '/api/spreadsheet-preview':
@@ -259,7 +368,7 @@ class Handler(BaseHTTPRequestHandler):
         except LookupError as exc:
             self.send(404, {'error': str(exc)})
         except sqlite3.IntegrityError:
-            self.send(409, {'error': 'This AV IP/VLAN assignment or IPTV IP/port endpoint is already in the inventory.'})
+            self.send(409, {'error': 'This assignment, serial number, or stock record already exists in the inventory.'})
         except Exception:
             self.log_error('Internal request error')
             self.send(500, {'error': 'Could not complete the request. Check server storage and try again.'})
@@ -272,5 +381,5 @@ if __name__ == '__main__':
         pass
     host = os.environ.get('HOST', '127.0.0.1')
     port = int(os.environ.get('PORT', '8000'))
-    print(f'IP Tracking listening on {host}:{port}', flush=True)
+    print(f'Broadcast Manager listening on {host}:{port}', flush=True)
     ThreadingHTTPServer((host, port), Handler).serve_forever()

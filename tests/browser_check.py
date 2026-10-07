@@ -190,6 +190,59 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('tab', name='IPTV channels', exact=True).click()
             assert page.get_by_role('button', name='Edit Ship information').is_visible()
             assert page.locator('.ip-confirm').count() == 0
+            # General equipment inventory is separate and has no network fields.
+            page.get_by_role('tab', name='Equipment inventory', exact=True).click()
+            page.locator('#equipment-empty').wait_for(state='visible')
+            page.locator('#add-device').click()
+            page.locator('#equipment-form [name=brand]').fill('Blackmagic Design')
+            page.locator('#equipment-form [name=model]').fill('ATEM Mini Pro')
+            page.locator('#equipment-form [name=description]').fill('HDMI switcher')
+            page.locator('#equipment-form [name=serial_number]').fill('ATEM-001')
+            page.locator('#equipment-form [name=quantity]').fill('1')
+            page.locator('#equipment-form [name=location]').fill('Broadcast center')
+            page.locator('#equipment-form [name=notes]').fill('With PSU')
+            page.get_by_role('button', name='Save equipment', exact=True).click()
+            page.get_by_role('button', name='Edit equipment Blackmagic Design ATEM Mini Pro').wait_for()
+            assert page.locator('#equipment-units').inner_text() == '1'
+            assert page.locator('#equipment-rows tr').count() == 1
+            assert page.locator('#inventory').is_hidden()
+            page.locator('#equipment-search').fill('missing')
+            assert page.locator('#equipment-no-results').is_visible()
+            page.locator('#equipment-clear').click()
+            page.get_by_role('button', name='Edit equipment Blackmagic Design ATEM Mini Pro').click()
+            page.locator('#equipment-form [name=quantity]').fill('2')
+            page.locator('#equipment-dialog').get_by_role('button', name='Save changes', exact=True).click()
+            page.locator('#equipment-dialog').wait_for(state='hidden')
+            page.wait_for_function("() => document.getElementById('equipment-units').textContent === '2'")
+            path = Path(temp) / 'equipment.csv'
+            path.write_text('BRAND,MODEL,DESCRIPTION,SERIAL NUMBER,QUANTITY,LOCATION,NOTES\nNeutrik,XLR,Audio cable,,20,Storeroom,Spare stock\n')
+            page.locator('#import-file').set_input_files(str(path))
+            page.locator('#map-brand').wait_for()
+            page.locator('#confirm-import').click()
+            page.get_by_role('button', name='Edit equipment Neutrik XLR').wait_for()
+            assert page.locator('#equipment-units').inner_text() == '22'
+            page.locator('#equipment-location-filter').select_option('Storeroom')
+            assert page.locator('#equipment-rows tr').count() == 1
+            page.locator('#equipment-clear').click()
+            with page.expect_download() as download:
+                page.locator('#equipment-panel').get_by_role('link', name='JSON ↓').click()
+            equipment_export = json.loads(Path(download.value.path()).read_text())
+            assert len(equipment_export['equipment']) == 2
+            page.get_by_role('button', name='Delete equipment Neutrik XLR').click()
+            page.get_by_role('button', name='Delete equipment', exact=True).click()
+            page.wait_for_function("() => document.getElementById('equipment-units').textContent === '2'")
+            path = Path(temp) / 'equipment.json'
+            path.write_text(json.dumps(equipment_export))
+            page.locator('#import-file').set_input_files(str(path))
+            page.get_by_role('button', name='Edit equipment Neutrik XLR').wait_for()
+            page.get_by_role('tab', name='IPTV channels', exact=True).click()
+            assert page.locator('.device-row').count() == 3
+            page.get_by_role('tab', name='AV devices', exact=True).click()
+            assert page.locator('.device-row').count() == 3
+            page.get_by_role('tab', name='Equipment inventory', exact=True).click()
+            page.get_by_role('button', name='Edit equipment Neutrik XLR').wait_for()
+            assert page.locator('#equipment-rows tr').count() == 2
+            assert 'Broadcast Manager' in page.title()
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             page.screenshot(path='/tmp/iptracking-mobile.png', full_page=True)
             page.set_viewport_size({'width':1440,'height':1000})

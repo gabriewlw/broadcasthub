@@ -42,6 +42,22 @@ function updateFilterOptions() {
 }
 function switchTab(type) {
   currentTab = type;
+  const equipment = type === 'equipment';
+  $('nav-transfer').href = equipment ? '#equipment-transfer' : '#transfer';
+  $('equipment-panel').hidden = !equipment;
+  $('inventory').hidden = equipment;
+  document.querySelector('main > .stats').hidden = equipment;
+  for (const [id, tab] of [['device-tab','device'], ['iptv-tab','iptv'], ['equipment-tab','equipment']]) {
+    $(id).setAttribute('aria-selected', String(tab === type)); $(id).tabIndex = tab === type ? 0 : -1;
+  }
+  if (equipment) {
+    $('hero-title').replaceChildren(document.createTextNode('Every asset.'), element('br'), document.createTextNode('Every location.'), element('br'), element('span', '', 'One clear view.'));
+    $('hero-intro').textContent = 'Manage your broadcast equipment, spare stock, and production tools. Keep brands, models, serial numbers, and quantities organized from the control room to the storeroom.';
+    $('example-ip').textContent = 'ATEM Mini Pro'; $('example-name').textContent = 'Blackmagic Design';
+    $('example-tags').replaceChildren(...['Video switcher','Quantity 1','Broadcast center'].map(text => element('span','',text)));
+    $('add-device').textContent = 'Add equipment'; $('validation-note').hidden = true;
+    window.equipmentUI.load(); return;
+  }
   filters.forEach(id => $(id).value = '');
   for (const [id, tab] of [['device-tab','device'], ['iptv-tab','iptv']]) {
     $(id).setAttribute('aria-selected', String(tab === type));
@@ -50,7 +66,7 @@ function switchTab(type) {
   $('inventory').setAttribute('aria-labelledby', type === 'iptv' ? 'iptv-tab' : 'device-tab');
   const iptv = type === 'iptv';
   $('hero-title').replaceChildren(document.createTextNode(iptv ? 'Every channel.' : 'Every device.'), element('br'), document.createTextNode(iptv ? 'Every source.' : 'Every venue.'), element('br'), element('span', '', 'One clear view.'));
-  $('hero-intro').textContent = iptv ? 'Keep your onboard and satellite channel lineup in view. Track stream addresses and ports, organize channels by source, and take your inventory from the control room to your phone.' : 'Keep your ship’s audio, video, and lighting network in view. Track IP addresses, organize devices by venue, and take your inventory from the control room to your phone.';
+  $('hero-intro').textContent = iptv ? 'Keep your onboard and satellite channel lineup in view. Track stream addresses and ports, organize channels by source, and take your inventory from the control room to your phone.' : 'Manage your broadcast equipment, channel lineups, and AV connections. Keep your production workspace organized from the control room to your phone.';
   $('example-ip').textContent = iptv ? '239.1.1.10' : '10.24.176.66';
   $('example-name').textContent = iptv ? 'Ship information' : 'ATEM video switcher';
   $('example-tags').replaceChildren(...(iptv ? ['Onboard', 'Port 1234'] : ['Liquid Lounge', 'Video', 'VLAN 1500']).map(text => element('span', '', text)));
@@ -71,13 +87,15 @@ function switchTab(type) {
   $('confirmation-legend').textContent = iptv ? 'Channel addresses and stream ports · Onboard / Satellite' : 'Yellow: awaiting confirmation · Green: manually confirmed';
   updateFilterOptions(); render();
 }
-for (const [id, type] of [['device-tab','device'],['iptv-tab','iptv']]) {
+const inventoryTabs = [['device-tab','device'],['iptv-tab','iptv'],['equipment-tab','equipment']];
+for (const [id, type] of inventoryTabs) {
   $(id).onclick = () => switchTab(type);
   $(id).onkeydown = event => {
     if (['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) {
       event.preventDefault();
-      const next = event.key === 'Home' ? 'device' : event.key === 'End' ? 'iptv' : currentTab === 'device' ? 'iptv' : 'device';
-      switchTab(next); $(next === 'iptv' ? 'iptv-tab' : 'device-tab').focus();
+      const index = inventoryTabs.findIndex(([,tab]) => tab === currentTab);
+      const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? 2 : (index + (event.key === 'ArrowRight' ? 1 : 2)) % 3;
+      const [nextId,next] = inventoryTabs[nextIndex]; switchTab(next); $(nextId).focus();
     }
   };
 }
@@ -100,6 +118,7 @@ function options(id, values) {
   if ([...select.options].some(option => option.value === previous)) select.value = previous;
 }
 async function load() {
+  if (currentTab === 'equipment') return window.equipmentUI.load();
   $('refresh').disabled = true;
   try {
     devices = (await api('/api/devices')).devices;
@@ -202,7 +221,7 @@ function openForm(device = null) {
   $('device-dialog').showModal();
 }
 form.elements.venue.addEventListener('input', () => syncButtons('form-venue-buttons', form.elements.venue.value));
-$('add-device').onclick = () => openForm();
+$('add-device').onclick = () => currentTab === 'equipment' ? window.equipmentUI.open() : openForm();
 $('empty-add').onclick = () => openForm();
 $('use-example').onclick = () => openForm({name:'ATEM video switcher', category:'Video switcher', venue:'Liquid Lounge', discipline:'Video', ip:'10.24.176.66', vlan:1500, notes:''});
 for (const id of ['close-dialog','cancel-dialog']) $(id).onclick = () => $('device-dialog').close();
@@ -239,7 +258,7 @@ $('confirm-delete').onclick = async () => {
   finally { $('confirm-delete').disabled = false; }
 };
 let spreadsheetFile = null, spreadsheetData = null;
-const importFields = [
+const networkImportFields = [
   ['name', 'Device name', ['name','device','device name','equipment','equipment name','hostname','channel','channel name'], ''],
   ['category', 'Category', ['category','device category','device type','type','model'], 'Other'],
   ['venue', 'Venue', ['venue','location','venue location','room','area'], ''],
@@ -251,9 +270,19 @@ const importFields = [
   ['channel_source', 'Channel source (IPTV)', ['channel source','source','onboard or satellite'], ''],
   ['port', 'Port (IPTV)', ['port','udp port','stream port','port number'], '']
 ];
+const equipmentImportFields = [
+  ['brand','Brand',['brand','manufacturer','make'],''],
+  ['model','Model',['model','model number','part number'],''],
+  ['description','Description',['description','item','equipment','item description'],''],
+  ['serial_number','Serial number (optional)',['serial number','serial','serial no','s/n','sn'],''],
+  ['quantity','Quantity',['quantity','qty','count','stock'],'1'],
+  ['location','Location',['location','venue','room','storage','storage location'],''],
+  ['notes','Notes (optional)',['notes','note','comments'],'']
+];
+const importFields = () => currentTab === 'equipment' ? equipmentImportFields : networkImportFields;
 const normalizedHeader = value => value.toLowerCase().replace(/[_-]/g, ' ').replace(/\s+/g, ' ').trim();
 function mappedRows() {
-  return spreadsheetData.rows.map(row => Object.fromEntries(importFields.map(([field]) => {
+  return spreadsheetData.rows.map(row => Object.fromEntries(importFields().map(([field]) => {
     const column = $('map-' + field).value;
     let value = (column === '' ? '' : row[Number(column)]) || $('default-' + field).value.trim();
     if (field === 'record_type') value = value.toLowerCase();
@@ -269,6 +298,11 @@ function showSpreadsheetPreview() {
   const rows = mappedRows();
   $('spreadsheet-preview').replaceChildren(...rows.slice(0,3).map((row, index) => {
     const card = element('div', 'spreadsheet-preview-row');
+    if (currentTab === 'equipment') {
+      card.append(element('strong','', `Row ${spreadsheetData.row_numbers[index]} · ${row.brand || 'Missing brand'} ${row.model || 'Missing model'}`));
+      card.append(element('p','', `Quantity ${row.quantity} · ${row.location || 'Missing location'} · Serial ${row.serial_number || '—'}`));
+      card.append(element('p','', row.description || 'No description')); return card;
+    }
     card.append(element('strong', '', `Row ${spreadsheetData.row_numbers[index]} · ${row.name || 'Missing device name'}`));
     card.append(element('p', '', row.record_type === 'iptv' ? `${row.ip || 'Missing IP'} · Port ${row.port || '?'} · ${row.channel_source || 'Missing source'}` : `${row.ip || 'Missing IP'} · VLAN ${row.vlan || '?'} · ${row.venue || 'Missing venue'}`));
     card.append(element('p', '', `${row.discipline || 'Missing system'} / ${row.category || 'Missing category'}`));
@@ -284,8 +318,8 @@ async function loadSpreadsheet() {
     $('sheet-label').hidden = !data.sheets.length;
     $('sheet-choice').replaceChildren(...data.sheets.map(sheet => new Option(sheet, sheet)));
     $('sheet-choice').value = data.sheet;
-    $('spreadsheet-summary').textContent = `${spreadsheetFile.filename} · ${data.rows.length} device rows`;
-    $('column-mappings').replaceChildren(...importFields.map(([field, label, aliases, defaultValue]) => {
+    $('spreadsheet-summary').textContent = `${spreadsheetFile.filename} · ${data.rows.length} records`;
+    $('column-mappings').replaceChildren(...importFields().map(([field, label, aliases, defaultValue]) => {
       const group = element('div', 'mapping-row');
       group.hidden = currentTab === 'iptv' && ['venue','vlan','category','discipline'].includes(field);
       const columnLabel = element('label', '', label);
@@ -303,10 +337,10 @@ async function loadSpreadsheet() {
       return group;
     }));
     showSpreadsheetPreview();
-    $('confirm-import').textContent = `Import ${data.rows.length} devices`;
+    $('confirm-import').textContent = `Import ${data.rows.length} records`;
     $('confirm-import').disabled = !data.rows.length;
     if (!data.rows.length) {
-      $('spreadsheet-error').textContent = 'No device rows in this selection. Choose another worksheet or header row and reload the preview.';
+      $('spreadsheet-error').textContent = 'No records in this selection. Choose another worksheet or header row and reload the preview.';
       $('spreadsheet-error').hidden = false;
     }
   } catch (error) {
@@ -328,11 +362,11 @@ $('spreadsheet-form').onsubmit = async event => {
   $('confirm-import').disabled = true; $('spreadsheet-error').hidden = true;
   try {
     const rows = mappedRows();
-    const missing = rows.findIndex(row => (row.record_type === 'iptv' ? ['name','ip','channel_source','port'] : ['name','category','venue','discipline','ip','vlan']).some(field => !row[field]));
+    const missing = rows.findIndex(row => (currentTab === 'equipment' ? ['brand','model','quantity','location'] : row.record_type === 'iptv' ? ['name','ip','channel_source','port'] : ['name','category','venue','discipline','ip','vlan']).some(field => !row[field]));
     if (missing >= 0) throw new Error(`Spreadsheet row ${spreadsheetData.row_numbers[missing]} has a missing required field. Choose its column or enter a default.`);
-    const result = await api('/api/import', 'POST', {version:1, devices:rows});
+    const result = await api(currentTab === 'equipment' ? '/api/equipment/import' : '/api/import', 'POST', currentTab === 'equipment' ? {version:1,equipment:rows} : {version:1,devices:rows});
     closeSpreadsheet();
-    toast(`Imported ${result.added} devices. Skipped ${result.skipped} existing assignments.`);
+    toast(`Imported ${result.added} records. Skipped ${result.skipped} existing assignments.`);
     await load();
   } catch(error) { $('spreadsheet-error').textContent = error.message; $('spreadsheet-error').hidden = false; }
   finally { $('confirm-import').disabled = false; }
@@ -354,10 +388,10 @@ $('import-file').onchange = async event => {
       $('spreadsheet-dialog').showModal();
       await loadSpreadsheet();
     } else if (/\.json$/i.test(file.name)) {
-      const result = await api('/api/import', 'POST', JSON.parse(await file.text()));
-      toast(`Imported ${result.added} devices. Skipped ${result.skipped} existing assignments.`);
+      const result = await api(currentTab === 'equipment' ? '/api/equipment/import' : '/api/import', 'POST', JSON.parse(await file.text()));
+      toast(`Imported ${result.added} records. Skipped ${result.skipped} existing assignments.`);
       await load();
-    } else throw new Error('Choose .xlsx, .csv, or an IP Tracking .json export.');
+    } else throw new Error('Choose .xlsx, .csv, or a Broadcast Manager .json export.');
   } catch(error) { toast('Import failed: ' + error.message); }
   finally { event.target.value = ''; $('import').disabled = false; }
 };

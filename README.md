@@ -1,6 +1,6 @@
-# IP Tracking
+# Broadcast Manager
 
-A responsive AV device inventory for shipboard venues. Use the same web app in iPhone Safari and on a computer; all connected browsers share one SQLite database. No offline mode or App Store installation is required.
+A responsive broadcasting workspace for equipment inventory, AV network addresses, and IPTV channel lineups. Use the same web app in iPhone Safari and on a computer; all connected browsers share one SQLite database. No offline mode or App Store installation is required.
 
 ## Run
 
@@ -27,7 +27,7 @@ This first version has no user authentication. Run it on a trusted private netwo
 
 ## Workflow
 
-- Use the **AV devices** tab for equipment and the **IPTV channels** tab for channel addresses. Existing inventory remains in AV devices.
+- Use the **Equipment inventory** tab for physical stock, the **AV devices** tab for networked equipment and the **IPTV channels** tab for channel addresses. Existing inventory remains in AV devices.
 - Add a device's name, category, venue, system, IPv4 address, VLAN, and optional notes.
 - In IPTV, click **Add channel**, enter its name, IPv4 address, and stream port (1–65535), then choose **Onboard** or **Satellite**. Filter the lineup by source or search. IPTV does not use venue, VLAN, or manual confirmation. Each IP/port endpoint is unique; one IP can use multiple ports. Existing channels are preserved without inventing a port; edit any record marked Port not set to complete it. Channel addresses may be unicast or multicast (for example `239.1.1.10`); ordinary AV devices still require unicast. This tracks addresses, not stream playback or reception. The yellow/green manual confirmation applies only to AV devices.
 - Search device names, addresses, categories, venues, systems, VLANs, or notes. Tap venue and system buttons to combine filters with category and VLAN. In the device form, select a system button and choose a saved venue button or type a new venue.
@@ -36,6 +36,14 @@ This first version has no user authentication. Run it on a trusted private netwo
 - Use **Fill ATEM example** on an empty inventory to populate the form with `10.24.176.66`, Liquid Lounge, Video switcher, Video, VLAN `1500`. This does not insert sample data until you click Save.
 - IP validation checks IPv4 format and rejects loopback, unspecified, and limited broadcast addresses. Multicast is supported for IPTV channels only. VLANs must be integers from 1 to 4094. An IP/VLAN pair must be unique; the same address is allowed in different VLANs.
 - Validation does not ping devices, infer subnets, verify a gateway, or detect directed broadcast/network addresses without a subnet mask. A stored device may be powered off or unreachable.
+
+## Equipment inventory
+
+The **Equipment inventory** tab contains **Brand, Model, Description, Serial number, Quantity, Location, and Notes**, with add/edit/delete controls. Brand, model, and location are required. Description, serial number, and notes are optional; quantity defaults to 1 and must be a whole number from 0 to 1,000,000. Zero quantity represents stock that is currently unavailable. Summary counters show inventory records, total units, locations, and brands. Search every field or filter by brand/location. On iPhone, the table becomes labeled item cards.
+
+Use **Import data** within this tab to map Excel/CSV columns to these seven fields. Headers such as BRAND, MODEL, SERIAL NUMBER, QUANTITY, LOCATION and NOTES are matched automatically; Manufacturer, Qty and S/N are supported too. Set defaults for missing fields. Previewing does not write records, and any invalid row rejects the whole import. Nonempty serial numbers must be unique (case insensitive). For stock without a serial, brand/model/description/location identifies the record. Existing records are skipped on import; their quantities are not added or overwritten. Use Edit to adjust stock counts.
+
+Equipment JSON/CSV downloads export the physical inventory only, while the AV/IPTV downloads export network/channel records. Import equipment JSON in the Equipment inventory tab. All three inventories persist in the same SQLite file, so a database backup captures all of them. Existing AV/IPTV records are preserved when the equipment table is created automatically on startup.
 
 ## Files and backup
 
@@ -65,9 +73,10 @@ Download the backup to safe storage or routinely export JSON. Startup is idempot
 ```sh
 .venv/bin/python -m unittest discover -s tests -v
 node --check static/app.js
+node --check static/equipment.js
 ```
 
-Nineteen backend and spreadsheet tests cover HTTP CRUD, persistence, invalid IPs/VLANs, duplicate assignments, atomic import, export round trips, CSV formula escaping, static routes, cross-origin write rejection, multi-sheet Excel parsing, header rows, numeric VLANs, CSV parsing, spreadsheet preview/import, confirmation persistence, assignment resets, legacy database migration, IPTV source validation, multicast support, mixed-inventory transfers, IPTV port ranges and endpoint uniqueness, and migration of legacy channels without ports. Node is only needed for the optional JavaScript syntax check.
+Twenty-three backend and spreadsheet tests cover HTTP CRUD, persistence, invalid IPs/VLANs, duplicate assignments, atomic import, export round trips, CSV formula escaping, static routes, cross-origin write rejection, multi-sheet Excel parsing, header rows, numeric VLANs, CSV parsing, spreadsheet preview/import, confirmation persistence, assignment resets, legacy database migration, IPTV source validation, multicast support, mixed-inventory transfers, IPTV port ranges and endpoint uniqueness, migration of legacy channels without ports, equipment CRUD and quantities, serial/stock duplicates, equipment transfer round trips, and rejected imports. Node is only needed for the optional JavaScript syntax check.
 
 Optional browser check (requires Python Playwright and Chromium):
 
