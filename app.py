@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get('IPTRACKING_DB', ROOT / 'data' / 'inventory.sqlite3'))
 DISCIPLINES = {'Video', 'Audio', 'Lighting', 'Control', 'Network', 'Other'}
 FIELDS = ('name', 'category', 'venue', 'discipline', 'ip', 'vlan', 'notes')
+ALL_FIELDS = FIELDS + ('record_type', 'channel_source')
 
 
 def connect():
@@ -25,19 +26,31 @@ def connect():
         id INTEGER PRIMARY KEY, name TEXT NOT NULL, category TEXT NOT NULL,
         venue TEXT NOT NULL, discipline TEXT NOT NULL, ip TEXT NOT NULL,
         vlan INTEGER NOT NULL, notes TEXT NOT NULL DEFAULT '',
+        record_type TEXT NOT NULL DEFAULT 'device',
+        channel_source TEXT NOT NULL DEFAULT '',
         ip_confirmed INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(ip, vlan))''')
     # Upgrade existing inventories without replacing or deleting their records.
-    if 'ip_confirmed' not in {row['name'] for row in con.execute('PRAGMA table_info(devices)')}:
-        con.execute('ALTER TABLE devices ADD COLUMN ip_confirmed INTEGER NOT NULL DEFAULT 0')
+    columns = {row['name'] for row in con.execute('PRAGMA table_info(devices)')}
+    for column, definition in [('ip_confirmed', 'INTEGER NOT NULL DEFAULT 0'),
+                               ('record_type', "TEXT NOT NULL DEFAULT 'device'"),
+                               ('channel_source', "TEXT NOT NULL DEFAULT ''")]:
+        if column not in columns:
+            con.execute(f'ALTER TABLE devices ADD COLUMN {column} {definition}')
     return con
 
 
 def validate(value):
     if not isinstance(value, dict):
         raise ValueError('Each device must be an object.')
-    result = {}
+    record_type = value.get('record_type', 'device')
+    if record_type not in ('device', 'iptv'):
+        raise ValueError('Inventory type must be device or iptv.')
+    channel_source = value.get('channel_source', '')
+    if record_type == 'iptv' and channel_source not in ('Onboard', 'Satellite'):
+        raise ValueError('Choose Onboard or Satellite for the IPTV channel source.')
+    result = {'record_type': record_type, 'channel_source': channel_source if record_type == 'iptv' else ''}
     for field in ('name', 'category', 'venue', 'discipline', 'ip', 'notes'):
         raw = value.get(field, '')
         if not isinstance(raw, str):
@@ -54,8 +67,8 @@ def validate(value):
         address = ipaddress.IPv4Address(result['ip'])
     except ipaddress.AddressValueError:
         raise ValueError('Enter a valid IPv4 address, such as 10.24.176.66.') from None
-    if address.is_unspecified or address.is_loopback or address.is_multicast or int(address) == 0xffffffff:
-        raise ValueError('Use a unicast device address, not loopback, multicast, or broadcast.')
+    if address.is_unspecified or address.is_loopback or (address.is_multicast and record_type != 'iptv') or int(address) == 0xffffffff:
+        raise ValueError('Use a valid device address; multicast addresses are only allowed for IPTV channels.')
     result['ip'] = str(address)
     vlan = value.get('vlan')
     if isinstance(vlan, bool) or not isinstance(vlan, (str, int)) or not str(vlan).isascii() or not str(vlan).isdigit():
@@ -75,10 +88,10 @@ def save_device(value, device_id=None):
     row = validate(value)
     with connect() as con:
         if device_id is None:
-            cursor = con.execute('INSERT INTO devices (' + ','.join(FIELDS) + ') VALUES (?,?,?,?,?,?,?)', [row[f] for f in FIELDS])
+            cursor = con.execute('INSERT INTO devices (' + ','.join(ALL_FIELDS) + ') VALUES (' + ','.join('?' for _ in ALL_FIELDS) + ')', [row[f] for f in ALL_FIELDS])
             device_id = cursor.lastrowid
         else:
-            cursor = con.execute('UPDATE devices SET ' + ','.join(f + '=?' for f in FIELDS) + ', ip_confirmed=CASE WHEN ip=? AND vlan=? THEN ip_confirmed ELSE 0 END, updated_at=CURRENT_TIMESTAMP WHERE id=?', [row[f] for f in FIELDS] + [row['ip'], row['vlan'], device_id])
+            cursor = con.execute('UPDATE devices SET ' + ','.join(f + '=?' for f in ALL_FIELDS) + ', ip_confirmed=CASE WHEN ip=? AND vlan=? THEN ip_confirmed ELSE 0 END, updated_at=CURRENT_TIMESTAMP WHERE id=?', [row[f] for f in ALL_FIELDS] + [row['ip'], row['vlan'], device_id])
             if cursor.rowcount == 0:
                 raise LookupError('Device not found.')
         return dict(con.execute('SELECT * FROM devices WHERE id=?', (device_id,)).fetchone())
@@ -122,7 +135,7 @@ def import_devices(payload):
         for row in rows:
             if (row['ip'], row['vlan']) in existing:
                 continue
-            con.execute('INSERT INTO devices (' + ','.join(FIELDS) + ') VALUES (?,?,?,?,?,?,?)', [row[f] for f in FIELDS])
+            con.execute('INSERT INTO devices (' + ','.join(ALL_FIELDS) + ') VALUES (' + ','.join('?' for _ in ALL_FIELDS) + ')', [row[f] for f in ALL_FIELDS])
             added += 1
     return {'added': added, 'skipped': len(rows) - added}
 
@@ -165,11 +178,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, {'version': 1, 'devices': inventory()}, filename='ip-tracking.json')
             if path == '/api/export.csv':
                 output = io.StringIO(newline='')
-                writer = csv.DictWriter(output, fieldnames=FIELDS, extrasaction='ignore')
+                writer = csv.DictWriter(output, fieldnames=ALL_FIELDS, extrasaction='ignore')
                 writer.writeheader()
                 for row in inventory():
                     # Prevent spreadsheet formula injection in user-supplied strings.
-                    writer.writerow({f: ("'" + str(row[f]) if str(row[f]).startswith(('=', '+', '-', '@', '\t', '\r', '\n')) else row[f]) for f in FIELDS})
+                    writer.writerow({f: ("'" + str(row[f]) if str(row[f]).startswith(('=', '+', '-', '@', '\t', '\r', '\n')) else row[f]) for f in ALL_FIELDS})
                 return self.send(200, output.getvalue().encode('utf-8-sig'), 'text/csv; charset=utf-8', 'ip-tracking.csv')
             assets = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css'), '/icon.svg': ('icon.svg', 'image/svg+xml')}
             if path in assets:

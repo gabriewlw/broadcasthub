@@ -27,12 +27,14 @@ This first version has no user authentication. Run it on a trusted private netwo
 
 ## Workflow
 
+- Use the **AV devices** tab for equipment and the **IPTV channels** tab for channel addresses. Existing inventory remains in AV devices.
 - Add a device's name, category, venue, system, IPv4 address, VLAN, and optional notes.
+- In IPTV, click **Add channel**, enter its name, venue, IPv4 address and VLAN, then choose **Onboard** or **Satellite**. Filter the lineup by source, venue, VLAN, or search. Channel addresses may be unicast or multicast (for example `239.1.1.10`); ordinary AV devices still require unicast. This tracks addresses, not stream playback or reception. The yellow/green manual confirmation works for both inventories.
 - Search device names, addresses, categories, venues, systems, VLANs, or notes. Tap venue and system buttons to combine filters with category and VLAN. In the device form, select a system button and choose a saved venue button or type a new venue.
 - Edit records or delete them with confirmation.
 - Each device starts with a yellow **Confirm IP** button. Click it after reviewing the assignment to save a green **IP confirmed** status. This is manual review, not a ping or reachability test. Confirmation persists in the database. Editing the IP address or VLAN resets it to yellow; other edits preserve it. Existing databases upgrade automatically, and newly imported records start unconfirmed even if the export contains confirmation metadata.
 - Use **Fill ATEM example** on an empty inventory to populate the form with `10.24.176.66`, Liquid Lounge, Video switcher, Video, VLAN `1500`. This does not insert sample data until you click Save.
-- IP validation checks IPv4 format and rejects loopback, multicast, unspecified, and limited broadcast addresses. VLANs must be integers from 1 to 4094. An IP/VLAN pair must be unique; the same address is allowed in different VLANs.
+- IP validation checks IPv4 format and rejects loopback, unspecified, and limited broadcast addresses. Multicast is supported for IPTV channels only. VLANs must be integers from 1 to 4094. An IP/VLAN pair must be unique; the same address is allowed in different VLANs.
 - Validation does not ping devices, infer subnets, verify a gateway, or detect directed broadcast/network addresses without a subnet mask. A stored device may be powered off or unreachable.
 
 ## Files and backup
@@ -43,7 +45,7 @@ This first version has no user authentication. Run it on a trusted private netwo
 
 Save older **.xls** files as **.xlsx** in Excel first. Password-protected files are unsupported. The chosen header row must contain column names, with device rows below it; completely blank rows are ignored. Limits: 5 MB upload, 10,000 devices, 50 columns, and 30 MB expanded workbook size. Excel formulas are never evaluated; only Excel's cached values are read. Recalculate and save the workbook in Excel if formula-derived cells are empty. Uploaded spreadsheets are parsed in memory and not retained as files.
 
-**CSV ↓** exports the entire inventory for spreadsheet use and can also be imported through column mapping. Formula-like text is escaped for spreadsheet safety. Exports include all devices, regardless of the current filters.
+**CSV ↓** exports the entire inventory for spreadsheet use and can also be imported through column mapping. Formula-like text is escaped for spreadsheet safety. Exports include both AV devices and IPTV channels, regardless of the current tab or filters. JSON and CSV include `record_type` (`device` or `iptv`) and `channel_source` (`Onboard` or `Satellite` for IPTV). Old JSON exports default to AV devices. When importing a spreadsheet in the IPTV tab, the inventory type defaults to `iptv`, category to IPTV channel, and system to Video; map a channel source column or supply an Onboard/Satellite default. Imports preserve existing IP/VLAN assignments across both tabs.
 
 The database defaults to `data/inventory.sqlite3`, excluded from Git. Set `IPTRACKING_DB` to a persistent database location when hosting. Do not use temporary container storage for your only copy. For a consistent live backup, use SQLite's backup API rather than copying an active WAL database:
 
@@ -65,7 +67,7 @@ Download the backup to safe storage or routinely export JSON. Startup is idempot
 node --check static/app.js
 ```
 
-Fourteen backend and spreadsheet tests cover HTTP CRUD, persistence, invalid IPs/VLANs, duplicate assignments, atomic import, export round trips, CSV formula escaping, static routes, cross-origin write rejection, multi-sheet Excel parsing, header rows, numeric VLANs, CSV parsing, spreadsheet preview/import, confirmation persistence, assignment resets, and legacy database migration. Node is only needed for the optional JavaScript syntax check.
+Seventeen backend and spreadsheet tests cover HTTP CRUD, persistence, invalid IPs/VLANs, duplicate assignments, atomic import, export round trips, CSV formula escaping, static routes, cross-origin write rejection, multi-sheet Excel parsing, header rows, numeric VLANs, CSV parsing, spreadsheet preview/import, confirmation persistence, assignment resets, legacy database migration, IPTV source validation, multicast support, and mixed-inventory transfers. Node is only needed for the optional JavaScript syntax check.
 
 Optional browser check (requires Python Playwright and Chromium):
 

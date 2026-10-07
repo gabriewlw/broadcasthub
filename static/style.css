@@ -202,3 +202,8 @@ textarea { resize: vertical; }
 .ip-confirm.pending:hover { background: #44371b; border-color: #ffdc85; }
 .ip-confirm.confirmed { background: #173326; border-color: #398a5c; color: #99edb9; }
 .ip-confirm:disabled { opacity: 1; cursor: default; }
+
+.inventory-tabs { display: flex; gap: 8px; margin: 0 0 24px; border-bottom: 1px solid var(--border); }
+.inventory-tabs button { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--muted); padding: 14px 18px; min-height: 48px; font-size: 13px; font-weight: 600; }
+.inventory-tabs button[aria-selected="true"] { border-bottom-color: var(--accent-text); color: var(--accent-text); background: #20171c; }
+.inventory-tabs button:hover { color: #fff; }

@@ -67,7 +67,7 @@ class SpreadsheetHTTPTests(test_app.AppTests):
         status, export = self.request('/api/export.csv')
         self.assertEqual(status, 200)
         data = self.request('/api/spreadsheet-preview', 'POST', encoded(export, 'export.csv'))[1]
-        self.assertEqual(data['headers'], ['name','category','venue','discipline','ip','vlan','notes'])
+        self.assertEqual(data['headers'], ['name','category','venue','discipline','ip','vlan','notes','record_type','channel_source'])
         self.assertEqual(len(data['rows']), 2)
 
     def test_invalid_excel_http(self):

@@ -1,8 +1,9 @@
 'use strict';
 const $ = id => document.getElementById(id);
-let devices = [], editing = null, deleting = null, timer;
+let devices = [], editing = null, deleting = null, timer, currentTab = 'device';
+const tabDevices = () => devices.filter(d => (d.record_type || 'device') === currentTab);
 const form = $('device-form');
-const filters = ['search', 'venue-filter', 'system-filter', 'category-filter', 'vlan-filter'];
+const filters = ['search', 'venue-filter', 'system-filter', 'category-filter', 'vlan-filter', 'source-filter'];
 const element = (tag, className, text) => {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -25,12 +26,51 @@ function syncButtons(id, value) {
   $(id).querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.value === value)));
 }
 function updateVenueButtons() {
-  const venues = [...new Set(devices.map(d => d.venue))].sort((a,b) => a.localeCompare(b));
+  const venues = [...new Set(tabDevices().map(d => d.venue))].sort((a,b) => a.localeCompare(b));
   if (!venues.includes($('venue-filter').value)) $('venue-filter').value = '';
   makeButtons('venue-buttons', venues, $('venue-filter').value, value => { $('venue-filter').value = value; render(); }, 'All venues');
 }
 makeButtons('system-buttons', systems, '', value => { $('system-filter').value = value; render(); }, 'All systems');
 makeButtons('form-system-buttons', systems, '', value => { form.elements.discipline.value = value; syncButtons('form-system-buttons', value); });
+makeButtons('source-buttons', ['Onboard','Satellite'], '', value => { $('source-filter').value = value; render(); }, 'All sources');
+makeButtons('form-source-buttons', ['Onboard','Satellite'], '', value => { form.elements.channel_source.value = value; syncButtons('form-source-buttons', value); });
+function updateFilterOptions() {
+  updateVenueButtons();
+  options('category-filter', tabDevices().map(d => d.category));
+  options('vlan-filter', tabDevices().map(d => d.vlan));
+  $('venues').replaceChildren(...[...new Set(tabDevices().map(d => d.venue))].map(v => new Option(v, v)));
+}
+function switchTab(type) {
+  currentTab = type;
+  filters.forEach(id => $(id).value = '');
+  for (const [id, tab] of [['device-tab','device'], ['iptv-tab','iptv']]) {
+    $(id).setAttribute('aria-selected', String(tab === type));
+    $(id).tabIndex = tab === type ? 0 : -1;
+  }
+  $('inventory').setAttribute('aria-labelledby', type === 'iptv' ? 'iptv-tab' : 'device-tab');
+  const iptv = type === 'iptv';
+  $('add-device').textContent = iptv ? 'Add channel' : 'Add device';
+  $('empty-add').textContent = iptv ? 'Add a channel' : 'Add a device';
+  $('empty-title').textContent = iptv ? 'Your channel lineup starts here' : 'Your inventory starts here';
+  $('empty-description').textContent = iptv ? 'Add onboard and satellite channel addresses to your IPTV inventory.' : 'Add your first device to keep your ship’s AV network organized.';
+  $('use-example').hidden = iptv;
+  $('total-label').textContent = iptv ? 'Total channels' : 'Total devices';
+  $('system-count-label').textContent = iptv ? 'Onboard / Satellite' : 'Video / Audio / Lighting';
+  $('list-title').textContent = iptv ? 'IPTV channels' : 'All devices';
+  $('system-filter-group').hidden = $('category-filter-label').hidden = iptv;
+  $('source-filter-group').hidden = !iptv;
+  updateFilterOptions(); render();
+}
+for (const [id, type] of [['device-tab','device'],['iptv-tab','iptv']]) {
+  $(id).onclick = () => switchTab(type);
+  $(id).onkeydown = event => {
+    if (['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) {
+      event.preventDefault();
+      const next = event.key === 'Home' ? 'device' : event.key === 'End' ? 'iptv' : currentTab === 'device' ? 'iptv' : 'device';
+      switchTab(next); $(next === 'iptv' ? 'iptv-tab' : 'device-tab').focus();
+    }
+  };
+}
 function toast(message) {
   $('toast').textContent = message; $('toast').hidden = false;
   clearTimeout(timer); timer = setTimeout(() => { $('toast').hidden = true; }, 6000);
@@ -54,14 +94,8 @@ async function load() {
   try {
     devices = (await api('/api/devices')).devices;
     $('load-error').hidden = true;
-    $('total').textContent = devices.length;
-    $('venue-count').textContent = new Set(devices.map(d => d.venue)).size;
-    $('vlan-count').textContent = new Set(devices.map(d => d.vlan)).size;
-    $('system-count').textContent = ['Video', 'Audio', 'Lighting'].map(s => devices.filter(d => d.discipline === s).length).join(' / ');
-    updateVenueButtons();
-    options('category-filter', devices.map(d => d.category));
-    options('vlan-filter', devices.map(d => d.vlan));
-    $('venues').replaceChildren(...[...new Set(devices.map(d => d.venue))].map(v => new Option(v, v)));
+    updateFilterOptions();
+    $('venues').replaceChildren(...[...new Set(tabDevices().map(d => d.venue))].map(v => new Option(v, v)));
     render();
     return true;
   } catch (error) {
@@ -73,17 +107,24 @@ async function load() {
 function render() {
   syncButtons('venue-buttons', $('venue-filter').value);
   syncButtons('system-buttons', $('system-filter').value);
+  syncButtons('source-buttons', $('source-filter').value);
+  const current = tabDevices();
+  $('total').textContent = current.length;
+  $('venue-count').textContent = new Set(current.map(d => d.venue)).size;
+  $('vlan-count').textContent = new Set(current.map(d => d.vlan)).size;
+  $('system-count').textContent = (currentTab === 'iptv' ? ['Onboard','Satellite'].map(source => current.filter(d => d.channel_source === source).length) : ['Video','Audio','Lighting'].map(system => current.filter(d => d.discipline === system).length)).join(' / ');
   const query = $('search').value.trim().toLowerCase();
-  const results = devices.filter(d =>
-    [d.name,d.ip,d.venue,d.category,d.discipline,d.notes,String(d.vlan)].some(v => v.toLowerCase().includes(query)) &&
+  const results = current.filter(d =>
+    [d.name,d.ip,d.venue,d.category,d.discipline,d.notes,d.channel_source || '',String(d.vlan)].some(v => v.toLowerCase().includes(query)) &&
     (!$('venue-filter').value || d.venue === $('venue-filter').value) &&
     (!$('system-filter').value || d.discipline === $('system-filter').value) &&
     (!$('category-filter').value || d.category === $('category-filter').value) &&
-    (!$('vlan-filter').value || String(d.vlan) === $('vlan-filter').value));
+    (!$('vlan-filter').value || String(d.vlan) === $('vlan-filter').value) &&
+    (!$('source-filter').value || d.channel_source === $('source-filter').value));
   $('result-count').textContent = results.length;
-  $('showing').textContent = `${results.length} of ${devices.length} devices`;
-  $('empty').hidden = devices.length > 0;
-  $('no-results').hidden = devices.length === 0 || results.length > 0;
+  $('showing').textContent = `${results.length} of ${current.length} ${currentTab === 'iptv' ? 'channels' : 'devices'}`;
+  $('empty').hidden = current.length > 0;
+  $('no-results').hidden = current.length === 0 || results.length > 0;
   const rows = results.map(device => {
     const row = element('article', 'device-row');
     const identity = element('div', 'device-identity identity-cell');
@@ -112,7 +153,7 @@ function render() {
     const venue = element('div', 'venue-cell');
     venue.append(element('div', 'device-venue', device.venue), element('span', 'cell-caption', 'Venue'));
     const system = element('div','system-cell');
-    system.append(element('span', `badge ${device.discipline.toLowerCase()}`, device.discipline));
+    system.append(element('span', `badge ${device.discipline.toLowerCase()}`, device.record_type === 'iptv' ? device.channel_source : device.discipline));
     const actions = element('div', 'row-actions');
     const edit = element('button', 'quiet', 'Edit'); edit.setAttribute('aria-label', `Edit ${device.name}`); edit.onclick = () => openForm(device);
     const remove = element('button', 'quiet', 'Delete'); remove.setAttribute('aria-label', `Delete ${device.name}`);
@@ -124,11 +165,21 @@ function render() {
 function openForm(device = null) {
   editing = device?.id ?? null;
   form.reset(); $('form-error').hidden = true;
-  $('form-title').textContent = editing ? 'Edit device' : 'Add device';
-  $('save-device').textContent = editing ? 'Save changes' : 'Save device';
-  if (device) for (const field of ['name','category','venue','discipline','ip','vlan','notes']) form.elements[field].value = device[field] ?? '';
+  const iptv = currentTab === 'iptv';
+  form.elements.record_type.value = currentTab;
+  if (iptv) { form.elements.category.value = 'IPTV channel'; form.elements.discipline.value = 'Video'; }
+  $('category-field').hidden = $('form-system-group').hidden = iptv;
+  $('form-source-group').hidden = !iptv;
+  $('name-label').textContent = iptv ? 'Channel name' : 'Device name';
+  form.elements.name.placeholder = iptv ? 'e.g. Ship information or BBC News' : 'e.g. ATEM video switcher';
+  form.elements.ip.placeholder = iptv ? 'e.g. 239.1.1.10' : '10.24.176.66';
+  $('ip-hint').textContent = iptv ? 'IPv4 unicast or multicast' : 'IPv4 · checked when saved';
+  $('form-title').textContent = editing ? (iptv ? 'Edit channel' : 'Edit device') : (iptv ? 'Add channel' : 'Add device');
+  $('save-device').textContent = editing ? 'Save changes' : (iptv ? 'Save channel' : 'Save device');
+  if (device) for (const field of ['name','category','venue','discipline','ip','vlan','notes','channel_source']) form.elements[field].value = device[field] ?? '';
   syncButtons('form-system-buttons', form.elements.discipline.value);
-  const venues = [...new Set(devices.map(d => d.venue))].sort((a,b) => a.localeCompare(b));
+  syncButtons('form-source-buttons', form.elements.channel_source.value);
+  const venues = [...new Set(tabDevices().map(d => d.venue))].sort((a,b) => a.localeCompare(b));
   $('venue-suggestions').hidden = !venues.length;
   makeButtons('form-venue-buttons', venues, form.elements.venue.value, value => { form.elements.venue.value = value; syncButtons('form-venue-buttons', value); });
   $('device-dialog').showModal();
@@ -143,6 +194,10 @@ $('clear-filters').onclick = () => { filters.forEach(id => $(id).value = ''); re
 $('refresh').onclick = load;
 form.onsubmit = async event => {
   event.preventDefault();
+  if (form.elements.record_type.value === 'iptv' && !form.elements.channel_source.value) {
+    $('form-error').textContent = 'Choose Onboard or Satellite for this channel.';
+    $('form-error').hidden = false; $('form-source-buttons').querySelector('button').focus(); return;
+  }
   if (!form.elements.discipline.value) {
     $('form-error').textContent = 'Choose a system for this device.';
     $('form-error').hidden = false;
@@ -154,7 +209,7 @@ form.onsubmit = async event => {
   try {
     await api(editing ? `/api/devices/${editing}` : '/api/devices', editing ? 'PUT' : 'POST', data);
     $('device-dialog').close();
-    toast(editing ? 'Device updated.' : 'Device added to inventory.');
+    toast(editing ? 'Record updated.' : currentTab === 'iptv' ? 'Channel added to IPTV inventory.' : 'Device added to inventory.');
     await load();
   } catch (error) { $('form-error').textContent = error.message; $('form-error').hidden = false; }
   finally { $('save-device').disabled = false; }
@@ -168,19 +223,23 @@ $('confirm-delete').onclick = async () => {
 };
 let spreadsheetFile = null, spreadsheetData = null;
 const importFields = [
-  ['name', 'Device name', ['name','device','device name','equipment','equipment name','hostname'], ''],
+  ['name', 'Device name', ['name','device','device name','equipment','equipment name','hostname','channel','channel name'], ''],
   ['category', 'Category', ['category','device category','device type','type','model'], 'Other'],
   ['venue', 'Venue', ['venue','location','venue location','room','area'], ''],
   ['discipline', 'System', ['discipline','system','department','av system','function'], 'Other'],
   ['ip', 'IP address', ['ip','ip address','ipaddress','ipv4','ipv4 address'], ''],
   ['vlan', 'VLAN', ['vlan','vlan id','vlan number'], ''],
-  ['notes', 'Notes (optional)', ['notes','note','comments','description'], '']
+  ['notes', 'Notes (optional)', ['notes','note','comments','description'], ''],
+  ['record_type', 'Inventory type', ['record type','inventory type'], 'device'],
+  ['channel_source', 'Channel source (IPTV)', ['channel source','source','onboard or satellite'], '']
 ];
 const normalizedHeader = value => value.toLowerCase().replace(/[_-]/g, ' ').replace(/\s+/g, ' ').trim();
 function mappedRows() {
   return spreadsheetData.rows.map(row => Object.fromEntries(importFields.map(([field]) => {
     const column = $('map-' + field).value;
     let value = (column === '' ? '' : row[Number(column)]) || $('default-' + field).value.trim();
+    if (field === 'record_type') value = value.toLowerCase();
+    if (field === 'channel_source') value = ({onboard:'Onboard', satellite:'Satellite'})[value.toLowerCase()] || value;
     if (field === 'discipline') {
       const aliases = {video:'Video', audio:'Audio', lighting:'Lighting', lights:'Lighting', light:'Lighting', control:'Control', network:'Network', other:'Other'};
       value = aliases[value.toLowerCase()] || value;
@@ -217,7 +276,7 @@ async function loadSpreadsheet() {
       const matched = data.headers.findIndex(header => aliases.includes(normalizedHeader(header)));
       if (matched >= 0) select.value = String(matched);
       const fallbackLabel = element('label', '', 'Default if missing');
-      const fallback = element('input'); fallback.id = 'default-' + field; fallback.value = defaultValue;
+      const fallback = element('input'); fallback.id = 'default-' + field; fallback.value = field === 'record_type' ? currentTab : currentTab === 'iptv' && field === 'category' ? 'IPTV channel' : currentTab === 'iptv' && field === 'discipline' ? 'Video' : defaultValue;
       fallback.placeholder = field === 'notes' ? 'Optional' : `Default ${label.toLowerCase()}`;
       fallback.maxLength = field === 'notes' ? 2000 : 120;
       columnLabel.append(select); fallbackLabel.append(fallback); group.append(columnLabel, fallbackLabel);
