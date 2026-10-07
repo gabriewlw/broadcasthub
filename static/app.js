@@ -178,6 +178,7 @@ function updateFilterOptions() {
 }
 function switchTab(type) {
   closeSystemMenu();
+  closeExportMenus();
   currentTab = type;
   const equipment = type === 'equipment';
   $('nav-transfer').href = equipment ? '#equipment-transfer' : '#transfer';
@@ -258,6 +259,28 @@ async function api(path, method = 'GET', body) {
   try { return await request; }
   finally { pendingWrites.delete(request); }
 }
+function closeExportMenus(restoreFocus = false) {
+  document.querySelectorAll('.export-dropdown[open]').forEach(menu => {
+    menu.open = false;
+    if (restoreFocus && menu.contains(document.activeElement)) menu.querySelector('summary').focus();
+  });
+}
+document.querySelectorAll('.export-dropdown').forEach(menu => {
+  menu.addEventListener('toggle', () => {
+    if (menu.open) document.querySelectorAll('.export-dropdown').forEach(other => { if (other !== menu) other.open = false; });
+  });
+  menu.addEventListener('click', event => {
+    if (event.target.closest('a[download]')) { menu.open = false; menu.querySelector('summary').focus(); }
+  });
+});
+document.addEventListener('pointerdown', event => {
+  if (!event.target.closest('.export-dropdown')) closeExportMenus();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && document.querySelector('.export-dropdown[open]')) {
+    event.preventDefault(); closeExportMenus(true);
+  }
+});
 document.querySelectorAll('.report-download').forEach(link => {
   link.addEventListener('click', async event => {
     event.preventDefault();

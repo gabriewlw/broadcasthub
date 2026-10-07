@@ -34,8 +34,26 @@ with tempfile.TemporaryDirectory() as temp:
                     else:
                         page.locator('#spreadsheet-dialog').wait_for(state='hidden')
 
+            def open_export_menu(panel='inventory'):
+                menu = page.locator('#' + panel + ' .export-dropdown')
+                menu.locator('summary').click()
+                assert menu.get_attribute('open') is not None
+                assert menu.locator('a[download]').count() == 4
+
             page.on('pageerror', lambda error: errors.append(str(error)))
             page.goto(f'http://127.0.0.1:{server.server_port}')
+            menu = page.locator('#inventory .export-dropdown')
+            assert menu.get_attribute('open') is None
+            summary = menu.locator('summary')
+            summary.focus(); summary.press('Enter')
+            assert menu.locator('a').first.is_visible()
+            assert menu.locator('.export-links').evaluate('(node) => { const rect = node.getBoundingClientRect(); return rect.left >= 0 && rect.right <= innerWidth; }')
+            summary.press('Escape')
+            assert menu.get_attribute('open') is None
+            assert summary.evaluate('(node) => node === document.activeElement')
+            open_export_menu()
+            page.locator('#hero-title').click()
+            assert menu.get_attribute('open') is None
             page.get_by_role('button', name='Fill ATEM example').click()
             page.get_by_role('button', name='Save device', exact=True).click()
             page.locator('.device-name').filter(has_text='ATEM video switcher').wait_for()
@@ -73,8 +91,10 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('button', name='Save changes').click()
             page.get_by_role('button', name='Edit ATEM main').wait_for()
             assert page.get_by_role('button', name='IP confirmed for ATEM main', exact=True).is_visible()
+            open_export_menu('inventory')
             with page.expect_download() as download:
                 page.get_by_role('link',name='JSON ↓').click()
+            assert menu.get_attribute('open') is None
             payload = json.loads(Path(download.value.path()).read_text())
             assert payload['devices'][0]['name'] == 'ATEM main'
             page.get_by_role('button',name='Delete ATEM main').click()
@@ -267,6 +287,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#equipment-location-filter').select_option('Store 2')
             assert page.locator('#equipment-rows tr').count() == 1
             page.locator('#equipment-clear').click()
+            open_export_menu('equipment-panel')
             with page.expect_download() as download:
                 page.locator('#equipment-panel').get_by_role('link', name='JSON ↓').click()
             equipment_export = json.loads(Path(download.value.path()).read_text())
@@ -624,6 +645,7 @@ with tempfile.TemporaryDirectory() as temp:
             # Exporting immediately after editing a note waits for that save.
             notes_input = page.get_by_role('textbox', name='Notes for Unassigned camera', exact=True)
             notes_input.fill('Exported immediately after edit')
+            open_export_menu('inventory')
             with page.expect_download() as download:
                 page.locator('#inventory').get_by_role('link', name='XLSX ↓', exact=True).click()
             assert download.value.suggested_filename == 'broadcast-network.xlsx'
@@ -631,12 +653,14 @@ with tempfile.TemporaryDirectory() as temp:
             assert workbook.sheetnames == ['AV devices','IPTV channels']
             exported = next(row for row in list(workbook['AV devices'].values)[1:] if row[1] == 'Unassigned camera')
             assert exported[4] == 'Video' and exported[5] == 'Exported immediately after edit'
+            open_export_menu('inventory')
             with page.expect_download() as download:
                 page.locator('#inventory').get_by_role('link', name='PDF ↓', exact=True).click()
             assert download.value.suggested_filename == 'broadcast-network.pdf'
             assert Path(download.value.path()).read_bytes().startswith(b'%PDF-')
             page.get_by_role('tab', name='Equipment inventory', exact=True).click()
             for extension, label in [('xlsx','XLSX ↓'), ('pdf','PDF ↓')]:
+                open_export_menu('equipment-panel')
                 with page.expect_download() as download:
                     page.locator('#equipment-panel').get_by_role('link', name=label, exact=True).click()
                 assert download.value.suggested_filename == f'broadcast-equipment.{extension}'

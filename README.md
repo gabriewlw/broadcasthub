@@ -29,6 +29,8 @@ This first version has no user authentication. Run it on a trusted private netwo
 
 ## Workflow
 
+Use the **Export** dropdown beside Import data to download JSON, CSV, XLSX, or PDF files. It closes after choosing a format, clicking outside, pressing Escape, or switching tabs.
+
 - Use the **Equipment inventory** tab for physical stock, the **AV devices** tab for networked equipment and the **IPTV channels** tab for channel addresses. Existing inventory remains in AV devices.
 - Add whatever device details you have: name, category, venue, system, IPv4 address or DHCP, VLAN, and notes. Missing fields stay blank and can be completed through Edit. A record needs at least one detail.
 - In IPTV, click **Add channel**, enter its name, IPv4 address, and stream port (1–65535), and choose **Onboard** or **Satellite** when known. Any missing channel details can remain blank. Filter the lineup by source or search. IPTV does not use venue, VLAN, or manual confirmation. Each fixed IP/port endpoint is unique; one IP can use multiple ports. Existing channels are preserved without inventing a port; use Edit to fill any missing channel details. Channel addresses may be unicast or multicast (for example `239.1.1.10`); ordinary AV devices still require unicast. This tracks addresses, not stream playback or reception. The yellow/green manual confirmation applies only to AV devices.

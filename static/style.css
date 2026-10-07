@@ -95,9 +95,17 @@ button.primary, button.secondary, button.danger { padding: 12px 18px; border-rad
 .import-button { display: inline-flex; align-items: center; justify-content: center; gap: 9px; white-space: nowrap; box-shadow: 0 3px 12px #c92f3826; }
 .refresh-button { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; flex-shrink: 0; }
 .file-actions button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-.export-links { border: 1px solid var(--border); background: var(--panel); border-radius: 5px; display: flex; margin-left: 8px; }
-.export-links a { text-decoration: none; padding: 14px 12px; font: 10px var(--font-ui); min-height: 44px; }
-.export-links a + a { border-left: 1px solid var(--border); }
+.export-dropdown { position: relative; }
+.export-toggle { list-style: none; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 10px 13px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); color: #eeeee9; font-size: 12px; font-weight: 600; cursor: pointer; }
+.export-toggle::-webkit-details-marker { display: none; }
+.export-toggle:hover, .export-dropdown[open] .export-toggle { border-color: var(--accent-text); background: #202329; }
+.export-toggle:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 4px; }
+.export-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.export-toggle .export-chevron { width: 14px; height: 14px; }
+.export-dropdown[open] .export-chevron { transform: rotate(180deg); }
+.export-links { position: absolute; top: calc(100% + 7px); right: 0; z-index: 10; width: 160px; padding: 5px; border: 1px solid #373b44; background: #1c2027; border-radius: 7px; box-shadow: 0 10px 26px #0008; }
+.export-links a { display: flex; align-items: center; text-decoration: none; padding: 10px 12px; font-size: 12px; min-height: 44px; color: #eeeee9; border-radius: 4px; }
+.export-links a:hover, .export-links a:focus-visible { background: #302027; color: var(--accent-text); }
 .filters { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 20px; display: grid; grid-template-columns: 2fr 1.1fr 1fr 1.1fr .8fr auto; gap: 12px; align-items: end; }
 label { display: flex; flex-direction: column; gap: 7px; font-size: 12px; font-weight: 600; min-width: 0; }
 .filters label > span { font: 9px var(--font-ui); letter-spacing: 1px; text-transform: uppercase; color: var(--muted); }
