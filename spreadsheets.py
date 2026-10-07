@@ -3,12 +3,18 @@ import base64
 import binascii
 import csv
 import io
+import re
 from pathlib import Path
 from zipfile import ZipFile, BadZipFile
 from xml.etree.ElementTree import ParseError
 from defusedxml.common import DefusedXmlException
 from openpyxl import load_workbook
 from openpyxl.utils.exceptions import InvalidFileException
+
+
+def ignored_header(value):
+    normalized = re.sub(r'\s+', ' ', value.lower().replace('_', ' ').replace('-', ' ')).strip()
+    return normalized in ('device id', 'o.o', 'o.o value')
 
 
 def preview(payload):
@@ -52,6 +58,7 @@ def preview(payload):
                 dialect = csv.excel
             source = csv.reader(io.StringIO(text), dialect)
         headers, rows, row_numbers, characters = [], [], [], 0
+        kept_columns, ignored_columns, column_count = [], [], 0
         for number, raw_row in enumerate(source, 1):
             if number < header_row:
                 continue
@@ -78,17 +85,25 @@ def preview(payload):
                     if book is not None:
                         break  # Still return worksheet names so another sheet can be selected.
                     raise ValueError('The chosen header row is empty. Choose the row containing column names.')
-                headers = [value or f'Column {i + 1}' for i, value in enumerate(values)]
-            elif any(values):
+                column_count = len(values)
+                kept_columns = [i for i, value in enumerate(values) if not ignored_header(value)]
+                ignored_columns = [value for value in values if ignored_header(value)]
+                headers = [values[i] or f'Column {i + 1}' for i in kept_columns]
+            else:
+                if len(values) > column_count:
+                    raise ValueError(f'Row {number} has more columns than the chosen header row.')
+                values += [''] * (column_count - len(values))
+                values = ['' if values[i].lower() == 'o.o' else values[i] for i in kept_columns]
+                # Rows containing only IDs or placeholders do not describe a device.
+                if not any(values):
+                    continue
                 if len(rows) >= 10000:
                     raise ValueError('Import supports up to 10,000 devices per file.')
-                if len(values) > len(headers):
-                    raise ValueError(f'Row {number} has more columns than the chosen header row.')
-                rows.append(values + [''] * (len(headers) - len(values)))
+                rows.append(values)
                 row_numbers.append(number)
         if (not headers or not rows) and book is None:
             raise ValueError('No device rows found below the chosen header row.')
-        return {'headers': headers, 'rows': rows, 'row_numbers': row_numbers, 'sheets': sheets, 'sheet': sheet}
+        return {'headers': headers, 'rows': rows, 'row_numbers': row_numbers, 'sheets': sheets, 'sheet': sheet, 'ignored_columns': ignored_columns}
     except (BadZipFile, InvalidFileException, ParseError, DefusedXmlException, KeyError, csv.Error, OSError):
         raise ValueError('Could not read this spreadsheet. Save a fresh .xlsx or CSV UTF-8 copy in Excel.') from None
     finally:

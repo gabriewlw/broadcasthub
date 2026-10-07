@@ -46,6 +46,31 @@ class SpreadsheetParserTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     preview(payload)
 
+    def test_csv_ignored_columns_and_placeholder_cells_preserve_alignment(self):
+        raw = (' Device_ID ,VENUE,o.O,DEVICE NAME,IP Adress,VLAN,Notes,o.O value\n'
+               'old-id,RD MAIN LOUNGE,unwanted,ATEM,10.24.176.66,o.O, O.o ,unwanted\n'
+               'id-only,o.O,unwanted,o.O,o.O,o.O,o.O,unwanted\n'
+               'another-id,RD POOL,unwanted,Camera,10.24.176.67,1500,0.0,unwanted\n').encode()
+        result = preview(encoded(raw, 'devices.csv'))
+        self.assertEqual(result['headers'], ['VENUE', 'DEVICE NAME', 'IP Adress', 'VLAN', 'Notes'])
+        self.assertEqual(result['ignored_columns'], ['Device_ID', 'o.O', 'o.O value'])
+        self.assertEqual(result['rows'], [['RD MAIN LOUNGE', 'ATEM', '10.24.176.66', '', ''],
+                                         ['RD POOL', 'Camera', '10.24.176.67', '1500', '0.0']])
+        self.assertEqual(result['row_numbers'], [2, 4])
+
+    def test_xlsx_ignored_columns_and_placeholder_cells(self):
+        book = Workbook()
+        book.active.append(['Device ID', 'Device name', 'o.O', 'VLAN', 'Notes'])
+        book.active.append([123, 'ATEM', 'unwanted', 'o.O', 'keep o.O within longer notes'])
+        book.active.append([456, 'o.O', 'unwanted', 'o.O', 'o.O'])
+        book.active.append([789, 'Camera', 'unwanted', 1500, 0])
+        output = io.BytesIO()
+        book.save(output)
+        result = preview(encoded(output.getvalue()))
+        self.assertEqual(result['headers'], ['Device name', 'VLAN', 'Notes'])
+        self.assertEqual(result['rows'], [['ATEM', '', 'keep o.O within longer notes'], ['Camera', '1500', '0']])
+        self.assertEqual(result['row_numbers'], [2, 4])
+
 
 class SpreadsheetHTTPTests(test_app.AppTests):
     # Reuse the isolated HTTP fixture; run only new cases in this subclass.

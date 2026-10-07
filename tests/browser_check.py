@@ -247,12 +247,12 @@ with tempfile.TemporaryDirectory() as temp:
             # skip repeated IPs across VLANs, and keep devices with text VLANs.
             page.get_by_role('tab', name='AV devices', exact=True).click()
             path = Path(temp) / 'venue-devices.csv'
-            path.write_text('Name,Location,IP,DEVICE NAME,VENUE,IP Adress,VLAN\n'
-                            'Wrong name,Wrong location,invalid,CSV switcher,RD MAIN LOUNGE,10.24.176.90,1500\n'
-                            'Wrong name,Wrong location,invalid,CSV camera,rd MAIN LOUNGE,10.24.176.91,AV network\n'
-                            'Wrong name,Wrong location,invalid,CSV lights,RD POOL DECK,10.24.176.92,1.5\n'
-                            'Wrong name,Wrong location,invalid,Repeated switcher,RD MAIN LOUNGE,10.24.176.90,1501\n'
-                            'Wrong name,Wrong location,invalid,Existing ATEM,RD MAIN LOUNGE,10.24.176.66,1502\n')
+            path.write_text('Device ID,o.O,Name,Location,IP,DEVICE NAME,VENUE,IP Adress,VLAN,Notes\n'
+                            'old-id,unwanted,Wrong name,Wrong location,invalid,CSV switcher,RD MAIN LOUNGE,10.24.176.90,1500,o.O\n'
+                            'old-id,unwanted,Wrong name,Wrong location,invalid,CSV camera,rd MAIN LOUNGE,10.24.176.91,o.O,o.O\n'
+                            'old-id,unwanted,Wrong name,Wrong location,invalid,CSV lights,RD POOL DECK,10.24.176.92,1.5,o.O\n'
+                            'old-id,unwanted,Wrong name,Wrong location,invalid,Repeated switcher,RD MAIN LOUNGE,10.24.176.90,1501,o.O\n'
+                            'old-id,unwanted,Wrong name,Wrong location,invalid,Existing ATEM,RD MAIN LOUNGE,10.24.176.66,1502,o.O\n')
             page.locator('#import-file').set_input_files(str(path))
             page.locator('#confirm-import').wait_for(state='visible')
             page.wait_for_function("() => !document.getElementById('confirm-import').disabled")
@@ -260,11 +260,15 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#map-venue').input_value() == '4'
             assert page.locator('#map-name').input_value() == '3'
             assert page.locator('#map-ip').input_value() == '5'
+            assert 'Ignored columns: Device ID, o.O' in page.locator('#spreadsheet-summary').inner_text()
+            assert not page.locator('#map-name option').filter(has_text='Device ID').count()
+            assert not page.locator('#map-name option').filter(has_text='o.O').count()
             assert 'RD MAIN' not in page.locator('#spreadsheet-preview').inner_text()
             assert 'VLAN not set' in page.locator('#spreadsheet-preview').inner_text()
             page.locator('#confirm-import').click()
             page.get_by_role('button', name='Edit CSV camera', exact=True).wait_for()
             assert len([r for r in app.inventory() if r['record_type'] == 'device']) == 6
+            assert all(r['notes'] == '' for r in app.inventory() if r['name'].startswith('CSV '))
             venues = page.locator('#venue-buttons button').all_text_contents()
             assert venues[-2:] == ['MAIN LOUNGE', 'POOL DECK'], venues
             assert venues.count('MAIN LOUNGE') == 1

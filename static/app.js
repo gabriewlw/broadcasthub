@@ -337,6 +337,7 @@ async function loadSpreadsheet() {
     $('sheet-choice').replaceChildren(...data.sheets.map(sheet => new Option(sheet, sheet)));
     $('sheet-choice').value = data.sheet;
     $('spreadsheet-summary').textContent = `${spreadsheetFile.filename} · ${data.rows.length} records`;
+    if (data.ignored_columns?.length) $('spreadsheet-summary').textContent += ` · Ignored columns: ${data.ignored_columns.join(', ')}`;
     $('column-mappings').replaceChildren(...importFields().map(([field, label, aliases, defaultValue]) => {
       const group = element('div', 'mapping-row');
       group.hidden = currentTab === 'iptv' && ['venue','vlan','category','discipline'].includes(field);
