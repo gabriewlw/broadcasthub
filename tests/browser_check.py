@@ -565,8 +565,10 @@ with tempfile.TemporaryDirectory() as temp:
             brand = page.locator('.topbar .brand-word')
             assert 'Consolas' in brand.evaluate('(node) => getComputedStyle(node).fontFamily')
             assert brand.evaluate('(node) => getComputedStyle(node).animationDuration') == '0.2s'
-            assert page.locator('.topbar .record-o').evaluate('(node) => getComputedStyle(node, "::after").animationDelay') == '0.2s'
-            assert page.locator('.brand-word').evaluate_all('''nodes => nodes.every(brand => {
+            assert brand.inner_text() == 'BROADCAST HUB'
+            assert page.locator('.topbar .record-o').count() == 0
+            assert page.locator('.site-footer .record-o').evaluate('(node) => getComputedStyle(node, "::after").animationDelay') == '0.2s'
+            assert page.locator('.site-footer .brand-word').evaluate_all('''nodes => nodes.every(brand => {
                 const probe = document.createElement('span');
                 probe.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
                 brand.append(probe);

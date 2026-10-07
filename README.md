@@ -1,6 +1,6 @@
 # Broadcast Hub
 
-A responsive broadcasting workspace for equipment inventory, AV network addresses, and IPTV channel lineups. The Broadcast Hub title uses terminal lettering, types in over 200 ms, then starts the red recording light; its diameter matches the capital-letter height and its lower edge aligns with the surrounding letters’ baseline. Reduced-motion preferences show a steady title and light. Use the same web app in iPhone Safari and on a computer; all connected browsers share one SQLite database. No offline mode or App Store installation is required.
+A responsive broadcasting workspace for equipment inventory, AV network addresses, and IPTV channel lineups. The top Broadcast Hub title uses terminal lettering with a normal O and types in over 200 ms. The footer retains the red recording light, sized to the capital-letter height and aligned with the letters’ baseline. Reduced-motion preferences show a steady title and light. Use the same web app in iPhone Safari and on a computer; all connected browsers share one SQLite database. No offline mode or App Store installation is required.
 
 ## Run
 
