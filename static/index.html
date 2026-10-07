@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#086d66"><meta name="apple-mobile-web-app-capable" content="yes">
+<title>IP Tracking · AV inventory</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml"><link rel="apple-touch-icon" href="/icon.svg"><link rel="stylesheet" href="/style.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="/" aria-label="IP Tracking home"><img src="/icon.svg" alt="" width="34" height="34"><span>IP Tracking<span class="brand-sub">SHIPBOARD AV INVENTORY</span></span></a><span class="top-note"><span class="status-dot"></span> Central inventory</span></header>
+<main>
+<section class="heading"><div><p class="eyebrow">YOUR NETWORK, IN VIEW</p><h1>Device inventory</h1><p class="intro">Every venue. Every system. Every IP.</p></div><button id="add-device" class="primary"><span aria-hidden="true">＋</span> Add device</button></section>
+<section class="stats" aria-label="Inventory summary"><div><span>Total devices</span><strong id="total">—</strong></div><div><span>Venues</span><strong id="venue-count">—</strong></div><div><span>Video / Audio / Lighting</span><strong id="system-count">—</strong></div><div><span>VLANs</span><strong id="vlan-count">—</strong></div></section>
+<section class="inventory-panel">
+<div class="panel-heading"><div><h2>All devices <span id="result-count" class="count">0</span></h2><p>IP format checked · unique within each VLAN</p></div><div class="file-actions"><button id="refresh" class="quiet">Refresh</button><button id="import" class="quiet">Import JSON</button><div class="export-links"><a href="/api/export" download>JSON ↓</a><a href="/api/export.csv" download>CSV ↓</a></div><input id="import-file" type="file" accept=".json,application/json" hidden></div></div>
+<div class="filters"><label class="search"><span>Search devices</span><input id="search" type="search" placeholder="Name, IP, venue, or notes…"></label><label><span>Venue</span><select id="venue-filter"><option value="">All venues</option></select></label><label><span>System</span><select id="system-filter"><option value="">All systems</option><option>Video</option><option>Audio</option><option>Lighting</option><option>Control</option><option>Network</option><option>Other</option></select></label><label><span>Category</span><select id="category-filter"><option value="">All categories</option></select></label><label><span>VLAN</span><select id="vlan-filter"><option value="">All VLANs</option></select></label><button id="clear-filters" class="quiet">Clear</button></div>
+<p id="load-error" class="error banner" role="alert" hidden></p>
+<div id="loading" class="empty">Loading your inventory…</div>
+<div id="empty" class="empty" hidden><div class="empty-icon" aria-hidden="true">⌘</div><h3>Your inventory starts here</h3><p>Add your first device to keep your ship’s AV network organized.</p><button id="empty-add" class="primary">Add a device</button><button id="use-example" class="quiet">Fill ATEM example</button></div>
+<div id="no-results" class="empty" hidden><h3>No matching devices</h3><p>Try a different search or clear the filters.</p></div>
+<div id="device-list" class="device-list" aria-live="polite"></div>
+<footer class="panel-footer"><span id="showing">0 devices</span><span>JSON for transfer · CSV for spreadsheets</span></footer>
+</section>
+<p class="footnote">Validation confirms address format and inventory conflicts. It does not test network reachability.</p>
+</main>
+<dialog id="device-dialog" aria-labelledby="form-title"><form id="device-form"><div class="dialog-heading"><div><p class="eyebrow">DEVICE DETAILS</p><h2 id="form-title">Add device</h2></div><button type="button" id="close-dialog" class="icon-button" aria-label="Close">✕</button></div><p class="dialog-intro">Give this device a home in your inventory.</p>
+<div class="form-grid"><label class="full">Device name<input name="name" required maxlength="120" placeholder="e.g. ATEM video switcher" autocomplete="off"></label><label>Category<input name="category" required maxlength="120" list="categories" placeholder="e.g. Video switcher"><datalist id="categories"><option value="Video switcher"><option value="Camera"><option value="Display"><option value="Audio console"><option value="Amplifier"><option value="Lighting console"><option value="Network switch"><option value="Media server"></datalist></label><label>System<select name="discipline" required><option value="">Choose system</option><option>Video</option><option>Audio</option><option>Lighting</option><option>Control</option><option>Network</option><option>Other</option></select></label><label class="full">Venue<input name="venue" required maxlength="120" list="venues" placeholder="e.g. Liquid Lounge"><datalist id="venues"></datalist></label><label>IP address<input name="ip" required maxlength="15" inputmode="decimal" placeholder="10.24.176.66" autocomplete="off" spellcheck="false" aria-describedby="ip-hint"><small id="ip-hint">IPv4 · checked when saved</small></label><label>VLAN<input name="vlan" required type="number" min="1" max="4094" step="1" inputmode="numeric" placeholder="1500"><small>1–4094</small></label><label class="full">Notes <span class="optional">(optional)</span><textarea name="notes" maxlength="2000" rows="3" placeholder="Rack location, port, or anything worth knowing…"></textarea></label></div><p id="form-error" class="error" role="alert" hidden></p><div class="dialog-actions"><button type="button" id="cancel-dialog" class="secondary">Cancel</button><button id="save-device" class="primary" type="submit">Save device</button></div></form></dialog>
+<dialog id="delete-dialog" aria-labelledby="delete-title"><h2 id="delete-title">Delete this device?</h2><p id="delete-description"></p><p>This removes the device from the shared inventory.</p><p id="delete-error" class="error" role="alert" hidden></p><div class="dialog-actions"><button id="cancel-delete" class="secondary">Keep device</button><button id="confirm-delete" class="danger">Delete device</button></div></dialog>
+<div id="toast" class="toast" role="status" hidden></div>
+</body></html>
