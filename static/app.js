@@ -15,6 +15,77 @@ const element = (tag, className, text) => {
 const systems = ['Video', 'Audio', 'Lighting', 'Control', 'Network', 'Other'];
 const deviceLabel = device => device.name || `record ${device.id}`;
 const isDHCP = value => value.trim().toUpperCase() === 'DHCP';
+let activeSystemMenu = null;
+function closeSystemMenu(restoreFocus = false) {
+  if (!activeSystemMenu) return;
+  const {menu, button} = activeSystemMenu;
+  activeSystemMenu = null; menu.remove(); button.setAttribute('aria-expanded', 'false');
+  if (restoreFocus) button.focus();
+}
+document.addEventListener('pointerdown', event => {
+  if (activeSystemMenu && !activeSystemMenu.menu.contains(event.target) && !activeSystemMenu.button.contains(event.target)) closeSystemMenu();
+});
+window.addEventListener('resize', () => activeSystemMenu?.position());
+document.addEventListener('scroll', event => {
+  if (activeSystemMenu && !activeSystemMenu.menu.contains(event.target)) activeSystemMenu.position();
+}, true);
+function systemDropdown(device) {
+  const button = element('button', 'system-select system-tag');
+  button.type = 'button'; button.dataset.value = device.discipline;
+  button.setAttribute('role', 'combobox');
+  button.setAttribute('aria-label', `System for ${deviceLabel(device)}`);
+  button.setAttribute('aria-haspopup', 'listbox'); button.setAttribute('aria-expanded', 'false');
+  button.setAttribute('aria-controls', `system-menu-${device.id}`);
+  button.append(element('span', '', device.discipline), element('span', 'system-arrow', '⌄'));
+  const open = (last = false) => {
+    closeSystemMenu();
+    const menu = element('div', 'system-options'); menu.id = `system-menu-${device.id}`;
+    menu.setAttribute('role', 'listbox'); menu.setAttribute('aria-label', `Choose system for ${deviceLabel(device)}`);
+    const choices = ['', ...systems].map(value => {
+      const option = element('button', 'system-option system-tag', value || 'Clear system');
+      option.type = 'button'; option.dataset.value = value; option.setAttribute('role', 'option');
+      option.setAttribute('aria-selected', String(value === device.discipline));
+      option.onclick = async () => {
+        closeSystemMenu(true); button.disabled = true;
+        try {
+          const updated = await api(`/api/devices/${device.id}/system`, 'POST', {discipline:value});
+          devices = devices.map(row => row.id === updated.id ? {...row,discipline:updated.discipline} : row);
+          updateFilterOptions(); render();
+          document.querySelector(`.system-select[aria-controls="system-menu-${device.id}"]`)?.focus();
+        } catch(error) { button.disabled = false; toast('Could not save system: ' + error.message); }
+      };
+      return option;
+    });
+    menu.append(...choices); document.body.append(menu);
+    const position = () => {
+      const rect = button.getBoundingClientRect(), width = Math.min(190, window.innerWidth - 16);
+      menu.style.width = `${width}px`;
+      menu.style.left = `${Math.max(8, Math.min(rect.left, window.innerWidth - width - 8))}px`;
+      const height = Math.min(menu.scrollHeight, window.innerHeight - 16);
+      menu.style.top = `${Math.max(8, rect.bottom + height + 8 <= window.innerHeight ? rect.bottom + 4 : rect.top - height - 4)}px`;
+      menu.style.maxHeight = `${window.innerHeight - 16}px`;
+    };
+    activeSystemMenu = {menu, button, position}; position(); button.setAttribute('aria-expanded', 'true');
+    const selected = choices.find(option => option.dataset.value === device.discipline);
+    (last ? choices.at(-1) : selected || choices[0]).focus();
+    menu.onkeydown = event => {
+      const index = choices.indexOf(document.activeElement);
+      if (event.key === 'Escape') { event.preventDefault(); closeSystemMenu(true); }
+      else if (event.key === 'Tab') closeSystemMenu(true);
+      else if (['ArrowDown','ArrowUp','Home','End'].includes(event.key)) {
+        event.preventDefault();
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? choices.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : choices.length - 1)) % choices.length;
+        choices[next].focus();
+      }
+    };
+  };
+  button.onclick = () => activeSystemMenu?.button === button ? closeSystemMenu() : open();
+  button.onkeydown = event => {
+    if (['ArrowDown','ArrowUp'].includes(event.key)) { event.preventDefault(); open(event.key === 'ArrowUp'); }
+    else if (event.key === 'Escape') closeSystemMenu(true);
+  };
+  return button;
+}
 async function saveNotes(deviceId, notes) {
   const previous = pendingNoteSaves.get(deviceId) || Promise.resolve();
   const request = previous.catch(() => {}).then(() => api(`/api/devices/${deviceId}/notes`, 'POST', {notes}));
@@ -76,6 +147,7 @@ function updateFilterOptions() {
   $('venues').replaceChildren(...savedVenues().map(v => new Option(v, v)));
 }
 function switchTab(type) {
+  closeSystemMenu();
   currentTab = type;
   const equipment = type === 'equipment';
   $('nav-transfer').href = equipment ? '#equipment-transfer' : '#transfer';
@@ -169,6 +241,12 @@ async function load() {
   } finally { $('loading').hidden = true; $('refresh').disabled = false; }
 }
 function render() {
+  closeSystemMenu();
+  const iptvDirectory = currentTab === 'iptv';
+  $('device-directory').classList.toggle('iptv-directory', iptvDirectory);
+  $('directory-venue-title').hidden = iptvDirectory;
+  $('directory-device-title').textContent = iptvDirectory ? 'CHANNEL' : 'DEVICE';
+  $('directory-system-title').textContent = iptvDirectory ? 'SOURCE' : 'SYSTEM';
   syncButtons('venue-buttons', $('venue-filter').value);
   syncButtons('system-buttons', $('system-filter').value);
   syncButtons('source-buttons', $('source-filter').value);
@@ -221,12 +299,15 @@ function render() {
         toast('Could not save notes: ' + error.message);
       }
     };
-    title.append(element('span', 'cell-caption', 'Notes'), notes);
+    const notesCell = element('div', 'notes-cell');
+    notesCell.append(notes);
     identity.append(icon, title);
     const ip = element('div', 'ip-cell');
     const iptv = device.record_type === 'iptv';
     if (iptv) row.classList.add('iptv-row');
-    ip.append(element('div', 'device-ip', device.ip), element('span', 'cell-caption', iptv ? (device.port ? `Port ${device.port}` : '') : device.vlan == null ? '' : `VLAN ${device.vlan}`));
+    const ipLine = element('div', 'ip-info-line');
+    ipLine.append(element('div', 'device-ip', device.ip));
+    ip.append(ipLine, element('span', 'cell-caption', iptv ? (device.port ? `Port ${device.port}` : '') : device.vlan == null ? '' : `VLAN ${device.vlan}`));
     const confirmation = element('button', `ip-confirm ${device.ip_confirmed ? 'confirmed' : 'pending'}`, device.ip_confirmed ? '✓ IP confirmed' : '● Confirm IP');
     confirmation.type = 'button';
     confirmation.disabled = Boolean(device.ip_confirmed);
@@ -240,33 +321,28 @@ function render() {
         render(); toast('IP assignment confirmed.');
       } catch(error) { confirmation.disabled = false; toast('Confirmation failed: ' + error.message); }
     };
-    if (!iptv && device.ip && !isDHCP(device.ip)) ip.append(confirmation);
+    if (!iptv && device.ip && !isDHCP(device.ip)) ipLine.append(confirmation);
     const venue = element('div', 'venue-cell');
-    venue.append(element('div', 'device-venue', cleanVenue(device.venue)), element('span', 'cell-caption', 'Venue'));
+    const venueName = cleanVenue(device.venue);
+    const venueLabel = element(venueName ? 'button' : 'div', 'device-venue', venueName);
+    if (venueName) {
+      venueLabel.type = 'button'; venueLabel.classList.add('choice-button');
+      colorVenueButton(venueLabel, venueName);
+      venueLabel.setAttribute('aria-label', `Filter venue ${venueName}`);
+      venueLabel.onclick = () => { $('venue-filter').value = venueName; render(); };
+    }
+    venue.append(venueLabel);
     const system = element('div','system-cell');
     if (iptv) {
       if (device.channel_source) system.append(element('span', `badge ${device.discipline.toLowerCase()}`, device.channel_source));
     } else {
-      const select = element('select', 'system-select');
-      select.setAttribute('aria-label', `System for ${deviceLabel(device)}`);
-      select.add(new Option('', ''));
-      systems.forEach(value => select.add(new Option(value, value)));
-      select.value = device.discipline;
-      select.onchange = async () => {
-        select.disabled = true;
-        try {
-          const updated = await api(`/api/devices/${device.id}/system`, 'POST', {discipline:select.value});
-          devices = devices.map(row => row.id === updated.id ? {...row,discipline:updated.discipline} : row);
-          updateFilterOptions(); render();
-        } catch(error) { select.value = device.discipline; select.disabled = false; toast('Could not save system: ' + error.message); }
-      };
-      system.append(select, element('span', 'cell-caption', 'System'));
+      system.append(systemDropdown(device));
     }
     const actions = element('div', 'row-actions');
     const edit = element('button', 'quiet', 'Edit'); edit.setAttribute('aria-label', `Edit ${deviceLabel(device)}`); edit.onclick = () => openForm(device);
     const remove = element('button', 'quiet', 'Delete'); remove.setAttribute('aria-label', `Delete ${deviceLabel(device)}`);
     remove.onclick = () => { deleting = device; $('delete-description').textContent = `${device.name} · ${device.ip} · ${iptv ? 'Port ' + (device.port || 'not set') : 'VLAN ' + device.vlan}`; $('delete-error').hidden = true; $('delete-dialog').showModal(); $('cancel-delete').focus(); };
-    actions.append(edit,remove); row.append(identity,ip); if (!iptv) row.append(venue); row.append(system,actions); return row;
+    actions.append(edit,remove); if (!iptv) row.append(venue); row.append(identity,ip,system,notesCell,actions); return row;
   });
   $('device-list').replaceChildren(...rows);
   renderImportWarnings();

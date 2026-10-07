@@ -366,9 +366,10 @@ with tempfile.TemporaryDirectory() as temp:
             assert not unassigned.locator('.badge, .ip-confirm').count()
             assert not warnings.is_visible()
             system_select = page.get_by_role('combobox', name='System for Unassigned camera', exact=True)
-            assert system_select.input_value() == ''
-            system_select.select_option('Video')
-            page.wait_for_function("() => !document.querySelector('select[aria-label=\"System for Unassigned camera\"]').disabled")
+            assert system_select.get_attribute('data-value') == ''
+            system_select.click()
+            page.get_by_role('option', name='Video', exact=True).click()
+            page.wait_for_function("() => !document.querySelector('button[aria-label=\"System for Unassigned camera\"]').disabled")
             assert next(r for r in app.inventory() if r['name'] == 'Unassigned camera')['discipline'] == 'Video'
             notes_input = page.get_by_role('textbox', name='Notes for Unassigned camera', exact=True)
             notes_input.fill('Rack B, review later')
@@ -514,7 +515,35 @@ with tempfile.TemporaryDirectory() as temp:
             assert not any(d['name'] == 'Never accepted' for d in app.inventory())
             page.reload()
             page.locator('#venue-buttons').get_by_role('button', name='Main Lounge', exact=True).wait_for()
-            assert page.get_by_role('combobox', name='System for Unassigned camera', exact=True).input_value() == 'Video'
+            assert page.get_by_role('combobox', name='System for Unassigned camera', exact=True).get_attribute('data-value') == 'Video'
+            assert page.locator('#directory-head span:not(.sr-only)').all_text_contents() == ['VENUE','DEVICE','IP','SYSTEM','NOTES']
+            assert page.locator('.device-row').first.locator(':scope > div').evaluate_all('(nodes) => nodes.map(n => n.className)') == ['venue-cell','device-identity identity-cell','ip-cell','system-cell','notes-cell','row-actions']
+            directory = page.locator('#device-directory')
+            header_top = page.locator('#directory-head').evaluate('(node) => node.getBoundingClientRect().top')
+            directory.evaluate('(node) => { node.scrollTop = 200; }')
+            assert abs(page.locator('#directory-head').evaluate('(node) => node.getBoundingClientRect().top') - header_top) < 1
+            directory.evaluate('(node) => { node.scrollTop = 0; node.scrollLeft = 0; }')
+            picker = page.get_by_role('combobox', name='System for Unassigned camera', exact=True)
+            picker.click()
+            choices = page.locator('.system-options [role=option]')
+            assert choices.count() == 7
+            assert len(set(choices.evaluate_all('(nodes) => nodes.slice(1).map(n => getComputedStyle(n).color)'))) == 6
+            assert picker.get_attribute('aria-expanded') == 'true'
+            page.get_by_role('option', name='Video', exact=True).press('Escape')
+            assert picker.get_attribute('aria-expanded') == 'false'
+            assert not page.locator('.system-options').count()
+            picker.press('ArrowDown')
+            page.get_by_role('option', name='Video', exact=True).wait_for()
+            page.screenshot(path='/tmp/iptracking-system-picker-mobile.png')
+            page.locator('#iptv-tab').evaluate('(node) => node.click()')
+            assert not page.locator('.system-options').count()
+            assert page.locator('#directory-venue-title').is_hidden()
+            assert page.locator('#directory-system-title').inner_text() == 'SOURCE'
+            page.get_by_role('tab', name='AV devices', exact=True).click()
+            brand = page.locator('.topbar .brand-word')
+            assert 'Consolas' in brand.evaluate('(node) => getComputedStyle(node).fontFamily')
+            assert brand.evaluate('(node) => getComputedStyle(node).animationDuration') == '0.2s'
+            assert page.locator('.topbar .record-o').evaluate('(node) => getComputedStyle(node, "::after").animationDelay') == '0.2s'
             notes_input = page.get_by_role('textbox', name='Notes for Unassigned camera', exact=True)
             assert notes_input.input_value() == 'Rack B, review later'
             notes_input.fill('')
@@ -529,6 +558,10 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             page.screenshot(path='/tmp/iptracking-mobile.png', full_page=True)
             page.set_viewport_size({'width':1440,'height':1000})
+            directory.evaluate('(node) => { node.scrollTop = 0; node.scrollLeft = 0; }')
+            assert directory.evaluate('(node) => node.scrollWidth <= node.clientWidth')
+            assert page.locator('.device-row').first.locator(':scope > div').evaluate_all('(nodes) => new Set(nodes.map(n => n.getBoundingClientRect().top)).size') == 1
+            assert page.locator('.ip-info-line').evaluate_all('(nodes) => nodes.filter(n => n.querySelector(".ip-confirm")).every(n => { const ip = n.querySelector(".device-ip").getBoundingClientRect(); const button = n.querySelector(".ip-confirm").getBoundingClientRect(); return Math.abs((ip.top + ip.bottom) / 2 - (button.top + button.bottom) / 2) < 1 && button.left >= ip.right; })')
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             page.screenshot(path='/tmp/iptracking-desktop.png', full_page=True)
             path = Path(temp) / 'desktop-review.csv'

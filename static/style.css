@@ -256,15 +256,16 @@ textarea { resize: vertical; }
 @media (max-width: 600px) { .equipment-filters { grid-template-columns: 1fr; } }
 
 
-/* The O keeps its letter width while the recording light pulses inside it. */
-.brand-word { white-space: nowrap; }
+/* Reveal the terminal lettering first, then start the recording light. */
+.brand-word { white-space: nowrap; display: inline-block; font-family: Consolas, "Cascadia Mono", "Courier New", monospace; animation: brand-typing 200ms steps(13,end) both; }
 .record-o { display: inline-block; position: relative; color: transparent; }
-.record-o::after { content: ""; position: absolute; width: .7em; height: .7em; left: .01em; top: 50%; transform: translateY(-50%); border-radius: 50%; background: var(--accent); animation: recording-pulse 1.8s ease-in-out infinite; }
+.record-o::after { content: ""; position: absolute; width: .72em; height: .72em; width: 1cap; height: 1cap; left: 50%; top: 50%; transform: translate(-50%,-50%); border-radius: 50%; background: var(--accent); animation: recording-pulse 1.8s ease-in-out 200ms infinite; }
+@keyframes brand-typing { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(-.5em); } }
 @keyframes recording-pulse {
   0%, 100% { opacity: .65; box-shadow: 0 0 0 0 #ef444400; }
   50% { opacity: 1; box-shadow: 0 0 0 .2em #ef444425, 0 0 .75em #ef444470; }
 }
-@media (prefers-reduced-motion: reduce) { .record-o::after { animation: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .brand-word { animation: none; } .record-o::after { animation: none; opacity: 1; } }
 
 .import-warnings{margin:0 20px 20px;padding:18px;border:1px solid #a16207;border-radius:10px;background:#211b10;color:#fcd34d;overflow-wrap:anywhere}.import-warnings h3{margin:0 0 8px;font-size:16px}.import-warnings p,.import-warnings li{font-size:13px;line-height:1.6}.import-warnings ul{padding-left:20px;max-height:260px;overflow-y:auto}
 
@@ -279,3 +280,31 @@ textarea { resize: vertical; }
 .device-notes-editor{display:block;width:100%;min-width:0;min-height:44px;resize:vertical;font-size:12px;padding:8px;margin-top:5px}.device-identity>div{min-width:0;flex:1}
 
 #row-review-dialog{width:min(1000px,calc(100vw - 32px));max-width:1000px}.review-line-scroll{overflow-x:auto;padding-bottom:10px}.review-line{display:grid;grid-template-columns:repeat(var(--review-columns,4),minmax(140px,1fr));gap:12px}.review-line label{min-width:0;font-size:12px}.review-line input,.review-line select,.review-line textarea{display:block;width:100%;margin-top:8px;min-height:44px;font-size:13px}.review-ip-actions{display:flex;gap:6px;margin-top:8px}.review-ip-actions button{min-height:44px;padding:8px 10px;font-size:12px}.review-scroll-hint{display:none;color:var(--muted);font-size:12px}@media(max-width:650px){.review-scroll-hint{display:block}}
+
+/* A shared grid keeps every heading aligned with the directory values. */
+.device-directory{--directory-columns:130px minmax(170px,1.2fr) 260px 130px minmax(180px,1.3fr) 104px;max-height:70vh;overflow:auto;position:relative;border:1px solid var(--border);border-radius:8px;margin-top:20px;scroll-padding-top:48px;background:var(--panel)}
+.device-directory.iptv-directory{--directory-columns:minmax(210px,1.4fr) 180px 145px minmax(250px,1.5fr) 108px}
+.directory-head,.device-directory .device-row{display:grid;grid-template-columns:var(--directory-columns);gap:0;min-width:1010px;align-items:start;padding:0;border:0;border-radius:0}
+.directory-head{position:sticky;top:0;z-index:2;background:#1c2027;border-bottom:1px solid #373b44;font:600 11px var(--mono);letter-spacing:1px;color:#c4c7cf}
+.directory-head>span{padding:16px 12px}
+.device-directory .device-list{display:block;margin:0}
+.device-directory .device-row{border-bottom:1px solid var(--border)}
+.device-directory .device-row:last-child{border-bottom:0}
+.device-directory .device-row>div{padding:16px 12px;min-width:0;grid-column:auto;grid-row:auto;text-align:left;border-right:1px solid var(--border);height:100%}
+.device-directory .device-row>.row-actions{border-right:0;gap:0;padding:12px 0;align-items:start}
+.device-directory .device-identity{gap:8px;align-items:start}
+.device-directory .device-icon{width:26px;height:26px;font-size:13px}
+.device-directory .device-venue{font:11px var(--mono);min-height:44px;max-width:100%;white-space:normal;overflow-wrap:anywhere;padding:8px}
+.device-directory .device-ip{overflow-wrap:anywhere}
+.device-directory .device-notes-editor{margin:0;min-height:64px}
+.directory-scroll-hint{font-size:11px;color:var(--muted);margin:16px 0 -8px}
+.system-tag{--system-color:#c4c7cf;color:var(--system-color);border:1px solid color-mix(in srgb,var(--system-color) 45%,var(--border));background:color-mix(in srgb,var(--system-color) 13%,#14171b);border-radius:8px}
+.system-tag[data-value="Video"]{--system-color:#c2b8f6}.system-tag[data-value="Audio"]{--system-color:#9ed3b8}.system-tag[data-value="Lighting"]{--system-color:#e5c587}.system-tag[data-value="Control"]{--system-color:#96bcff}.system-tag[data-value="Network"]{--system-color:#85dce0}.system-tag[data-value="Other"]{--system-color:#d2b4cb}
+button.system-select{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 10px;font:12px var(--mono);width:100%;min-height:44px;cursor:pointer}
+.system-arrow{font-size:18px;line-height:1}
+.system-options{position:fixed;z-index:20;padding:8px;overflow-y:auto;background:#1c2027;border:1px solid #373b44;border-radius:10px;box-shadow:0 12px 32px #0008;display:grid;gap:6px}
+.system-option{min-height:44px;padding:9px 12px;text-align:left;font:12px var(--mono)}
+.system-option:hover,.system-option[aria-selected="true"]{border-color:var(--system-color);box-shadow:inset 0 0 0 1px var(--system-color)}
+@media(min-width:1100px){.directory-scroll-hint{display:none}}
+
+.ip-info-line{display:flex;align-items:center;gap:8px}.device-directory .ip-info-line .device-ip{white-space:nowrap;font-size:12px}.device-directory .ip-confirm{margin:0;min-height:44px;white-space:nowrap;font-size:10px;padding:7px 8px}

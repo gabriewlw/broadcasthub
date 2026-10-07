@@ -20,7 +20,7 @@
 <div id="loading" class="empty">Loading your inventory…</div>
 <div id="empty" class="empty" hidden><div class="empty-icon" aria-hidden="true">⌘</div><h3 id="empty-title">Your inventory starts here</h3><p id="empty-description">Add your first device to keep your ship’s AV network organized.</p><button id="empty-add" class="primary">Add a device</button><button id="use-example" class="quiet">Fill ATEM example</button></div>
 <div id="no-results" class="empty" hidden><h3>No matching devices</h3><p>Try a different search or clear the filters.</p></div>
-<div id="device-list" class="device-list" aria-live="polite"></div>
+<p class="directory-scroll-hint">Swipe across the directory to view every column.</p><div id="device-directory" class="device-directory" tabindex="0" role="region" aria-label="Broadcast device directory"><div class="directory-head" id="directory-head"><span id="directory-venue-title">VENUE</span><span id="directory-device-title">DEVICE</span><span>IP</span><span id="directory-system-title">SYSTEM</span><span>NOTES</span><span class="sr-only">Actions</span></div><div id="device-list" class="device-list" aria-live="polite"></div></div>
 <footer class="panel-footer"><span id="showing">0 devices</span><span>JSON · Excel / CSV import</span></footer>
 <div id="import-warnings" class="import-warnings" role="status" hidden><h3>Duplicate IP warnings</h3><p>AV IP addresses must be unique. Review skipped import rows or repeated existing assignments below.</p><ul id="import-warning-list"></ul></div>
 </section>
