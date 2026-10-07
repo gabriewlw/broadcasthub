@@ -5,7 +5,7 @@ let importWarnings = [];
 const pendingNoteSaves = new Map();
 const tabDevices = () => devices.filter(d => (d.record_type || 'device') === currentTab);
 const form = $('device-form');
-const filters = ['search', 'venue-filter', 'system-filter', 'category-filter', 'vlan-filter', 'source-filter'];
+const filters = ['search', 'venue-filter', 'system-filter', 'category-filter', 'vlan-filter', 'source-filter', 'address-filter'];
 const element = (tag, className, text) => {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -14,6 +14,7 @@ const element = (tag, className, text) => {
 };
 const systems = ['Video', 'Audio', 'Lighting', 'Control', 'Network', 'Other'];
 const deviceLabel = device => device.name || `record ${device.id}`;
+const isDHCP = value => value.trim().toUpperCase() === 'DHCP';
 async function saveNotes(deviceId, notes) {
   const previous = pendingNoteSaves.get(deviceId) || Promise.resolve();
   const request = previous.catch(() => {}).then(() => api(`/api/devices/${deviceId}/notes`, 'POST', {notes}));
@@ -66,6 +67,7 @@ function updateVenueButtons() {
 }
 makeButtons('system-buttons', systems, '', value => { $('system-filter').value = value; render(); }, 'All systems');
 makeButtons('source-buttons', ['Onboard','Satellite'], '', value => { $('source-filter').value = value; render(); }, 'All sources');
+makeButtons('address-buttons', ['DHCP'], '', value => { $('address-filter').value = value; render(); }, 'All addresses');
 makeButtons('form-source-buttons', ['Onboard','Satellite'], '', value => { form.elements.channel_source.value = form.elements.channel_source.value === value ? '' : value; syncButtons('form-source-buttons', form.elements.channel_source.value); });
 function updateFilterOptions() {
   updateVenueButtons();
@@ -170,7 +172,11 @@ function render() {
   syncButtons('venue-buttons', $('venue-filter').value);
   syncButtons('system-buttons', $('system-filter').value);
   syncButtons('source-buttons', $('source-filter').value);
+  syncButtons('address-buttons', $('address-filter').value);
   const current = tabDevices();
+  const hasDHCP = current.some(d => isDHCP(d.ip));
+  $('address-filter-group').hidden = !hasDHCP;
+  if (!hasDHCP) $('address-filter').value = '';
   $('total').textContent = current.length;
   $('venue-count').textContent = savedVenues().length;
   $('vlan-count').textContent = new Set(current.map(d => d.vlan).filter(v => v !== null)).size;
@@ -182,7 +188,8 @@ function render() {
     (!$('system-filter').value || d.discipline === $('system-filter').value) &&
     (!$('category-filter').value || d.category === $('category-filter').value) &&
     (!$('vlan-filter').value || String(d.vlan) === $('vlan-filter').value) &&
-    (!$('source-filter').value || d.channel_source === $('source-filter').value));
+    (!$('source-filter').value || d.channel_source === $('source-filter').value) &&
+    (!$('address-filter').value || isDHCP(d.ip)));
   $('result-count').textContent = results.length;
   $('showing').textContent = `${results.length} of ${current.length} ${currentTab === 'iptv' ? 'channels' : 'devices'}`;
   $('empty').hidden = current.length > 0;
@@ -233,7 +240,7 @@ function render() {
         render(); toast('IP assignment confirmed.');
       } catch(error) { confirmation.disabled = false; toast('Confirmation failed: ' + error.message); }
     };
-    if (!iptv && device.ip) ip.append(confirmation);
+    if (!iptv && device.ip && !isDHCP(device.ip)) ip.append(confirmation);
     const venue = element('div', 'venue-cell');
     venue.append(element('div', 'device-venue', cleanVenue(device.venue)), element('span', 'cell-caption', 'Venue'));
     const system = element('div','system-cell');
@@ -266,7 +273,7 @@ function render() {
 }
 function renderImportWarnings() {
   const duplicates = new Map();
-  devices.filter(d => (d.record_type || 'device') === 'device' && d.ip).forEach(d => {
+  devices.filter(d => (d.record_type || 'device') === 'device' && d.ip && !isDHCP(d.ip)).forEach(d => {
     if (!duplicates.has(d.ip)) duplicates.set(d.ip, []);
     duplicates.get(d.ip).push(d.name);
   });
@@ -290,8 +297,8 @@ function openForm(device = null) {
   $('name-label').textContent = iptv ? 'Channel name' : 'Device name';
   $('form-intro').textContent = iptv ? 'Track the channel’s stream address, port, and source.' : 'Give this device a home in your inventory.';
   form.elements.name.placeholder = iptv ? 'e.g. Ship information or BBC News' : 'e.g. ATEM video switcher';
-  form.elements.ip.placeholder = iptv ? 'e.g. 239.1.1.10' : '10.24.176.66';
-  $('ip-hint').textContent = iptv ? 'IPv4 unicast or multicast' : 'IPv4 · checked when saved';
+  form.elements.ip.placeholder = iptv ? 'e.g. 239.1.1.10 or DHCP' : '10.24.176.66 or DHCP';
+  $('ip-hint').textContent = iptv ? 'IPv4 unicast, multicast, or DHCP' : 'IPv4 or DHCP · checked when saved';
   $('form-title').textContent = editing ? (iptv ? 'Edit channel' : 'Edit device') : (iptv ? 'Add channel' : 'Add device');
   $('save-device').textContent = editing ? 'Save changes' : (iptv ? 'Save channel' : 'Save device');
   if (device) for (const field of ['name','category','venue','discipline','ip','vlan','notes','channel_source','port']) form.elements[field].value = device[field] ?? '';
@@ -332,6 +339,7 @@ $('confirm-delete').onclick = async () => {
   finally { $('confirm-delete').disabled = false; }
 };
 let spreadsheetFile = null, spreadsheetData = null;
+let spreadsheetReviewing = false, stopSpreadsheetReview = false;
 let venueEdits = new Map();
 const networkImportFields = [
   ['venue', 'Venue', ['venue','location','venue location','room','area']],
@@ -364,6 +372,7 @@ function mappedRows(applyVenueEdits = true) {
       const column = $('map-' + field).value;
       let value = column === '' ? '' : row[Number(column)];
       if (field === 'record_type') value = value.toLowerCase() || currentTab;
+      if (field === 'ip' && isDHCP(value)) value = 'DHCP';
       if (field === 'venue' || field === 'location') value = cleanVenue(value);
       if (field === 'vlan' && !/^[0-9]+$/.test(value)) value = '';
       if (field === 'channel_source') value = ({onboard:'Onboard', satellite:'Satellite'})[value.toLowerCase()] || value;
@@ -447,7 +456,7 @@ async function loadSpreadsheet() {
       return group;
     }));
     showVenueEditors(); showSpreadsheetPreview();
-    $('confirm-import').textContent = `Import ${data.rows.length} records`;
+    $('confirm-import').textContent = `Review ${data.rows.length} rows`;
     $('confirm-import').disabled = false;
   } catch (error) {
     $('spreadsheet-error').textContent = error.message;
@@ -455,27 +464,118 @@ async function loadSpreadsheet() {
   } finally { $('reload-sheet').disabled = false; }
 }
 function closeSpreadsheet() {
+  if (spreadsheetReviewing) { stopSpreadsheetReview = true; return; }
   $('spreadsheet-dialog').close(); spreadsheetData = null; spreadsheetFile = null; venueEdits = new Map();
 }
 $('close-spreadsheet').onclick = $('cancel-spreadsheet').onclick = closeSpreadsheet;
-$('spreadsheet-dialog').addEventListener('cancel', () => { spreadsheetData = null; spreadsheetFile = null; venueEdits = new Map(); });
+$('spreadsheet-dialog').addEventListener('cancel', event => {
+  if (spreadsheetReviewing) { event.preventDefault(); stopSpreadsheetReview = true; }
+  else { spreadsheetData = null; spreadsheetFile = null; venueEdits = new Map(); }
+});
 $('reload-sheet').onclick = loadSpreadsheet;
 // Sheet/header changes must be loaded before an import can be confirmed.
 $('sheet-choice').onchange = $('header-row').oninput = () => { $('confirm-import').disabled = true; };
+const meaningfulImportRow = row => Object.entries(row).some(([field,value]) => field !== 'record_type' && value !== '');
+let finishRowReview = null, rowReviewSaving = false;
+function endRowReview(result) {
+  if (rowReviewSaving || !finishRowReview) return;
+  const finish = finishRowReview; finishRowReview = null;
+  $('row-review-dialog').close(); finish(result);
+}
+$('stop-row-review').onclick = $('cancel-row-review').onclick = () => endRowReview(null);
+$('skip-review-row').onclick = () => endRowReview({skippedRow:true});
+$('row-review-dialog').addEventListener('cancel', event => { event.preventDefault(); endRowReview(null); });
+function reviewImportRow(entry, index, total, tab) {
+  return new Promise(resolve => {
+    finishRowReview = resolve;
+    const equipment = tab === 'equipment';
+    $('row-review-title').textContent = equipment ? 'Import this equipment?' : tab === 'iptv' ? 'Import this channel?' : 'Import this device?';
+    $('row-review-progress').textContent = `Row ${entry.number} · ${index + 1} of ${total} · ${spreadsheetFile.filename}`;
+    $('row-review-error').hidden = true;
+    const controls = new Map();
+    const fields = importFields();
+    $('row-review-fields').style.setProperty('--review-columns', fields.length);
+    $('row-review-fields').replaceChildren(...fields.map(([field, label]) => {
+      const group = element('label', '', label.replace(' (optional)', ''));
+      const input = element('input'); input.id = `review-${field}`;
+      input.value = entry.row[field] ?? ''; input.autocomplete = 'off';
+      input.maxLength = field === 'notes' || field === 'description' ? 2000 : 120;
+      if (field === 'ip') input.spellcheck = false;
+      group.append(input); controls.set(field, input);
+      if (field === 'ip') {
+        const actions = element('div', 'review-ip-actions');
+        const dhcp = element('button', 'choice-button', 'DHCP'); dhcp.type = 'button'; dhcp.id = 'review-dhcp';
+        const blank = element('button', 'quiet', 'Clear'); blank.type = 'button'; blank.id = 'review-clear-ip';
+        const update = () => {
+          dhcp.setAttribute('aria-pressed', String(isDHCP(input.value)));
+          $('row-review-ip-hint').hidden = !input.value.trim() || isDHCP(input.value) || !/[^0-9.\s]/.test(input.value);
+        };
+        dhcp.onclick = () => { input.value = 'DHCP'; update(); };
+        blank.onclick = () => { input.value = ''; update(); input.focus(); };
+        input.oninput = update; update(); actions.append(dhcp, blank); group.append(actions);
+      }
+      return group;
+    }));
+    if (equipment) $('row-review-ip-hint').hidden = true;
+    $('accept-review-row').onclick = async () => {
+      if (rowReviewSaving) return;
+      const row = {...entry.row};
+      controls.forEach((input, field) => { row[field] = input.value.trim(); });
+      if (!equipment) {
+        if (isDHCP(row.ip)) row.ip = 'DHCP';
+        if (tab === 'device') {
+          row.venue = cleanVenue(row.venue);
+          if (!/^[0-9]+$/.test(row.vlan)) row.vlan = '';
+        }
+      } else row.location = cleanVenue(row.location);
+      // Clearing the final value makes this an empty row, which needs no write.
+      if (!meaningfulImportRow(row)) { endRowReview({skippedRow:true}); return; }
+      const dialogControls = [...$('row-review-dialog').querySelectorAll('button,input')];
+      rowReviewSaving = true; dialogControls.forEach(control => { control.disabled = true; });
+      $('row-review-error').hidden = true;
+      let result;
+      try {
+        result = await api(equipment ? '/api/equipment/import' : '/api/import', 'POST', equipment
+          ? {version:1,equipment:[row]}
+          : {version:1,devices:[row],source:'spreadsheet',row_numbers:[entry.number]});
+      } catch(error) {
+        $('row-review-error').textContent = error.message.replace('Nothing was imported.', 'This row was not imported. Previously accepted rows remain saved.');
+        $('row-review-error').hidden = false;
+      } finally {
+        rowReviewSaving = false; dialogControls.forEach(control => { control.disabled = false; });
+      }
+      if (result) endRowReview(result);
+    };
+    $('row-review-dialog').showModal();
+    $('accept-review-row').focus();
+  });
+}
 $('spreadsheet-form').onsubmit = async event => {
   event.preventDefault();
   if (!spreadsheetData || $('confirm-import').disabled) return;
   $('confirm-import').disabled = true; $('spreadsheet-error').hidden = true;
+  spreadsheetReviewing = true; stopSpreadsheetReview = false;
   try {
-    const entries = mappedRows().map((row,index) => ({row,number:spreadsheetData.row_numbers[index]})).filter(({row}) => Object.entries(row).some(([field,value]) => field !== 'record_type' && value !== ''));
-    const rows = entries.map(entry => entry.row);
-    const result = await api(currentTab === 'equipment' ? '/api/equipment/import' : '/api/import', 'POST', currentTab === 'equipment' ? {version:1,equipment:rows} : {version:1,devices:rows,source:'spreadsheet',row_numbers:entries.map(entry => entry.number)});
-    if (currentTab === 'device') importWarnings = result.warnings || [];
-    closeSpreadsheet();
-    toast(`Imported ${result.added} records. Skipped ${result.skipped} existing assignments.`);
+    const tab = currentTab;
+    const entries = mappedRows().map((row,index) => ({row,number:spreadsheetData.row_numbers[index]})).filter(({row}) => meaningfulImportRow(row));
+    let added = 0, existing = 0, skipped = 0, stopped = false;
+    if (tab === 'device') importWarnings = [];
+    for (let index = 0; index < entries.length; index++) {
+      if (stopSpreadsheetReview) { stopped = true; break; }
+      const result = await reviewImportRow(entries[index], index, entries.length, tab);
+      if (result === null) { stopped = true; break; }
+      if (result.skippedRow) skipped++;
+      else {
+        added += result.added; existing += result.skipped;
+        if (tab === 'device') importWarnings.push(...(result.warnings || []));
+        await load();
+      }
+    }
+    spreadsheetReviewing = false; closeSpreadsheet();
+    toast(`${stopped ? 'Review stopped. ' : ''}Imported ${added} records. Skipped ${skipped} rows and ${existing} existing assignments.`);
     await load();
   } catch(error) { $('spreadsheet-error').textContent = error.message; $('spreadsheet-error').hidden = false; }
-  finally { $('confirm-import').disabled = false; }
+  finally { spreadsheetReviewing = false; $('confirm-import').disabled = false; }
 };
 $('import').onclick = () => $('import-file').click();
 $('import-file').onchange = async event => {

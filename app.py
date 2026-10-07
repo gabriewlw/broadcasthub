@@ -61,21 +61,25 @@ def connect():
             con.close()
             raise
     con.execute('DROP INDEX IF EXISTS device_assignment')
-    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS device_assignment_known ON devices(ip,vlan) WHERE record_type='device' AND ip!=''")
+    con.execute('DROP INDEX IF EXISTS device_assignment_known')
+    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS device_assignment_static ON devices(ip,vlan) WHERE record_type='device' AND ip NOT IN ('','DHCP')")
     con.execute('DROP TRIGGER IF EXISTS device_unique_ip_insert')
     con.execute('DROP TRIGGER IF EXISTS device_unique_ip_update')
+    con.execute('DROP TRIGGER IF EXISTS device_known_ip_insert')
+    con.execute('DROP TRIGGER IF EXISTS device_known_ip_update')
     # Preserve old records that share an IP across VLANs, but prevent new collisions.
-    con.execute("""CREATE TRIGGER IF NOT EXISTS device_known_ip_insert
-        BEFORE INSERT ON devices WHEN NEW.record_type='device' AND NEW.ip!='' AND EXISTS
+    con.execute("""CREATE TRIGGER IF NOT EXISTS device_static_ip_insert
+        BEFORE INSERT ON devices WHEN NEW.record_type='device' AND NEW.ip NOT IN ('','DHCP') AND EXISTS
         (SELECT 1 FROM devices WHERE record_type='device' AND ip=NEW.ip)
         BEGIN SELECT RAISE(ABORT, 'Duplicate AV IP address'); END""")
-    con.execute("""CREATE TRIGGER IF NOT EXISTS device_known_ip_update
+    con.execute("""CREATE TRIGGER IF NOT EXISTS device_static_ip_update
         BEFORE UPDATE OF ip, record_type ON devices
-        WHEN NEW.record_type='device' AND NEW.ip!='' AND (OLD.ip!=NEW.ip OR OLD.record_type!=NEW.record_type)
+        WHEN NEW.record_type='device' AND NEW.ip NOT IN ('','DHCP') AND (OLD.ip!=NEW.ip OR OLD.record_type!=NEW.record_type)
         AND EXISTS (SELECT 1 FROM devices WHERE record_type='device' AND ip=NEW.ip AND id!=NEW.id)
         BEGIN SELECT RAISE(ABORT, 'Duplicate AV IP address'); END""")
     con.execute('DROP INDEX IF EXISTS channel_endpoint')
-    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS channel_endpoint_known ON devices(ip,port) WHERE record_type='iptv' AND ip!='' AND port IS NOT NULL")
+    con.execute('DROP INDEX IF EXISTS channel_endpoint_known')
+    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS channel_endpoint_static ON devices(ip,port) WHERE record_type='iptv' AND ip NOT IN ('','DHCP') AND port IS NOT NULL")
     con.execute(EQUIPMENT_SCHEMA.format(table='IF NOT EXISTS equipment'))
     if next(row for row in con.execute('PRAGMA table_info(equipment)') if row['name'] == 'quantity')['notnull']:
         # Preserve existing quantities; missing quantities are unknown, not zero or one.
@@ -135,7 +139,9 @@ def validate(value):
         result['venue'] = clean_venue(result['venue'])
     if result['discipline'] and result['discipline'] not in DISCIPLINES:
         raise ValueError('Choose a valid system: Video, Audio, Lighting, Control, Network, or Other.')
-    if result['ip']:
+    if result['ip'].upper() == 'DHCP':
+        result['ip'] = 'DHCP'
+    elif result['ip']:
         try:
             address = ipaddress.IPv4Address(result['ip'])
         except ipaddress.AddressValueError:
@@ -198,6 +204,8 @@ def confirm_ip(device_id, value):
         row = validate(dict(record))
         if not row['ip']:
             raise ValueError('Add an IP address before confirming it.')
+        if row['ip'] == 'DHCP':
+            raise ValueError('DHCP does not have a fixed IP address to confirm.')
         if value.get('ip') != row['ip'] or value.get('vlan') != row['vlan']:
             raise ValueError('The IP or VLAN has changed. Refresh the inventory before confirming.')
         cursor = con.execute('UPDATE devices SET ip_confirmed=1, updated_at=CURRENT_TIMESTAMP WHERE id=? AND ip=? AND vlan IS ?', (device_id, row['ip'], row['vlan']))
@@ -207,7 +215,7 @@ def confirm_ip(device_id, value):
 
 
 def device_identity(row):
-    if not row['ip'] or (row['record_type'] == 'iptv' and row['port'] is None):
+    if row['ip'] in ('', 'DHCP') or (row['record_type'] == 'iptv' and row['port'] is None):
         return None
     return (row['record_type'], row['ip'], row['port'] if row['record_type'] == 'iptv' else None)
 

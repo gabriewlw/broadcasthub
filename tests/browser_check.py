@@ -21,6 +21,18 @@ with tempfile.TemporaryDirectory() as temp:
             context = browser.new_context(viewport={'width':390,'height':844}, is_mobile=True, has_touch=True, device_scale_factor=2)
             page = context.new_page()
             errors = []
+
+            def accept_rows(count):
+                for index in range(count):
+                    page.locator('#row-review-dialog').wait_for(state='visible')
+                    progress = page.locator('#row-review-progress').inner_text()
+                    assert f'{index + 1} of {count}' in progress
+                    page.locator('#accept-review-row').click()
+                    if index + 1 < count:
+                        page.wait_for_function("previous => document.getElementById('row-review-dialog').open && document.getElementById('row-review-progress').textContent !== previous", arg=progress)
+                    else:
+                        page.locator('#spreadsheet-dialog').wait_for(state='hidden')
+
             page.on('pageerror', lambda error: errors.append(str(error)))
             page.goto(f'http://127.0.0.1:{server.server_port}')
             page.get_by_role('button', name='Fill ATEM example').click()
@@ -127,6 +139,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert len(app.inventory()) == 2  # Preview never writes.
             page.screenshot(path='/tmp/iptracking-excel-mobile.png', full_page=True)
             page.locator('#confirm-import').click()
+            accept_rows(1)
             page.get_by_role('button', name='Edit Excel camera').wait_for()
             assert len(app.inventory()) == 3
             assert next(d for d in app.inventory() if d['name'] == 'Excel camera')['category'] == ''
@@ -136,10 +149,15 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#import-file').set_input_files(str(path))
             page.locator('#map-venue').wait_for()
             page.locator('#confirm-import').click()
-            page.locator('#spreadsheet-error').wait_for(state='visible')
-            assert 'valid IPv4' in page.locator('#spreadsheet-error').inner_text()
+            page.locator('#row-review-dialog').wait_for(state='visible')
+            assert page.locator('#row-review-ip-hint').is_visible()
+            assert page.locator('#review-ip').input_value() == 'invalid'
+            page.locator('#accept-review-row').click()
+            page.locator('#row-review-error').wait_for(state='visible')
+            assert 'valid IPv4' in page.locator('#row-review-error').inner_text()
             assert len(app.inventory()) == 3
-            page.get_by_role('button', name='Cancel', exact=True).click()
+            page.locator('#cancel-row-review').click()
+            page.locator('#spreadsheet-dialog').wait_for(state='hidden')
             # IPTV has separate records, source choices, and multicast support.
             page.get_by_role('tab', name='IPTV channels', exact=True).click()
             assert page.locator('#total').inner_text() == '0'
@@ -181,6 +199,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#map-port').input_value() == '2'
             assert not page.locator('#map-notes').count()
             page.locator('#confirm-import').click()
+            accept_rows(1)
             page.get_by_role('button', name='Edit Movie channel').wait_for()
             assert next(d for d in app.inventory() if d['name'] == 'Movie channel')['category'] == 'Local program'
             assert next(d for d in app.inventory() if d['name'] == 'Movie channel')['notes'] == ''
@@ -224,6 +243,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert 'Store 2' in page.locator('#spreadsheet-preview').inner_text()
             assert len(app.equipment_inventory()) == 1
             page.locator('#confirm-import').click()
+            accept_rows(1)
             page.get_by_role('button', name='Edit equipment Neutrik XLR').wait_for()
             assert page.locator('#equipment-units').inner_text() == '22'
             page.locator('#equipment-location-filter').select_option('Store 2')
@@ -282,6 +302,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert len([r for r in app.inventory() if r['record_type'] == 'device']) == 3
             page.screenshot(path='/tmp/iptracking-venue-preview-mobile.png', full_page=True)
             page.locator('#confirm-import').click()
+            accept_rows(5)
             page.get_by_role('button', name='Edit CSV camera', exact=True).wait_for()
             assert len([r for r in app.inventory() if r['record_type'] == 'device']) == 6
             assert all(r['notes'] == '' for r in app.inventory() if r['name'].startswith('CSV '))
@@ -336,6 +357,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert not page.locator('#map-category, #map-discipline, #map-notes, #map-record_type, #map-channel_source, #map-port').count()
             assert 'Missing' not in page.locator('#spreadsheet-preview').inner_text()
             page.locator('#confirm-import').click()
+            accept_rows(3)
             page.get_by_role('button', name='Edit Unassigned camera', exact=True).wait_for()
             unassigned = page.locator('.device-row').filter(has_text='Unassigned camera')
             assert unassigned.locator('.device-ip').inner_text() == ''
@@ -386,6 +408,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.wait_for_function("() => document.getElementById('spreadsheet-dialog').open && !document.getElementById('confirm-import').disabled")
             assert page.locator('#map-quantity').input_value() == ''
             page.locator('#confirm-import').click()
+            accept_rows(2)
             page.wait_for_function("() => document.getElementById('equipment-records').textContent === '4'")
             partial = page.locator('#equipment-rows tr').filter(has_text='Unidentified spare')
             assert partial.count() == 2
@@ -404,9 +427,91 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#import-file').set_input_files(str(path))
             page.wait_for_function("() => document.getElementById('spreadsheet-dialog').open && !document.getElementById('confirm-import').disabled")
             page.locator('#confirm-import').click()
+            accept_rows(1)
             page.get_by_role('button', name='Edit Unassigned channel', exact=True).wait_for()
             assert next(r for r in app.inventory() if r['name'] == 'Unassigned channel')['channel_source'] == ''
             page.get_by_role('tab', name='AV devices', exact=True).click()
+            # Every row requires a decision. DHCP stays a shared marker, while
+            # text can be corrected, cleared, marked DHCP, or skipped.
+            before = len(app.inventory())
+            path = Path(temp) / 'review.csv'
+            path.write_text('VENUE,DEVICE NAME,IP Address,VLAN\n'
+                            'RD DHCP LOUNGE,DHCP camera A,dhcp,1500\n'
+                            'RD POOL DECK,DHCP camera B,DHCP,1500\n'
+                            'RD DHCP LOUNGE,DHCP camera C,assigned automatically,AV network\n'
+                            ',Blank address,not assigned,\n'
+                            'RD POOL DECK,Skipped camera,10.24.176.95,1500\n'
+                            'RD CONTROL ROOM,Corrected camera,10.24.176.96 rack,1500\n'
+                            ',,unknown,\n'
+                            'RD CONTROL ROOM,Static camera,10.24.176.97,4095\n')
+            page.locator('#import-file').set_input_files(str(path))
+            page.wait_for_function("() => !document.getElementById('confirm-import').disabled")
+            page.locator('#confirm-import').click()
+            page.locator('#row-review-dialog').wait_for(state='visible')
+            assert len(app.inventory()) == before
+            assert page.locator('#row-review-fields input').evaluate_all('(nodes) => nodes.map(n => n.id)') == ['review-venue','review-name','review-ip','review-vlan']
+            assert page.locator('#review-venue').input_value() == 'DHCP LOUNGE'
+            assert page.locator('#review-dhcp').get_attribute('aria-pressed') == 'true'
+            assert page.locator('#review-ip').input_value() == 'DHCP'
+            assert page.locator('#row-review-ip-hint').is_hidden()
+            assert page.locator('#row-review-fields > label').evaluate_all('(nodes) => new Set(nodes.map(n => n.getBoundingClientRect().top)).size') == 1
+            assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+            page.screenshot(path='/tmp/iptracking-row-review-mobile.png')
+
+            def review_action(action):
+                progress = page.locator('#row-review-progress').inner_text()
+                page.locator(action).click()
+                page.wait_for_function("previous => !document.getElementById('spreadsheet-dialog').open || (document.getElementById('row-review-dialog').open && document.getElementById('row-review-progress').textContent !== previous)", arg=progress)
+
+            review_action('#accept-review-row')
+            assert len(app.inventory()) == before + 1  # Yes saves immediately.
+            assert 'Row 3' in page.locator('#row-review-progress').inner_text()
+            review_action('#accept-review-row')
+            assert page.locator('#row-review-ip-hint').is_visible()
+            assert len(app.inventory()) == before + 2
+            page.locator('#review-dhcp').click()
+            assert page.locator('#review-ip').input_value() == 'DHCP'
+            review_action('#accept-review-row')
+            page.locator('#review-clear-ip').click()
+            review_action('#accept-review-row')
+            assert next(d for d in app.inventory() if d['name'] == 'Blank address')['ip'] == ''
+            review_action('#skip-review-row')
+            assert not any(d['name'] == 'Skipped camera' for d in app.inventory())
+            page.locator('#review-ip').fill('10.24.176.96')
+            page.locator('#review-name').fill('Repaired camera')
+            page.locator('#review-venue').fill('RD CONTROL ROOM A')
+            review_action('#accept-review-row')
+            repaired = next(d for d in app.inventory() if d['name'] == 'Repaired camera')
+            assert repaired['ip'] == '10.24.176.96' and repaired['venue'] == 'CONTROL ROOM A'
+            page.locator('#review-clear-ip').click()  # Entirely blank: no error/write.
+            review_action('#accept-review-row')
+            page.locator('#accept-review-row').click()
+            page.locator('#row-review-error').wait_for(state='visible')
+            assert '1 and 4094' in page.locator('#row-review-error').inner_text()
+            assert len(app.inventory()) == before + 5
+            page.locator('#review-vlan').fill('1500')
+            review_action('#accept-review-row')
+            assert len(app.inventory()) == before + 6
+            assert page.locator('#import-warnings').is_hidden()
+            assert page.locator('#address-buttons').get_by_role('button', name='DHCP', exact=True).count() == 1
+            page.locator('#address-buttons').get_by_role('button', name='DHCP', exact=True).click()
+            assert page.locator('.device-row').count() == 3
+            assert not page.locator('.device-row .ip-confirm').count()
+            page.locator('#venue-buttons').get_by_role('button', name='DHCP LOUNGE', exact=True).click()
+            assert page.locator('.device-row').count() == 2
+            page.locator('#clear-filters').click()
+            # Stopping leaves accepted DHCP rows saved and remaining rows untouched.
+            path = Path(temp) / 'stop-review.csv'
+            path.write_text('DEVICE NAME,IP Address\nAccepted before stop,DHCP\nNever accepted,DHCP\n')
+            page.locator('#import-file').set_input_files(str(path))
+            page.wait_for_function("() => !document.getElementById('confirm-import').disabled")
+            page.locator('#confirm-import').click()
+            page.locator('#row-review-dialog').wait_for(state='visible')
+            review_action('#accept-review-row')
+            page.locator('#row-review-dialog').press('Escape')
+            page.locator('#spreadsheet-dialog').wait_for(state='hidden')
+            assert any(d['name'] == 'Accepted before stop' for d in app.inventory())
+            assert not any(d['name'] == 'Never accepted' for d in app.inventory())
             page.reload()
             page.locator('#venue-buttons').get_by_role('button', name='Main Lounge', exact=True).wait_for()
             assert page.get_by_role('combobox', name='System for Unassigned camera', exact=True).input_value() == 'Video'
@@ -417,11 +522,28 @@ with tempfile.TemporaryDirectory() as temp:
                 notes_input.press('Tab')
             assert next(r for r in app.inventory() if r['name'] == 'Unassigned camera')['notes'] == ''
             assert page.locator('#venue-buttons').get_by_role('button', name='Main Lounge', exact=True).evaluate('(n) => getComputedStyle(n).color') == main_color
+            page.locator('#address-buttons').get_by_role('button', name='DHCP', exact=True).click()
+            assert page.locator('.device-row').count() == 4
+            assert not page.locator('.device-row .ip-confirm').count()
+            page.locator('#clear-filters').click()
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             page.screenshot(path='/tmp/iptracking-mobile.png', full_page=True)
             page.set_viewport_size({'width':1440,'height':1000})
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             page.screenshot(path='/tmp/iptracking-desktop.png', full_page=True)
+            path = Path(temp) / 'desktop-review.csv'
+            path.write_text('VENUE,DEVICE NAME,IP Address,VLAN\nRD CONTROL ROOM,Desktop review,DHCP,1500\n')
+            before = len(app.inventory())
+            page.locator('#import-file').set_input_files(str(path))
+            page.wait_for_function("() => !document.getElementById('confirm-import').disabled")
+            page.locator('#confirm-import').click()
+            page.locator('#row-review-dialog').wait_for(state='visible')
+            assert page.locator('#row-review-fields > label').evaluate_all('(nodes) => new Set(nodes.map(n => n.getBoundingClientRect().top)).size') == 1
+            assert page.locator('.review-line-scroll').evaluate('(node) => node.scrollWidth <= node.clientWidth')
+            page.screenshot(path='/tmp/iptracking-row-review-desktop.png')
+            page.locator('#skip-review-row').click()
+            page.locator('#spreadsheet-dialog').wait_for(state='hidden')
+            assert len(app.inventory()) == before
             assert not errors, errors
             browser.close()
             print('PASS: mobile create, all filters, validation, edit, export, delete, import, reload persistence; desktop/mobile overflow; no JS errors.')
