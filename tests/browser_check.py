@@ -564,7 +564,10 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#directory-system-title').inner_text() == 'SOURCE'
             page.get_by_role('tab', name='AV devices', exact=True).click()
             brand = page.locator('.topbar .brand-word')
-            assert 'Cascadia Mono' in brand.evaluate('(node) => getComputedStyle(node).fontFamily')
+            page.evaluate('document.fonts.ready')
+            assert 'Google Sans Flex' in brand.evaluate('(node) => getComputedStyle(node).fontFamily')
+            assert page.evaluate('document.fonts.check(\'12px "Google Sans Flex"\')')
+            assert page.evaluate('Array.from(document.fonts).some(font => font.family === \'Google Sans Flex\' && font.status === \'loaded\')')
             assert brand.evaluate('(node) => getComputedStyle(node).animationDuration') == '0.2s'
             assert brand.inner_text() == 'BROADCAST HUB'
             assert page.locator('.topbar .record-o').count() == 0
