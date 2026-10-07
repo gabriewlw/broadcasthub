@@ -242,7 +242,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('tab', name='Equipment inventory', exact=True).click()
             page.get_by_role('button', name='Edit equipment Neutrik XLR').wait_for()
             assert page.locator('#equipment-rows tr').count() == 2
-            assert 'Broadcast Manager' in page.title()
+            assert 'Broadcast Hub' in page.title()
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             page.screenshot(path='/tmp/iptracking-mobile.png', full_page=True)
             page.set_viewport_size({'width':1440,'height':1000})

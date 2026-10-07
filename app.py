@@ -1,4 +1,4 @@
-"""Broadcast Manager server. Python 3.12+; install requirements.txt for Excel import."""
+"""Broadcast Hub server. Python 3.12+; install requirements.txt for Excel import."""
 import csv
 import io
 import ipaddress
@@ -159,7 +159,7 @@ def confirm_ip(device_id, value):
 
 def import_devices(payload):
     if not isinstance(payload, dict) or payload.get('version') != 1 or not isinstance(payload.get('devices'), list):
-        raise ValueError('Choose a Broadcast Manager network JSON export (version 1).')
+        raise ValueError('Choose a Broadcast Hub network JSON export (version 1).')
     if len(payload['devices']) > 10000:
         raise ValueError('Import supports up to 10,000 devices per file.')
     rows = []
@@ -230,7 +230,7 @@ def equipment_identity(row):
 
 def import_equipment(payload):
     if not isinstance(payload, dict) or payload.get('version') != 1 or not isinstance(payload.get('equipment'), list):
-        raise ValueError('Choose a Broadcast Manager equipment JSON export.')
+        raise ValueError('Choose a Broadcast Hub equipment JSON export.')
     if len(payload['equipment']) > 10000:
         raise ValueError('Import supports up to 10,000 inventory items.')
     rows = []
@@ -381,5 +381,5 @@ if __name__ == '__main__':
         pass
     host = os.environ.get('HOST', '127.0.0.1')
     port = int(os.environ.get('PORT', '8000'))
-    print(f'Broadcast Manager listening on {host}:{port}', flush=True)
+    print(f'Broadcast Hub listening on {host}:{port}', flush=True)
     ThreadingHTTPServer((host, port), Handler).serve_forever()

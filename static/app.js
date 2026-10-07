@@ -391,7 +391,7 @@ $('import-file').onchange = async event => {
       const result = await api(currentTab === 'equipment' ? '/api/equipment/import' : '/api/import', 'POST', JSON.parse(await file.text()));
       toast(`Imported ${result.added} records. Skipped ${result.skipped} existing assignments.`);
       await load();
-    } else throw new Error('Choose .xlsx, .csv, or a Broadcast Manager .json export.');
+    } else throw new Error('Choose .xlsx, .csv, or a Broadcast Hub .json export.');
   } catch(error) { toast('Import failed: ' + error.message); }
   finally { event.target.value = ''; $('import').disabled = false; }
 };

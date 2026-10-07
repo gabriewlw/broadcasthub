@@ -1,4 +1,4 @@
-# Broadcast Manager
+# Broadcast Hub
 
 A responsive broadcasting workspace for equipment inventory, AV network addresses, and IPTV channel lineups. Use the same web app in iPhone Safari and on a computer; all connected browsers share one SQLite database. No offline mode or App Store installation is required.
 
