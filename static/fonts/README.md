@@ -4,6 +4,9 @@ Source: https://github.com/google/fonts/tree/main/ofl/poppins
 
 Official TTFs converted to WOFF2 with FontTools, preserving all glyphs.
 SIL Open Font License included in OFL.txt. Fonts are served locally for offline localhost use.
+Regular and Bold TTF files are also bundled for PDF exports, reconstructed from
+the same WOFF2 fonts with FontTools. PDF reports embed Poppins and need no system
+font installation or font download at runtime.
 
 Source TTF SHA-256:
 

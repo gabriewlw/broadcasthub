@@ -90,6 +90,22 @@ class ExportTests(unittest.TestCase):
         self.assertNotIn(b'http://DHCP', raw)
         self.assertIn(b'/S /URI', raw)
 
+    @unittest.skipUnless(shutil.which('pdffonts'), 'Embedded font validation needs optional pdffonts')
+    def test_pdf_uses_logo_and_embeds_website_fonts(self):
+        device = self.request('/api/devices', 'POST', test_app.EXAMPLE)[1]
+        self.request(f"/api/devices/{device['id']}/confirm", 'POST', dict(ip=device['ip'], vlan=device['vlan']))
+        for scope, filename in [('/api/export', 'broadcast-network.pdf'),
+                                ('/api/equipment/export', 'broadcast-equipment.pdf')]:
+            raw = self.download(scope + '.pdf', 'application/pdf', filename)
+            self.assertIn(b'/Subtype /Image', raw)
+            listing = subprocess.run(['pdffonts', '-'], input=raw, stdout=subprocess.PIPE,
+                                     stderr=subprocess.PIPE, check=True).stdout.decode()
+            for font in ('Poppins-Regular', 'Poppins-Bold'):
+                line = next(line for line in listing.splitlines() if font in line)
+                self.assertRegex(line, r'TrueType\s+\S+\s+yes\s+yes\s+yes')
+            self.assertNotIn('Courier', listing)
+            self.assertNotIn('Vera', listing)
+
     @unittest.skipUnless(shutil.which('pdftotext'), 'PDF text validation needs optional pdftotext')
     def test_pdf_saved_information_pagination_and_long_notes(self):
         notes = 'Açúcar <&> ' + 'Long note ' * 195 + 'END_NOTE'

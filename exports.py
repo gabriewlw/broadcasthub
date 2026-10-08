@@ -86,28 +86,37 @@ def equipment_xlsx(rows):
 
 def pdf_report(title, sections):
     try:
-        import reportlab
+        from PIL import Image as PILImage
         from reportlab.lib import colors
         from reportlab.lib.pagesizes import A4, landscape
         from reportlab.lib.styles import ParagraphStyle
+        from reportlab.lib.utils import ImageReader
         from reportlab.pdfbase import pdfmetrics
         from reportlab.pdfbase.ttfonts import TTFont
         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, LongTable, TableStyle, Flowable
     except ImportError:
         raise ValueError('Install PDF dependencies: py -m pip install -r requirements.txt') from None
-    # Embed the library's included font so Windows and phones see accented text.
+    # Embed the same locally bundled Poppins family used by the website.
     with _font_lock:
         if 'HubText' not in pdfmetrics.getRegisteredFontNames():
-            fonts = Path(reportlab.__file__).parent / 'fonts'
-            pdfmetrics.registerFont(TTFont('HubText', str(fonts / 'Vera.ttf')))
-            pdfmetrics.registerFont(TTFont('HubBold', str(fonts / 'VeraBd.ttf')))
+            fonts = Path(__file__).parent / 'static' / 'fonts'
+            pdfmetrics.registerFont(TTFont('HubText', str(fonts / 'Poppins-Regular.ttf')))
+            pdfmetrics.registerFont(TTFont('HubBold', str(fonts / 'Poppins-Bold.ttf')))
+            pdfmetrics.registerFontFamily('HubText', normal='HubText', bold='HubBold')
+    logo_path = Path(__file__).parent / 'static' / 'brand-logo.png'
+    logo = ImageReader(str(logo_path))
+    logo_width, logo_height = logo.getSize()
+    with PILImage.open(logo_path) as logo_image:
+        # Ignore faint transparent padding when aligning the visible lettering.
+        logo_bounds = logo_image.convert('RGBA').getchannel('A').point(lambda alpha: 255 if alpha >= 64 else 0).getbbox()
+    logo_bounds = logo_bounds or (0, 0, logo_width, logo_height)
     output = io.BytesIO()
     document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=26, rightMargin=26,
                                  topMargin=30, bottomMargin=64, title=f'Broadcast Hub - {title}',
                                  author='Broadcast Hub')
     body = ParagraphStyle('HubBody', fontName='HubText', fontSize=8, leading=11, wordWrap='CJK', textColor=colors.HexColor('#EEEEE9'))
-    header = ParagraphStyle('HubHeader', parent=body, fontName='Courier-Bold', textColor=colors.HexColor('#C4C7CF'))
-    heading = ParagraphStyle('HubHeading', fontName='Courier-Bold', fontSize=18, leading=24,
+    header = ParagraphStyle('HubHeader', parent=body, fontName='HubBold', textColor=colors.HexColor('#C4C7CF'))
+    heading = ParagraphStyle('HubHeading', fontName='HubBold', fontSize=18, leading=24,
                              textColor=colors.HexColor('#EEEEE9'))
     section_style = ParagraphStyle('HubSection', parent=heading, fontSize=12, leading=17, spaceBefore=14, spaceAfter=8, textColor=colors.HexColor('#FF7278'))
 
@@ -122,8 +131,10 @@ def pdf_report(title, sections):
         if label == 'SYSTEM' and value in tag_colors:
             return paragraph(value, ParagraphStyle('HubTag', parent=body, textColor=colors.HexColor(tag_colors[value][1])))
         if label == 'CONFIRMATION' and value in ('Confirmed', 'Pending'):
-            color = '#9ED3B8' if value == 'Confirmed' else '#E5C587'
-            return paragraph(value, ParagraphStyle('HubConfirmation', parent=body, textColor=colors.HexColor(color)))
+            confirmed = value == 'Confirmed'
+            return paragraph(value, ParagraphStyle('HubConfirmation', parent=body,
+                fontName='HubBold' if confirmed else 'HubText',
+                textColor=colors.HexColor('#F0FFF5' if confirmed else '#E5C587')))
         if label == 'IP' and value not in ('', 'DHCP', None):
             try:
                 address = str(ipaddress.IPv4Address(value))
@@ -136,21 +147,19 @@ def pdf_report(title, sections):
     class BrandHeading(Flowable):
         def __init__(self):
             super().__init__()
-            self.width, self.height = 190, 30
+            self.width, self.height = 210, 36
 
         def draw(self):
             canvas = self.canv
-            size, baseline = 18, 6
-            canvas.setFont('Courier-Bold', size)
-            canvas.setFillColor(colors.HexColor('#EEEEE9'))
-            canvas.drawString(0, baseline, 'BR')
-            prefix = pdfmetrics.stringWidth('BR', 'Courier-Bold', size)
-            advance = pdfmetrics.stringWidth('O', 'Courier-Bold', size)
-            cap = size * .562  # Capital height in the standard Courier font.
-            canvas.setFillColor(colors.HexColor('#EF4444'))
-            canvas.circle(prefix + advance / 2, baseline + cap / 2, cap / 2, stroke=0, fill=1)
-            canvas.setFillColor(colors.HexColor('#EEEEE9'))
-            canvas.drawString(prefix + advance, baseline, 'ADCAST HUB')
+            left, top, right, bottom = logo_bounds
+            scale = self.width / (right - left)
+            canvas.saveState()
+            clip = canvas.beginPath()
+            clip.rect(0, 6, self.width, (bottom - top) * scale)
+            canvas.clipPath(clip, stroke=0, fill=0)
+            canvas.drawImage(logo, -left * scale, 6 - (logo_height - bottom) * scale,
+                             width=logo_width * scale, height=logo_height * scale, mask='auto')
+            canvas.restoreState()
 
     story = [BrandHeading(), paragraph(title), Spacer(1, 8)]
     for name, labels, widths, records in sections:
@@ -175,6 +184,11 @@ def pdf_report(title, sections):
                     # A tinted chip matches the colored selection in the website.
                     background, _ = tag_colors[record[column]]
                     table.setStyle(TableStyle([('BACKGROUND', (column,index), (column,index), colors.HexColor(background))]))
+        if 'CONFIRMATION' in labels:
+            column = labels.index('CONFIRMATION')
+            for index, record in enumerate(records, 1):
+                if record[column] == 'Confirmed':
+                    table.setStyle(TableStyle([('BACKGROUND', (column,index), (column,index), colors.HexColor('#216E43'))]))
         story.append(table)
 
     def footer(canvas, doc):
@@ -187,10 +201,10 @@ def pdf_report(title, sections):
         canvas.setFillColor(colors.HexColor('#EF4444'))
         canvas.circle(30, 29, 3, stroke=0, fill=1)
         canvas.setFillColor(colors.HexColor('#EEEEE9'))
-        canvas.setFont('Courier-Bold', 9)
+        canvas.setFont('HubBold', 9)
         canvas.drawString(40, 26, 'REPORT GENERATED BY BROADCASTHUB')
         canvas.setFillColor(colors.HexColor('#FF7278'))
-        canvas.setFont('Courier-Bold', 9)
+        canvas.setFont('HubBold', 9)
         canvas.drawRightString(width - 26, 26, 'broadcastgab.com')
         canvas.linkURL('https://broadcastgab.com', (width - 135, 23, width - 26, 38), relative=0)
         canvas.setFillColor(colors.HexColor('#A0A2AC'))
