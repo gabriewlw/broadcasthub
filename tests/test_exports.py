@@ -203,7 +203,10 @@ class ExportTests(unittest.TestCase):
             self.assertIn(b'/Subtype /Image', raw)
             listing = subprocess.run(['pdffonts', '-'], input=raw, stdout=subprocess.PIPE,
                                      stderr=subprocess.PIPE, check=True).stdout.decode()
-            for font in ('Poppins-Regular', 'Poppins-Bold'):
+            fonts = ['DMSans-Regular', 'SpaceGrotesk-Bold', 'JetBrainsMono-Regular', 'JetBrainsMono-Medium']
+            if scope == '/api/export':
+                fonts.append('DMSans-Bold')
+            for font in fonts:
                 line = next(line for line in listing.splitlines() if font in line)
                 self.assertRegex(line, r'TrueType\s+\S+\s+yes\s+yes\s+yes')
             self.assertNotIn('Courier', listing)

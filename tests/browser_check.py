@@ -618,9 +618,11 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('tab', name='AV devices', exact=True).click()
             brand = page.locator('.site-footer strong')
             page.evaluate('document.fonts.ready')
-            assert 'Poppins' in brand.evaluate('(node) => getComputedStyle(node).fontFamily')
-            assert page.evaluate('document.fonts.check(\'12px "Poppins"\')')
-            assert page.evaluate('Array.from(document.fonts).some(font => font.family === \'Poppins\' && font.status === \'loaded\')')
+            assert 'JetBrains Mono' in brand.evaluate('(node) => getComputedStyle(node).fontFamily')
+            assert 'Space Grotesk' in page.locator('#hero-title').evaluate('(node) => getComputedStyle(node).fontFamily')
+            assert 'DM Sans' in page.locator('body').evaluate('(node) => getComputedStyle(node).fontFamily')
+            for family in ['Space Grotesk','DM Sans','JetBrains Mono']:
+                assert page.evaluate('name => document.fonts.check(`12px "${name}"`) && Array.from(document.fonts).some(font => font.family.includes(name) && font.status === "loaded")', family)
             assert brand.inner_text() == 'BROADCAST HUB'
             assert brand.evaluate('(node) => getComputedStyle(node).animationName') == 'none'
             assert page.locator('.topbar .brand-logo').get_attribute('src') == '/brand-logo.png'

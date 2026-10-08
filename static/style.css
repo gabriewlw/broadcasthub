@@ -1,34 +1,27 @@
 @font-face {
-  font-family: "Poppins";
-  src: url("/fonts/Poppins-Regular.woff2") format("woff2");
+  font-family: "Space Grotesk";
+  src: url("/fonts/SpaceGrotesk-Variable.woff2") format("woff2");
   font-style: normal;
-  font-weight: 400;
+  font-weight: 300 700;
   font-display: swap;
 }
 @font-face {
-  font-family: "Poppins";
-  src: url("/fonts/Poppins-Medium.woff2") format("woff2");
+  font-family: "DM Sans";
+  src: url("/fonts/DMSans-Variable.woff2") format("woff2");
   font-style: normal;
-  font-weight: 500;
+  font-weight: 100 1000;
   font-display: swap;
 }
 @font-face {
-  font-family: "Poppins";
-  src: url("/fonts/Poppins-SemiBold.woff2") format("woff2");
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-Variable.woff2") format("woff2");
   font-style: normal;
-  font-weight: 600;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Poppins";
-  src: url("/fonts/Poppins-Bold.woff2") format("woff2");
-  font-style: normal;
-  font-weight: 700;
+  font-weight: 100 800;
   font-display: swap;
 }
 :root {
   color-scheme: dark;
-  --font-ui: "Poppins", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+  --font-ui: "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
   font-family: var(--font-ui);
   font-synthesis: none;
   color: #eeeee9;
@@ -38,7 +31,8 @@
   --border: #272a30;
   --muted: #a0a2ac;
   --panel: #14171b;
-  --mono: var(--font-ui);
+  --font-display: "Space Grotesk", var(--font-ui);
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
 }
 * { box-sizing: border-box; }
 html { scroll-padding-top: 90px; }
@@ -61,6 +55,7 @@ main { max-width: 1140px; margin: auto; padding: 58px 28px 48px; }
 .heading { display: grid; grid-template-columns: 1.45fr 1fr; gap: 72px; align-items: start; margin-bottom: 42px; }
 .eyebrow { display: inline-flex; align-items: center; gap: 8px; padding: 7px 11px; border: 1px solid var(--border); border-radius: 20px; background: var(--panel); color: var(--muted); font: 9px var(--font-ui); letter-spacing: 2px; margin: 0 0 20px; }
 .eyebrow::before { content: ""; width: 5px; height: 5px; }
+h1, h2, h3, h4 { font-family: var(--font-display); }
 h1 { font-size: clamp(34px, 4vw, 46px); line-height: 1.15; letter-spacing: -1.3px; margin: 0; font-weight: 680; }
 h1 span { color: #eeeee9; }
 h2 { font-size: 25px; letter-spacing: -.65px; margin: 0; }
@@ -177,7 +172,8 @@ textarea { resize: vertical; }
   nav a { font-size: 9px; padding: 12px 10px; }
   main { padding: 30px 16px; }
   .heading { grid-template-columns: 1fr; gap: 28px; margin-bottom: 28px; }
-  h1 { font-size: 36px; }
+  h1, h2, h3, h4 { font-family: var(--font-display); }
+h1 { font-size: 36px; }
   .intro { font-size: 13px; margin-top: 18px; }
   .eyebrow { font-size: 8px; }
   .network-card { padding: 18px; }
@@ -439,3 +435,8 @@ input.row-select{width:18px;height:18px;min-height:18px;margin:0;padding:0;flex-
 .selection-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .batch-delete-list{max-height:240px;overflow-y:auto;padding-left:22px;font-size:12px;line-height:1.8;overflow-wrap:anywhere}
 .selection-heading input.row-select{margin-inline:3px}
+
+/* Match broadcastgab.com’s heading, body, and terminal label typography. */
+nav a,.eyebrow,.network-card-top,.stats span,.filters label>span,.button-filter legend,.directory-head,#equipment-table th,#equipment-table td::before,.export-scope-label,.panel-footer,.site-footer strong,.site-footer a{font-family:var(--mono)}
+.network-ip,.device-directory .vlan-cell{font-family:var(--mono)}
+.stats strong{font-family:var(--font-display)}

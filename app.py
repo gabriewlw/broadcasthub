@@ -511,6 +511,8 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/devices':
                 return self.send(200, {'devices': inventory()})
             assets = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css'), '/equipment.js': ('equipment.js', 'text/javascript'), '/icon.svg': ('icon.svg', 'image/svg+xml'), '/brand-logo.png': ('brand-logo.png', 'image/png'), '/example-switcher.png': ('example-switcher.png', 'image/png'), '/fonts/Poppins-Regular.woff2': ('fonts/Poppins-Regular.woff2', 'font/woff2'), '/fonts/Poppins-Medium.woff2': ('fonts/Poppins-Medium.woff2', 'font/woff2'), '/fonts/Poppins-SemiBold.woff2': ('fonts/Poppins-SemiBold.woff2', 'font/woff2'), '/fonts/Poppins-Bold.woff2': ('fonts/Poppins-Bold.woff2', 'font/woff2')}
+            assets.update({f'/fonts/{family}-Variable.woff2': (f'fonts/{family}-Variable.woff2', 'font/woff2')
+                           for family in ('SpaceGrotesk', 'DMSans', 'JetBrainsMono')})
             if path in assets:
                 file, mime = assets[path]
                 return self.send(200, (ROOT / 'static' / file).read_bytes(), mime + '; charset=utf-8' if mime.startswith('text/') or mime == 'image/svg+xml' else mime)
