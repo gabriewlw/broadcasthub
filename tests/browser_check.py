@@ -1103,7 +1103,7 @@ with tempfile.TemporaryDirectory() as temp:
             # rows, while manual changes and cleared source choices remain intact.
             book = Workbook()
             book.active.append(['Channel Name', 'Multicast IP', 'Port'])
-            names = ['Sport 24 HD', 'CNN International HD', 'Sky News', 'Unknown satellite test']
+            names = ['Sport 24 HD', 'HGTV East HD', 'Sky News International', 'Unknown satellite test']
             for index, name in enumerate(names):
                 book.active.append([name, f'239.221.50.{index + 1}', 5000])
             path = Path(temp) / 'satellite-reference.xlsx'
@@ -1117,7 +1117,7 @@ with tempfile.TemporaryDirectory() as temp:
                 assert page.locator('#review-channel_source').input_value() == ('Satellite' if index < 3 else '')
                 if index == 1:
                     page.locator('#review-channel_source').select_option('Onboard')
-                    page.locator('#review-name').fill('CNN International')
+                    page.locator('#review-name').fill('HGTV East')
                     assert page.locator('#review-channel_source').input_value() == 'Onboard'
                 if index == 2:
                     page.locator('#review-channel_source').select_option('')
@@ -1130,12 +1130,26 @@ with tempfile.TemporaryDirectory() as temp:
                     page.locator('#spreadsheet-dialog').wait_for(state='hidden')
             by_ip = {row['ip']: row for row in app.inventory()}
             assert [by_ip[f'239.221.50.{index + 1}']['channel_source'] for index in range(4)] == ['Satellite', 'Onboard', '', '']
-            cnn_row = page.locator('.device-row').filter(has=page.locator('.device-name').filter(has_text='CNN International'))
-            cnn_logo = cnn_row.locator('.channel-logo')
-            cnn_logo.scroll_into_view_if_needed()
-            page.wait_for_function("() => { const img = document.querySelector('img[src=\"/channel-logos/CNNInternational.us.png\"]'); return img && img.complete && img.naturalWidth > 0; }")
-            assert cnn_logo.get_attribute('alt') == ''
+            hgtv_row = page.locator('.device-row').filter(has=page.locator('.device-name').filter(has_text='HGTV East'))
+            hgtv_logo = hgtv_row.locator('.channel-logo')
+            hgtv_logo.scroll_into_view_if_needed()
+            page.wait_for_function("() => { const img = document.querySelector('img[src=\"/channel-logos/HGTV.us.png\"]'); return img && img.complete && img.naturalWidth > 0; }")
+            assert hgtv_logo.get_attribute('alt') == ''
             assert page.locator('.device-row').filter(has=page.locator('.device-name').filter(has_text='Unknown satellite test')).locator('.channel-logo').count() == 0
+            # All supplied Galaxy 31 names suggest Satellite, including regional
+            # suffixes and accented names. Broader catalog names still match but
+            # no longer load logos outside that satellite's storage scope.
+            galaxy_names = [row['name'] for row in json.loads((app.ROOT / 'static/satellite-channels.json').read_text())['logo_scope']['channels']]
+            matches = page.evaluate("names => names.map(name => ({source: channelSourceFromName(name + ' HD'), logo: satelliteChannelForName(name)?.logo || null}))", galaxy_names)
+            assert all(row['source'] == 'Satellite' for row in matches)
+            assert sum(bool(row['logo']) for row in matches) == 20
+            assert page.evaluate("channelSourceFromName('CNN International HD')") == 'Satellite'
+            assert page.evaluate("satelliteChannelForName('CNN International HD').logo") is None
+            app.save_device(dict(record_type='iptv', name='CNN International HD', channel_source='Satellite', ip='239.221.50.5', port=5000))
+            page.locator('#refresh').click()
+            cnn_row = page.locator('.device-row').filter(has=page.locator('.device-name').filter(has_text='CNN International HD'))
+            cnn_row.wait_for()
+            assert cnn_row.locator('.channel-logo').count() == 0
             for width in [1440, 390, 320]:
                 page.set_viewport_size({'width': width, 'height': 1000})
                 assert page.locator('#search-label').text_content() == 'Search channels'
@@ -1143,7 +1157,8 @@ with tempfile.TemporaryDirectory() as temp:
                 assert page.locator('#source-buttons button').count() == 3
                 assert page.locator('#network-filters').evaluate("node => { const search = node.querySelector('.search').getBoundingClientRect(), source = node.querySelector('#source-filter-group').getBoundingClientRect(); return Math.abs(search.top - source.top) < 3 && source.left >= search.right; }")
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
-                assert cnn_logo.evaluate("node => Math.abs(node.getBoundingClientRect().height - parseFloat(getComputedStyle(node.parentElement).fontSize)) < 1")
+                assert hgtv_logo.evaluate("node => Math.abs(node.getBoundingClientRect().height - parseFloat(getComputedStyle(node.parentElement).fontSize)) < 1")
+                assert hgtv_logo.evaluate("node => { const text = node.previousElementSibling; return text?.tagName === 'SPAN' && text.textContent === 'HGTV East' && node.getBoundingClientRect().left >= text.getBoundingClientRect().right; }")
             page.set_viewport_size({'width':1440,'height':1000})
             page.locator('#source-buttons').get_by_role('button', name='Satellite', exact=True).click()
             page.locator('#search').fill('Sport 24')

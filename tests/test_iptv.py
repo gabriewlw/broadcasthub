@@ -30,6 +30,38 @@ class IPTVTests(unittest.TestCase):
         self.assertEqual(self.request('/channel-logos/missing.us.png')[0], 404)
         self.assertEqual(self.request('/channel-logos/../satellite-channels.json')[0], 404)
 
+    def test_only_galaxy_31_logos_are_stored_and_regional_names_match(self):
+        catalog = self.request('/satellite-channels.json')[1]
+        scope = catalog['logo_scope']
+        expected_names = {
+            'CBS News', 'HGTV East', 'Food Network East', 'Travel Channel East',
+            'Nickelodeon East', 'ESPNU', 'ESPN US', 'ESPN 2 US', 'SEC Network',
+            'CruiseSat test card', 'Sky News International', 'Sky Sports News',
+            'ESPN Caribbean', 'ESPN 2 Caribbean', 'Rai Italia Nord America',
+            'RTL Deutschland', 'TVE Internacional América', 'National Geographic East',
+            'National Geographic Wild', 'MS Now', 'CNBC US', 'MLB Network',
+        }
+        self.assertEqual(scope['satellite'], 'Galaxy 31')
+        self.assertEqual({row['name'] for row in scope['channels']}, expected_names)
+        scoped_ids = {row['channel_id'] for row in scope['channels']}
+        channels = {row['id']: row for row in catalog['channels']}
+        for row in scope['channels']:
+            channel = channels[row['channel_id']]
+            self.assertIn(row['name'], [channel['name'], *channel['aliases']])
+        for channel in channels.values():
+            if channel['id'] not in scoped_ids:
+                self.assertIsNone(channel['logo'])
+                self.assertNotIn('logo_reference', channel)
+        self.assertEqual(channels['ESPNCaribbean.us']['logo'], channels['ESPN.us']['logo'])
+        self.assertEqual(channels['ESPN2Caribbean.us']['logo'], channels['ESPN2.us']['logo'])
+        self.assertIsNone(channels['RaiItalia.it']['logo'])
+        self.assertIsNone(channels['CruiseSatTestCard.local']['logo'])
+        used = {row['logo'].rsplit('/', 1)[1] for row in channels.values() if row['logo']}
+        stored = {path.name for path in (app.ROOT / 'static/channel-logos').glob('*.png')}
+        self.assertEqual(stored, used)
+        self.assertEqual(len(stored), 18)
+        self.assertEqual(self.request('/channel-logos/CNNInternational.us.png')[0], 404)
+
     def test_channel_source_multicast_and_no_confirmation(self):
         status, channel = self.request('/api/devices', 'POST', CHANNEL)
         self.assertEqual(status, 201)

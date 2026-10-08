@@ -531,7 +531,7 @@ function render() {
       const logo = element('img', 'channel-logo');
       logo.src = channel.logo; logo.alt = ''; logo.loading = 'lazy';
       logo.onerror = () => logo.remove();
-      name.append(logo, element('span', '', device.name));
+      name.append(element('span', '', device.name), logo);
     } else name.textContent = device.name;
     title.append(name, element('span', 'device-category', device.category));
     const notes = element('textarea', 'device-notes-editor');
