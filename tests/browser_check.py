@@ -25,6 +25,13 @@ with tempfile.TemporaryDirectory() as temp:
             page = context.new_page()
             errors = []
 
+            def clear_network_filters():
+                if page.locator('#clear-filters').is_visible():
+                    page.locator('#clear-filters').click()
+                else:
+                    page.locator('#search').fill('')
+                    page.locator('#source-buttons').get_by_role('button', name='All sources', exact=True).click()
+
             def accept_rows(count, total=None):
                 total = count if total is None else total
                 for index in range(count):
@@ -100,7 +107,7 @@ with tempfile.TemporaryDirectory() as temp:
 
             page.locator('#system-buttons').get_by_role('button', name='Audio', exact=True).click()
             assert page.locator('#no-results').is_visible()
-            page.get_by_role('button', name='Clear', exact=True).click()
+            clear_network_filters()
             page.locator('#venue-filter').select_option('Liquid Lounge')
             page.locator('#system-filter').select_option('Video')
             assert page.locator('#system-buttons').get_by_role('button', name='Video', exact=True).get_attribute('aria-pressed') == 'true'
@@ -156,7 +163,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#no-results').is_visible()
             page.locator('#venue-filter').select_option('')
             assert page.locator('.device-name').inner_text() == 'ATEM main'
-            page.get_by_role('button', name='Clear', exact=True).click()
+            clear_network_filters()
             assert page.locator('.device-row').count() == 2
             assert page.locator('#system-buttons').get_by_role('button', name='All systems', exact=True).get_attribute('aria-pressed') == 'true'
             # Editing reflects the stored system dropdown and venue button.
@@ -223,7 +230,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert 'Port 1234' in page.locator('.device-row').inner_text()
             page.locator('#source-buttons').get_by_role('button', name='Satellite', exact=True).click()
             assert page.locator('#no-results').is_visible()
-            page.get_by_role('button', name='Clear', exact=True).click()
+            clear_network_filters()
             page.get_by_role('button', name='Add channel', exact=True).click()
             page.locator('[name=name]').fill('BBC News')
             page.locator('[name=ip]').fill('239.1.1.11')
@@ -259,9 +266,12 @@ with tempfile.TemporaryDirectory() as temp:
             for name in ['CLTV','Carnival TV','Ship Map','Crew channel','Scala','Casino','Safety ESPN']:
                 page.locator('#review-name').fill(name.lower())
                 assert page.locator('#review-channel_source').input_value() == 'Onboard'
-            for name in ['ESPN 2','National Geographic','Nat Geo Wild']:
+            for name in ['ESPN 2','National Geographic','Nat Geo Wild', 'Sport24 Extra HD', 'BBC World News', 'CNN International', 'Sky News HD', 'Fox News', 'CNBC', 'Eurosport 1', 'Discovery Channel', 'Cartoon Network', 'MSNBC']:
                 page.locator('#review-name').fill(name.lower())
                 assert page.locator('#review-channel_source').input_value() == 'Satellite'
+            for name in ['Unknown channel', 'CNN Training Video', 'Newsroom', 'ESPN equipment test']:
+                page.locator('#review-name').fill(name)
+                assert page.locator('#review-channel_source').input_value() == ''
             page.locator('#review-channel_source').select_option('Onboard')
             page.locator('#review-name').fill('Movie channel')
             assert page.locator('#review-channel_source').input_value() == 'Onboard'
@@ -587,7 +597,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert not page.locator('.device-row .ip-confirm').count()
             page.locator('#venue-filter').select_option('DHCP LOUNGE')
             assert page.locator('.device-row').count() == 2
-            page.locator('#clear-filters').click()
+            clear_network_filters()
             # Stopping leaves accepted DHCP rows saved and remaining rows untouched.
             path = Path(temp) / 'stop-review.csv'
             path.write_text('DEVICE NAME,IP Address\nAccepted before stop,DHCP\nNever accepted,DHCP\n')
@@ -654,7 +664,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#address-buttons').get_by_role('button', name='DHCP', exact=True).click()
             assert page.locator('.device-row').count() == 4
             assert not page.locator('.device-row .ip-confirm').count()
-            page.locator('#clear-filters').click()
+            clear_network_filters()
             assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
             page.screenshot(path='/tmp/broadcasthub-mobile.png', full_page=True)
             page.set_viewport_size({'width':1440,'height':1000})
@@ -738,7 +748,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#sort-order').select_option('name-asc')
             page.locator('#system-buttons').get_by_role('button', name='Audio', exact=True).click()
             assert names() == ['Sort Alpha','Sort foxtrot']
-            page.locator('#clear-filters').click()
+            clear_network_filters()
             assert page.locator('#sort-order').input_value() == 'name-asc'
             for name, address, source in [('IPTV sort A','239.99.0.10','Satellite'),('IPTV sort Z','239.99.0.2','Onboard')]:
                 response = page.request.post(f'http://127.0.0.1:{server.server_port}/api/devices', data={
@@ -772,7 +782,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#sort-order').select_option('ip-desc')
             assert names() == expectations['ip-desc']
             # Skip saved/just-accepted IPs before review; notes can be edited or blank.
-            page.locator('#clear-filters').click()
+            clear_network_filters()
             before = len(app.inventory())
             original = next(row for row in app.inventory() if row['ip'] == '10.24.176.66')
             path = Path(temp) / 'duplicate-review-notes.csv'
@@ -817,7 +827,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert next(row['notes'] for row in app.inventory() if row['name'] == 'New review camera') == 'Reviewed notes\nRack 3'
             # Current-view exports follow venue/system/search filters and display order.
             page.set_viewport_size({'width':1440,'height':1000})
-            page.locator('#clear-filters').click()
+            clear_network_filters()
             page.locator('#venue-filter').select_option('Sort venue')
             page.locator('#system-buttons').get_by_role('button', name='Audio', exact=True).click()
             page.locator('#sort-order').select_option('ip-asc')
@@ -846,7 +856,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('checkbox', name='Select Sort Alpha', exact=True).check()
             assert page.locator('#select-visible-devices').evaluate('(node) => node.indeterminate')
             assert page.locator('#network-export-scope').input_value() == 'selected'
-            page.locator('#clear-filters').click()
+            clear_network_filters()
             page.locator('#venue-filter').select_option('CONTROL ROOM')
             assert page.locator('#network-selection-summary').is_hidden()
             page.get_by_role('checkbox', name='Select New review camera', exact=True).check()
@@ -863,7 +873,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#network-selection-count').inner_text().startswith('1 selected')
             page.locator('#clear-network-selection').click()
             assert page.locator('#network-export-scope').input_value() == 'filtered'
-            page.locator('#clear-filters').click()
+            clear_network_filters()
             page.locator('#venue-filter').select_option('Sort venue')
             page.locator('#select-visible-devices').check()
             assert page.locator('.device-row .row-select:checked').count() == 7
@@ -906,7 +916,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('tab', name='AV devices', exact=True).click()
             page.locator('#refresh').click()
             page.wait_for_function("() => !document.getElementById('refresh').disabled")
-            page.locator('#clear-filters').click()
+            clear_network_filters()
             page.locator('#clear-network-selection').click() if page.locator('#network-selection-summary').is_visible() else None
             assert page.locator('.device-row .row-select').evaluate_all('(nodes) => {const x=document.getElementById("select-visible-devices").getBoundingClientRect().left; return nodes.every(n=>Math.abs(n.getBoundingClientRect().left-x)<1);}')
             page.locator('#venue-filter').select_option('Batch theatre')
@@ -947,7 +957,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('tab', name='AV devices', exact=True).click()
             page.locator('#refresh').click()
             page.wait_for_function("() => !document.getElementById('refresh').disabled")
-            page.locator('#clear-filters').click()
+            clear_network_filters()
             page.get_by_role('checkbox', name='Select Encoder keep', exact=True).check()
             page.locator('#search').fill('decoder')
             assert page.locator('#network-selection-summary').is_hidden()
@@ -974,7 +984,7 @@ with tempfile.TemporaryDirectory() as temp:
                 ('IPTV channels','iptv','IPTV channels','AV devices'),
             ]:
                 page.get_by_role('tab', name=tab, exact=True).click()
-                page.locator('#clear-filters').click()
+                clear_network_filters()
                 assert page.locator('#inventory .export-links a[download]').evaluate_all('(links) => links.map(link => new URL(link.href).searchParams.get("record_type"))') == [record_type]*4
                 expected = [row for row in app.inventory() if row['record_type']==record_type]
                 assert page.locator('#network-export-scope option[value="all"]').text_content().endswith(str(len(expected))), (record_type, len(expected), page.locator('#network-export-scope option[value="all"]').text_content())
@@ -1089,8 +1099,62 @@ with tempfile.TemporaryDirectory() as temp:
             incomplete.wait_for()
             assert incomplete.locator('.udp-address').input_value() == ''
             assert incomplete.get_by_role('button', name='Copy UDP address for Incomplete UDP channel', exact=True).is_disabled()
+            # Satellite catalog suggestions apply to Excel previews and saved review
+            # rows, while manual changes and cleared source choices remain intact.
+            book = Workbook()
+            book.active.append(['Channel Name', 'Multicast IP', 'Port'])
+            names = ['Sport 24 HD', 'CNN International HD', 'Sky News', 'Unknown satellite test']
+            for index, name in enumerate(names):
+                book.active.append([name, f'239.221.50.{index + 1}', 5000])
+            path = Path(temp) / 'satellite-reference.xlsx'
+            book.save(path)
+            page.locator('#import-file').set_input_files(str(path))
+            page.wait_for_function("() => !document.getElementById('confirm-import').disabled")
+            assert 'Satellite' in page.locator('#spreadsheet-preview').inner_text()
+            page.locator('#confirm-import').click()
+            for index, name in enumerate(names):
+                page.locator('#row-review-dialog').wait_for(state='visible')
+                assert page.locator('#review-channel_source').input_value() == ('Satellite' if index < 3 else '')
+                if index == 1:
+                    page.locator('#review-channel_source').select_option('Onboard')
+                    page.locator('#review-name').fill('CNN International')
+                    assert page.locator('#review-channel_source').input_value() == 'Onboard'
+                if index == 2:
+                    page.locator('#review-channel_source').select_option('')
+                    page.locator('#review-name').fill('Sky News HD')
+                    assert page.locator('#review-channel_source').input_value() == ''
+                page.locator('#accept-review-row').click()
+                if index < 3:
+                    page.wait_for_function("name => document.getElementById('review-name').value === name", arg=names[index + 1])
+                else:
+                    page.locator('#spreadsheet-dialog').wait_for(state='hidden')
+            by_ip = {row['ip']: row for row in app.inventory()}
+            assert [by_ip[f'239.221.50.{index + 1}']['channel_source'] for index in range(4)] == ['Satellite', 'Onboard', '', '']
+            cnn_row = page.locator('.device-row').filter(has=page.locator('.device-name').filter(has_text='CNN International'))
+            cnn_logo = cnn_row.locator('.channel-logo')
+            cnn_logo.scroll_into_view_if_needed()
+            page.wait_for_function("() => { const img = document.querySelector('img[src=\"/channel-logos/CNNInternational.us.png\"]'); return img && img.complete && img.naturalWidth > 0; }")
+            assert cnn_logo.get_attribute('alt') == ''
+            assert page.locator('.device-row').filter(has=page.locator('.device-name').filter(has_text='Unknown satellite test')).locator('.channel-logo').count() == 0
+            for width in [1440, 390, 320]:
+                page.set_viewport_size({'width': width, 'height': 1000})
+                assert page.locator('#search-label').text_content() == 'Search channels'
+                assert page.locator('#clear-filters').is_hidden()
+                assert page.locator('#source-buttons button').count() == 3
+                assert page.locator('#network-filters').evaluate("node => { const search = node.querySelector('.search').getBoundingClientRect(), source = node.querySelector('#source-filter-group').getBoundingClientRect(); return Math.abs(search.top - source.top) < 3 && source.left >= search.right; }")
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+                assert cnn_logo.evaluate("node => Math.abs(node.getBoundingClientRect().height - parseFloat(getComputedStyle(node.parentElement).fontSize)) < 1")
+            page.set_viewport_size({'width':1440,'height':1000})
+            page.locator('#source-buttons').get_by_role('button', name='Satellite', exact=True).click()
+            page.locator('#search').fill('Sport 24')
+            assert page.locator('.device-row').count() == 1
+            assert 'Sport 24 HD' in page.locator('.device-row').inner_text()
+            clear_network_filters()
             page.locator('#device-tab').click()
+            assert page.locator('#search-label').text_content() == 'Search devices'
+            assert page.locator('#clear-filters').is_visible()
             assert page.locator('.udp-address').count() == 0
+            assert page.locator('.channel-logo').count() == 0
             assert not errors, errors
             browser.close()
             print('PASS: mobile create, all filters, validation, edit, export, delete, import, reload persistence; filtered/selected downloads across inventories; desktop/mobile overflow; no JS errors.')

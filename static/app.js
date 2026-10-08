@@ -261,6 +261,9 @@ function switchTab(type) {
   $('total-label').textContent = iptv ? 'Total channels' : 'Total devices';
   $('system-count-label').textContent = iptv ? 'Onboard / Satellite' : 'Video / Audio / Lighting';
   $('list-title').textContent = iptv ? 'IPTV channels' : 'All devices';
+  $('search-label').textContent = iptv ? 'Search channels' : 'Search devices';
+  $('clear-filters').hidden = iptv;
+  $('network-filters').classList.toggle('iptv-filters', iptv);
   $('search').placeholder = iptv ? 'Channel, IP, port, or notes…' : 'Name, IP, venue, or notes…';
   $('system-filter-group').hidden = $('system-filter-label').hidden = iptv;
   $('source-filter-group').hidden = !iptv;
@@ -433,6 +436,7 @@ async function load() {
   if (currentTab === 'equipment') return window.equipmentUI.load();
   $('refresh').disabled = true;
   try {
+    await satelliteCatalogReady;
     devices = (await api('/api/devices')).devices;
     $('load-error').hidden = true;
     updateFilterOptions();
@@ -520,7 +524,16 @@ function render() {
       updateNetworkSelection();
     }));
     const title = element('div');
-    title.append(element('div', 'device-name', device.name), element('span', 'device-category', device.category));
+    const name = element('div', 'device-name');
+    const channel = device.record_type === 'iptv' ? satelliteChannelForName(device.name) : null;
+    if (channel?.logo) {
+      name.classList.add('channel-name');
+      const logo = element('img', 'channel-logo');
+      logo.src = channel.logo; logo.alt = ''; logo.loading = 'lazy';
+      logo.onerror = () => logo.remove();
+      name.append(logo, element('span', '', device.name));
+    } else name.textContent = device.name;
+    title.append(name, element('span', 'device-category', device.category));
     const notes = element('textarea', 'device-notes-editor');
     notes.rows = 1; notes.maxLength = 2000; notes.value = device.notes;
     notes.dataset.deviceId = device.id;
@@ -694,10 +707,23 @@ const iptvImportFields = [
   ['port', 'Port', ['mcast port [s]','mcast port','multicast port','port','udp port','stream port','port number']],
   ['notes', 'Notes (optional)', ['notes','note','comments','description']]
 ];
+const normalizedChannelName = name => name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const satelliteChannelAliases = new Map();
+let satelliteCatalogError = null;
+const satelliteCatalogReady = api('/satellite-channels.json').then(catalog => {
+  if (catalog.version !== 1 || !Array.isArray(catalog.channels)) throw new Error('Invalid satellite channel reference.');
+  for (const channel of catalog.channels) {
+    for (const alias of [channel.name, ...channel.aliases]) satelliteChannelAliases.set(normalizedChannelName(alias), channel);
+  }
+}).catch(error => { satelliteCatalogError = error; });
+function satelliteChannelForName(name) {
+  const channel = normalizedChannelName(name).replace(/(?:\s+(?:hd|sd|fhd|uhd|4k|1080p|720p))+$/, '');
+  return satelliteChannelAliases.get(channel);
+}
 function channelSourceFromName(name) {
   const text = name.toLowerCase().replace(/\s+/g, ' ');
   if (['cltv','carnival','map','crew','scala','casino','safety'].some(keyword => text.includes(keyword))) return 'Onboard';
-  if (['espn','national geographic','nat geo'].some(keyword => text.includes(keyword))) return 'Satellite';
+  if (satelliteChannelForName(name)) return 'Satellite';
   return '';
 }
 function channelCodecIPs(rows) {
@@ -788,6 +814,10 @@ async function loadSpreadsheet() {
   $('confirm-import').disabled = true; $('reload-sheet').disabled = true;
   $('spreadsheet-error').hidden = true;
   try {
+    if (currentTab === 'iptv') {
+      await satelliteCatalogReady;
+      if (satelliteCatalogError) throw new Error('Could not load the satellite channel reference. Refresh the page and try again.');
+    }
     const data = await api('/api/spreadsheet-preview', 'POST', {...spreadsheetFile, sheet: $('sheet-choice').value, header_row: Number($('header-row').value)});
     spreadsheetData = data;
     venueEdits = new Map();

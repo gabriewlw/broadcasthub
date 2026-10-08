@@ -509,6 +509,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, generate(rows, record_type=record_type), mime, filename)
             return self.send(200, generate(rows), mime, filename)
         if self.command == 'GET':
+            if path == '/satellite-channels.json':
+                return self.send(200, json.loads((ROOT / 'static' / 'satellite-channels.json').read_text()))
+            if re.fullmatch(r'/channel-logos/[A-Za-z0-9_-]+\.[a-z]{2}\.png', path):
+                logo = ROOT / 'static' / 'channel-logos' / path.rsplit('/', 1)[1]
+                if logo.is_file():
+                    return self.send(200, logo.read_bytes(), 'image/png')
             if path == '/api/equipment':
                 return self.send(200, {'equipment': equipment_inventory()})
             if path == '/api/devices':

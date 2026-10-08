@@ -115,6 +115,9 @@ select { padding-right: 24px; }
 .device-list { display: grid; gap: 12px; margin-top: 20px; }
 .device-row { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; display: grid; grid-template-columns: 2fr 1.5fr 1.3fr .8fr auto; gap: 16px; align-items: center; padding: 22px 20px; }
 .device-name { font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.channel-name { display: flex; align-items: center; gap: 6px; }
+.channel-name > span { min-width: 0; }
+.channel-logo { display: block; height: 1em; width: auto; max-width: 5em; object-fit: contain; flex-shrink: 0; }
 .device-category, .cell-caption { display: block; font-size: 11px; color: var(--muted); margin-top: 6px; }
 .device-identity { display: flex; align-items: center; gap: 13px; }
 .device-icon { flex-shrink: 0; background: #20181d; border: 1px solid #483038; width: 38px; height: 38px; border-radius: 6px; display: grid; place-items: center; color: var(--accent-text); font-size: 18px; }
@@ -375,6 +378,12 @@ button.system-select{display:flex;justify-content:space-between;align-items:cent
 .directory-filters{grid-template-columns:minmax(160px,220px) minmax(150px,200px) auto minmax(0,1fr)}
 .directory-filters>.search{grid-column:4;grid-row:1;width:100%;max-width:360px;justify-self:end}
 @media(max-width:600px){.directory-filters{grid-template-columns:1fr 1fr}.directory-filters>.search{grid-column:1/-1;grid-row:1;max-width:none}.directory-filters>#venue-filter-group{grid-column:1}.directory-filters>#system-filter-label{grid-column:2}.directory-filters>#clear-filters{grid-column:1/-1;justify-self:end}}
+.directory-filters.iptv-filters{grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:24px}
+.directory-filters.iptv-filters>.search{grid-column:1;grid-row:1;max-width:none;justify-self:start}
+.directory-filters.iptv-filters>#source-filter-group{grid-column:2;grid-row:1;margin:0}
+.iptv-filters #source-buttons{justify-content:flex-end}
+.iptv-filters .button-filter legend{margin-bottom:7px}
+@media(max-width:600px){.directory-filters.iptv-filters{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}.iptv-filters #source-buttons{flex-direction:column;gap:6px}.iptv-filters .choice-button{min-height:36px;padding:6px 8px;font-size:11px}}
 
 /* Keep the transfer toolbar controls aligned and equally sized. */
 .file-actions .import-button,.file-actions .export-toggle{width:148px;height:44px;min-height:44px;flex-shrink:0;justify-content:center;padding:0 10px;font-size:13px;font-weight:600;line-height:1.2}

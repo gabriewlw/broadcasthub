@@ -1,0 +1,682 @@
+{
+  "version": 1,
+  "description": "Curated satellite channel name reference for IPTV import suggestions; not a cruise-line availability or popularity ranking.",
+  "source": {
+    "name": "IPTV-org database",
+    "url": "https://github.com/iptv-org/database/blob/69eca3be81cf5865ce891f34c9a1897b2c4ab9ea/data/channels.csv",
+    "license": "CC0-1.0",
+    "retrieved_on": "2026-10-08"
+  },
+  "channels": [
+    {
+      "id": "ESPN.us",
+      "name": "ESPN",
+      "category": "sports",
+      "aliases": [
+        "ESPN"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN_wordmark.svg/960px-ESPN_wordmark.svg.png",
+      "logo": "/channel-logos/ESPN.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/espn-us.png"
+    },
+    {
+      "id": "ESPN2.us",
+      "name": "ESPN 2",
+      "category": "sports",
+      "aliases": [
+        "ESPN 2",
+        "ESPN2"
+      ],
+      "logo_reference": "https://i.imgur.com/00tsvjE.png",
+      "logo": "/channel-logos/ESPN2.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/espn-2-us.png"
+    },
+    {
+      "id": "ESPNCaribbean.us",
+      "name": "ESPN Caribbean",
+      "category": "sports",
+      "aliases": [
+        "ESPN Caribbean"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/ESPN_wordmark.svg/960px-ESPN_wordmark.svg.png",
+      "logo": "/channel-logos/ESPNCaribbean.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/international/espn-int.png"
+    },
+    {
+      "id": "ESPNU.us",
+      "name": "ESPNU",
+      "category": "sports",
+      "aliases": [
+        "ESPNU"
+      ],
+      "logo_reference": "https://i.imgur.com/HiBrysh.png",
+      "logo": "/channel-logos/ESPNU.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/espn-u-us.png"
+    },
+    {
+      "id": "ESPNDeportes.us",
+      "name": "ESPN Deportes",
+      "category": "sports",
+      "aliases": [
+        "ESPN Deportes"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/ESPN_Deportes.svg/960px-ESPN_Deportes.svg.png",
+      "logo": "/channel-logos/ESPNDeportes.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/espn-deportes-us.png"
+    },
+    {
+      "id": "Sport24.uk",
+      "name": "Sport 24",
+      "category": "sports",
+      "aliases": [
+        "Sport 24",
+        "Sport24"
+      ],
+      "logo_reference": "https://i.imgur.com/oGz2cnL.png",
+      "logo": null
+    },
+    {
+      "id": "Sport24Extra.uk",
+      "name": "Sport 24 Extra",
+      "category": "sports",
+      "aliases": [
+        "Sport 24 Extra",
+        "Sport24 Extra",
+        "Sport24Extra"
+      ],
+      "logo_reference": "https://i.imgur.com/FeZ0COk.png",
+      "logo": null
+    },
+    {
+      "id": "Eurosport1.fr",
+      "name": "Eurosport 1",
+      "category": "sports",
+      "aliases": [
+        "Eurosport 1",
+        "Eurosport1"
+      ],
+      "logo_reference": "https://i.imgur.com/olQJgm7.png",
+      "logo": "/channel-logos/Eurosport1.fr.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/france/eurosport-1-fr.png"
+    },
+    {
+      "id": "Eurosport2.fr",
+      "name": "Eurosport 2",
+      "category": "sports",
+      "aliases": [
+        "Eurosport 2",
+        "Eurosport2"
+      ],
+      "logo_reference": "https://i.imgur.com/f56dHgR.png",
+      "logo": "/channel-logos/Eurosport2.fr.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/france/eurosport-2-fr.png"
+    },
+    {
+      "id": "SkySportsNews.uk",
+      "name": "Sky Sports News",
+      "category": "sports",
+      "aliases": [
+        "Sky Sports News"
+      ],
+      "logo_reference": "https://d2n0069hmnqmmx.cloudfront.net/epgdata/1.0/newchanlogos/512/512/skychb1314.png",
+      "logo": "/channel-logos/SkySportsNews.uk.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-kingdom/sky-sports-news-hz-uk.png"
+    },
+    {
+      "id": "FoxSports1.us",
+      "name": "Fox Sports 1",
+      "category": "sports",
+      "aliases": [
+        "Fox Sports 1",
+        "FS1"
+      ],
+      "logo_reference": "https://i.imgur.com/O9BapV9.png",
+      "logo": "/channel-logos/FoxSports1.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/fox-sports-1-us.png"
+    },
+    {
+      "id": "FoxSports2.us",
+      "name": "Fox Sports 2",
+      "category": "sports",
+      "aliases": [
+        "Fox Sports 2",
+        "FS2"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/FS2_logo_2015.svg/960px-FS2_logo_2015.svg.png",
+      "logo": "/channel-logos/FoxSports2.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/fox-sports-2-us.png"
+    },
+    {
+      "id": "CNN.us",
+      "name": "CNN",
+      "category": "news",
+      "aliases": [
+        "CNN"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/CNN.svg/960px-CNN.svg.png",
+      "logo": "/channel-logos/CNN.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/cnn-us.png"
+    },
+    {
+      "id": "CNNInternational.us",
+      "name": "CNN International",
+      "category": "news",
+      "aliases": [
+        "CNN International",
+        "CNNi"
+      ],
+      "logo_reference": "https://dtil.tmsimg.com/assets/s157679_ld_h15_aa.png?lock=720x540",
+      "logo": "/channel-logos/CNNInternational.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/international/cnn-international-int.png"
+    },
+    {
+      "id": "BBCNews.uk",
+      "name": "BBC News",
+      "category": "news",
+      "aliases": [
+        "BBC News",
+        "BBC World News",
+        "BBC World",
+        "BBC News International"
+      ],
+      "logo_reference": "https://dtil.tmsimg.com/assets/s158142_ld_h15_aa.png?lock=720x540",
+      "logo": "/channel-logos/BBCNews.uk.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-kingdom/bbc-news-hz-white-uk.png"
+    },
+    {
+      "id": "SkyNews.uk",
+      "name": "Sky News",
+      "category": "news",
+      "aliases": [
+        "Sky News",
+        "Sky News International"
+      ],
+      "logo_reference": "https://d2n0069hmnqmmx.cloudfront.net/epgdata/1.0/newchanlogos/512/512/skychb1404.png",
+      "logo": "/channel-logos/SkyNews.uk.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-kingdom/sky-news-uk.png"
+    },
+    {
+      "id": "CNBC.us",
+      "name": "CNBC",
+      "category": "business",
+      "aliases": [
+        "CNBC",
+        "CNBC Europe",
+        "CNBC Asia"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/CNBC_2025.svg/960px-CNBC_2025.svg.png",
+      "logo": "/channel-logos/CNBC.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/cnbc-us.png"
+    },
+    {
+      "id": "MSNOW.us",
+      "name": "MS NOW",
+      "category": "news",
+      "aliases": [
+        "MS NOW",
+        "MSNBC",
+        "MS Now"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/MS_NOW_logo.svg/960px-MS_NOW_logo.svg.png",
+      "logo": "/channel-logos/MSNOW.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/ms-now-us.png"
+    },
+    {
+      "id": "FoxNewsChannel.us",
+      "name": "Fox News Channel",
+      "category": "news",
+      "aliases": [
+        "Fox News Channel",
+        "Fox News"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/Fox_News_Channel_logo.svg/960px-Fox_News_Channel_logo.svg.png",
+      "logo": "/channel-logos/FoxNewsChannel.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/fox-news-us.png"
+    },
+    {
+      "id": "BloombergTV.us",
+      "name": "Bloomberg TV",
+      "category": "business",
+      "aliases": [
+        "Bloomberg TV",
+        "Bloomberg",
+        "Bloomberg Television"
+      ],
+      "logo_reference": "https://i.imgur.com/R7FCaB5.png",
+      "logo": "/channel-logos/BloombergTV.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/bloomberg-television-us.png"
+    },
+    {
+      "id": "EuronewsEnglish.fr",
+      "name": "Euronews English",
+      "category": "news",
+      "aliases": [
+        "Euronews English",
+        "Euronews"
+      ],
+      "logo_reference": "https://provider-static.plex.tv/epg/cms/production/f0a48729-6f08-43e4-9cc4-44ba472281de/Marc_Faron_-_Wurl_Plex_assets_Channel-logo-white3x2_ENrdx.png",
+      "logo": "/channel-logos/EuronewsEnglish.fr.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/international/euro-news-hz-int.png"
+    },
+    {
+      "id": "France24.fr",
+      "name": "France 24",
+      "category": "news",
+      "aliases": [
+        "France 24",
+        "France24",
+        "France 24 English"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/France_24_logo_%282013%29.svg/960px-France_24_logo_%282013%29.svg.png",
+      "logo": "/channel-logos/France24.fr.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/international/france-24-int.png"
+    },
+    {
+      "id": "DW.de",
+      "name": "DW",
+      "category": "news",
+      "aliases": [
+        "DW",
+        "Deutsche Welle"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/Deutsche_Welle_symbol_2012.svg/960px-Deutsche_Welle_symbol_2012.svg.png",
+      "logo": "/channel-logos/DW.de.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/international/dw-int.png"
+    },
+    {
+      "id": "NHKWorldJapan.jp",
+      "name": "NHK World-Japan",
+      "category": "news;culture",
+      "aliases": [
+        "NHK World-Japan",
+        "NHK World",
+        "NHK World Japan"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/NHK_World.svg/960px-NHK_World.svg.png",
+      "logo": "/channel-logos/NHKWorldJapan.jp.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/international/nhk-world-japan-int.png"
+    },
+    {
+      "id": "CGTN.cn",
+      "name": "CGTN",
+      "category": "news",
+      "aliases": [
+        "CGTN"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/CGTN.svg/960px-CGTN.svg.png",
+      "logo": "/channel-logos/CGTN.cn.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/international/cgtn-int.png"
+    },
+    {
+      "id": "DiscoveryChannel.us",
+      "name": "Discovery Channel",
+      "category": "entertainment",
+      "aliases": [
+        "Discovery Channel",
+        "Discovery"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/2019_Discovery_logo.svg/960px-2019_Discovery_logo.svg.png",
+      "logo": "/channel-logos/DiscoveryChannel.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/discovery-channel-us.png"
+    },
+    {
+      "id": "NationalGeographic.us",
+      "name": "National Geographic",
+      "category": "documentary",
+      "aliases": [
+        "National Geographic",
+        "Nat Geo",
+        "NatGeo"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fc/Natgeologo.svg/960px-Natgeologo.svg.png",
+      "logo": "/channel-logos/NationalGeographic.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/national-geographic-us.png"
+    },
+    {
+      "id": "NationalGeographicWild.us",
+      "name": "National Geographic Wild",
+      "category": "documentary",
+      "aliases": [
+        "National Geographic Wild",
+        "Nat Geo Wild",
+        "NatGeo Wild"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/National_Geographic_Wild_logo.svg/960px-National_Geographic_Wild_logo.svg.png",
+      "logo": "/channel-logos/NationalGeographicWild.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/argentina/national-geographic-wild-ar.png"
+    },
+    {
+      "id": "AnimalPlanet.us",
+      "name": "Animal Planet",
+      "category": "documentary",
+      "aliases": [
+        "Animal Planet"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/2018_Animal_Planet_logo.svg/960px-2018_Animal_Planet_logo.svg.png",
+      "logo": "/channel-logos/AnimalPlanet.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/animal-planet-us.png"
+    },
+    {
+      "id": "History.us",
+      "name": "History",
+      "category": "documentary",
+      "aliases": [
+        "History",
+        "History Channel",
+        "The History Channel"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/History_%282021%29.svg/500px-History_%282021%29.svg.png",
+      "logo": "/channel-logos/History.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/history-channel-us.png"
+    },
+    {
+      "id": "TLC.us",
+      "name": "TLC",
+      "category": "lifestyle",
+      "aliases": [
+        "TLC"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/TLC_Logo.svg/960px-TLC_Logo.svg.png",
+      "logo": "/channel-logos/TLC.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/tlc-us.png"
+    },
+    {
+      "id": "HGTV.us",
+      "name": "HGTV",
+      "category": "lifestyle",
+      "aliases": [
+        "HGTV"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/HGTV_US_Logo_2015.svg/960px-HGTV_US_Logo_2015.svg.png",
+      "logo": "/channel-logos/HGTV.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/hgtv-us.png"
+    },
+    {
+      "id": "FoodNetwork.us",
+      "name": "Food Network",
+      "category": "cooking",
+      "aliases": [
+        "Food Network"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/Food_Network_New_Logo.png/960px-Food_Network_New_Logo.png",
+      "logo": "/channel-logos/FoodNetwork.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/food-network-us.png"
+    },
+    {
+      "id": "TravelChannel.us",
+      "name": "Travel Channel",
+      "category": "travel",
+      "aliases": [
+        "Travel Channel"
+      ],
+      "logo_reference": "https://i.imgur.com/RmHGeP1.png",
+      "logo": "/channel-logos/TravelChannel.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/travel-channel-us.png"
+    },
+    {
+      "id": "CartoonNetwork.us",
+      "name": "Cartoon Network",
+      "category": "animation;kids",
+      "aliases": [
+        "Cartoon Network"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/80/Cartoon_Network_2010_logo.svg/960px-Cartoon_Network_2010_logo.svg.png",
+      "logo": "/channel-logos/CartoonNetwork.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/cartoon-network-us.png"
+    },
+    {
+      "id": "Boomerang.us",
+      "name": "Boomerang",
+      "category": "kids",
+      "aliases": [
+        "Boomerang"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/3/35/Boomerang_2014_logo.svg/960px-Boomerang_2014_logo.svg.png",
+      "logo": "/channel-logos/Boomerang.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/boomerang-us.png"
+    },
+    {
+      "id": "Nickelodeon.us",
+      "name": "Nickelodeon",
+      "category": "kids",
+      "aliases": [
+        "Nickelodeon"
+      ],
+      "logo_reference": "https://i.imgur.com/E84jnP8.png",
+      "logo": "/channel-logos/Nickelodeon.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/nickelodeon-us.png"
+    },
+    {
+      "id": "NickJr.us",
+      "name": "Nick Jr.",
+      "category": "kids",
+      "aliases": [
+        "Nick Jr.",
+        "Nick Jr",
+        "Nick Junior"
+      ],
+      "logo_reference": "https://i.imgur.com/KT4tdQs.png",
+      "logo": "/channel-logos/NickJr.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/nick-jr-us.png"
+    },
+    {
+      "id": "DisneyChannel.us",
+      "name": "Disney Channel",
+      "category": "kids",
+      "aliases": [
+        "Disney Channel"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/2024_Disney_Channel_text_logo.svg/960px-2024_Disney_Channel_text_logo.svg.png",
+      "logo": "/channel-logos/DisneyChannel.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/disney-channel-us.png"
+    },
+    {
+      "id": "TNT.us",
+      "name": "TNT",
+      "category": "general",
+      "aliases": [
+        "TNT"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/TNT_Logo_2016.svg/960px-TNT_Logo_2016.svg.png",
+      "logo": "/channel-logos/TNT.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/tnt-us.png"
+    },
+    {
+      "id": "TBS.us",
+      "name": "TBS",
+      "category": "general",
+      "aliases": [
+        "TBS"
+      ],
+      "logo_reference": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2c/TBS_2020.svg/960px-TBS_2020.svg.png",
+      "logo": "/channel-logos/TBS.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/tbs-us.png"
+    },
+    {
+      "id": "USANetwork.us",
+      "name": "USA Network",
+      "category": "movies;series;sports;comedy",
+      "aliases": [
+        "USA Network"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d7/USA_Network_logo_%282016%29.svg/960px-USA_Network_logo_%282016%29.svg.png",
+      "logo": "/channel-logos/USANetwork.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/usa-us.png"
+    },
+    {
+      "id": "ComedyCentral.us",
+      "name": "Comedy Central",
+      "category": "comedy",
+      "aliases": [
+        "Comedy Central"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/Comedy_Central_2018.svg/960px-Comedy_Central_2018.svg.png",
+      "logo": "/channel-logos/ComedyCentral.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/comedy-central-us.png"
+    },
+    {
+      "id": "MTV.us",
+      "name": "MTV",
+      "category": "entertainment",
+      "aliases": [
+        "MTV"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/MTV_2021_%28brand_version%29.svg/960px-MTV_2021_%28brand_version%29.svg.png",
+      "logo": "/channel-logos/MTV.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/mtv-us.png"
+    },
+    {
+      "id": "VH1.us",
+      "name": "VH1",
+      "category": "music",
+      "aliases": [
+        "VH1"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/VH1_logonew.svg/960px-VH1_logonew.svg.png",
+      "logo": "/channel-logos/VH1.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/vh1-us.png"
+    },
+    {
+      "id": "BBCBrit.uk",
+      "name": "BBC Brit",
+      "category": "entertainment",
+      "aliases": [
+        "BBC Brit"
+      ],
+      "logo_reference": "https://i.imgur.com/i4remZo.png",
+      "logo": "/channel-logos/BBCBrit.uk.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/nordic/denmark/bbc-brit-dk.png"
+    },
+    {
+      "id": "BBCEarth.uk",
+      "name": "BBC Earth",
+      "category": "documentary",
+      "aliases": [
+        "BBC Earth"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/7/7e/BBC_Earth_2023.svg",
+      "logo": "/channel-logos/BBCEarth.uk.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/australia/bbc-earth-au.png"
+    },
+    {
+      "id": "TV5MondeEurope.fr",
+      "name": "TV5Monde Europe",
+      "category": "general",
+      "aliases": [
+        "TV5Monde Europe",
+        "TV5 Monde",
+        "TV5Monde"
+      ],
+      "logo_reference": "https://i.imgur.com/rPAbMSu.png",
+      "logo": "/channel-logos/TV5MondeEurope.fr.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/international/tv5-monde-int.png"
+    },
+    {
+      "id": "RaiItalia.it",
+      "name": "Rai Italia",
+      "category": "",
+      "aliases": [
+        "Rai Italia"
+      ],
+      "logo_reference": "https://i.imgur.com/1nN4rEP.png",
+      "logo": null
+    },
+    {
+      "id": "TVEInternacionalAmerica.es",
+      "name": "TVE Internacional America",
+      "category": "",
+      "aliases": [
+        "TVE Internacional America",
+        "TVE Internacional"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e7/TVE.svg/960px-TVE.svg.png",
+      "logo": "/channel-logos/TVEInternacionalAmerica.es.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/international/tve-internacional-int.png"
+    },
+    {
+      "id": "Telemundo.us",
+      "name": "Telemundo",
+      "category": "general",
+      "aliases": [
+        "Telemundo"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/Telemundo_logo_2018.svg/960px-Telemundo_logo_2018.svg.png",
+      "logo": "/channel-logos/Telemundo.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/telemundo-us.png"
+    },
+    {
+      "id": "Univision.us",
+      "name": "Univision",
+      "category": "",
+      "aliases": [
+        "Univision"
+      ],
+      "logo_reference": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/Logo_Univision_2019.svg/960px-Logo_Univision_2019.svg.png",
+      "logo": "/channel-logos/Univision.us.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-states/univision-us.png"
+    },
+    {
+      "id": "CNA.sg",
+      "name": "CNA",
+      "category": "news",
+      "aliases": [
+        "CNA",
+        "Channel NewsAsia",
+        "Channel News Asia"
+      ],
+      "logo_reference": "https://i.imgur.com/awIDugE.png",
+      "logo": "/channel-logos/CNA.sg.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/singapore/cna-sg.png"
+    },
+    {
+      "id": "ITV1.uk",
+      "name": "ITV1",
+      "category": "general",
+      "aliases": [
+        "ITV1",
+        "ITV"
+      ],
+      "logo_reference": "https://i.imgur.com/xwPekCF.png",
+      "logo": "/channel-logos/ITV1.uk.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-kingdom/itv-1-uk.png"
+    },
+    {
+      "id": "ITV2.uk",
+      "name": "ITV2",
+      "category": "general",
+      "aliases": [
+        "ITV2"
+      ],
+      "logo_reference": "https://i.imgur.com/2BpUK0W.png",
+      "logo": "/channel-logos/ITV2.uk.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-kingdom/itv-2-uk.png"
+    },
+    {
+      "id": "ITV3.uk",
+      "name": "ITV3",
+      "category": "entertainment",
+      "aliases": [
+        "ITV3"
+      ],
+      "logo_reference": "https://i.imgur.com/JuyM2z5.png",
+      "logo": "/channel-logos/ITV3.uk.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-kingdom/itv-3-uk.png"
+    },
+    {
+      "id": "ITV4.uk",
+      "name": "ITV4",
+      "category": "general",
+      "aliases": [
+        "ITV4"
+      ],
+      "logo_reference": "https://i.imgur.com/DYI4IA2.png",
+      "logo": "/channel-logos/ITV4.uk.png",
+      "logo_source": "https://github.com/tv-logo/tv-logos/blob/d32e347bb7c4c640dceec23957802ad9182f58a6/countries/united-kingdom/itv-4-uk.png"
+    }
+  ],
+  "logo_sources": {
+    "metadata": "https://github.com/iptv-org/database/blob/69eca3be81cf5865ce891f34c9a1897b2c4ab9ea/data/logos.csv",
+    "bundled_images": "https://github.com/tv-logo/tv-logos/tree/d32e347bb7c4c640dceec23957802ad9182f58a6",
+    "retrieved_on": "2026-10-08"
+  }
+}

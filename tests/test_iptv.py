@@ -13,6 +13,23 @@ class IPTVTests(unittest.TestCase):
     tearDown = test_app.AppTests.tearDown
     request = test_app.AppTests.request
 
+    def test_bundled_satellite_reference_available_without_external_requests(self):
+        status, catalog = self.request('/satellite-channels.json')
+        self.assertEqual(status, 200)
+        self.assertEqual(catalog['version'], 1)
+        channels = {row['name']: row for row in catalog['channels']}
+        for name in ['Sport 24', 'CNN International', 'BBC News', 'National Geographic']:
+            self.assertIn(name, channels)
+        self.assertIn('BBC World News', channels['BBC News']['aliases'])
+        self.assertEqual(len(channels), len(catalog['channels']))
+        for channel in catalog['channels']:
+            if channel['logo']:
+                status, image = self.request(channel['logo'])
+                self.assertEqual(status, 200)
+                self.assertTrue(image.startswith(b'\x89PNG\r\n\x1a\n'))
+        self.assertEqual(self.request('/channel-logos/missing.us.png')[0], 404)
+        self.assertEqual(self.request('/channel-logos/../satellite-channels.json')[0], 404)
+
     def test_channel_source_multicast_and_no_confirmation(self):
         status, channel = self.request('/api/devices', 'POST', CHANNEL)
         self.assertEqual(status, 201)
