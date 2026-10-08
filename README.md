@@ -57,6 +57,10 @@ Automatic AV system matching uses these keywords:
 
 Matching checks for text anywhere in the name, regardless of capitalization. For competing matches, the rule order is audio, AMX, Scheduler, DSP, Yamaha, Behringer, Shure, Clickshare, Pixera, TV, Video, LED, Light, CAM/Camera/Cam, BGM, Decoder, Encoder, Multiview, Scala, Blackmagic, Castus, Switch, Dante, CCTV, IEM. For example, **Blackmagic Switcher** selects Video; **LED lighting panel** selects Video; **Dante Switch** selects Network. Automatic selection adds no extra fields to spreadsheet review.
 
+## Page navigation
+
+Use **AV**, **IPTV**, and **Inventory** in the top menu. The current page is highlighted; on mobile these links appear in the navigation menu. Each link has its own URL fragment, so reload and browser Back/Forward preserve the page. The old tab row now contains a short summary: **IPs validated** counts AV records with saved confirmation and a fixed address; **channels running** counts saved IPTV channels; **items across locations** counts records and nonempty locations in the selected equipment inventory. Search and filters do not reduce these summary counts.
+
 ## Equipment inventory
 
 Use **New inventory** to create separate named inventories such as **TVs**, **Scalas**, and **Spare parts**. Choose one in the **Inventory** selector before importing a file or adding items. Each inventory has its own records, location choices, search, Located checks, totals, and exports. Switching clears filters and row selections; the last chosen inventory is remembered in this browser. **Rename** changes its name without changing its records. Existing equipment is safely retained in **Equipment inventory**, which can also be renamed.

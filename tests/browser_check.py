@@ -25,6 +25,13 @@ with tempfile.TemporaryDirectory() as temp:
             page = context.new_page()
             errors = []
 
+            def open_page(name):
+                identifier = {'AV devices':'device-tab', 'IPTV channels':'iptv-tab', 'Equipment inventory':'equipment-tab'}[name]
+                link = page.locator('#'+identifier)
+                if not link.is_visible():
+                    page.locator('#nav-toggle').click()
+                link.click()
+
             def clear_network_filters():
                 if page.locator('#clear-filters').is_visible():
                     page.locator('#clear-filters').click()
@@ -61,7 +68,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert navigation.is_visible()
             assert navigation.get_by_role('link', name='Inventory', exact=True).is_visible()
             nav_toggle.press('Tab')
-            assert navigation.get_by_role('link', name='Workspace', exact=True).evaluate('(node) => node === document.activeElement')
+            assert navigation.get_by_role('link', name='AV', exact=True).evaluate('(node) => node === document.activeElement')
             page.keyboard.press('Escape')
             assert navigation.is_hidden()
             assert nav_toggle.evaluate('(node) => node === document.activeElement')
@@ -69,7 +76,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#hero-intro').click()
             assert navigation.is_hidden()
             nav_toggle.click()
-            navigation.get_by_role('link', name='Inventory', exact=True).click()
+            navigation.get_by_role('link', name='AV', exact=True).click()
             assert navigation.is_hidden() and nav_toggle.get_attribute('aria-expanded') == 'false'
             nav_toggle.click()
             page.set_viewport_size({'width':1440,'height':1000})
@@ -214,7 +221,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#cancel-row-review').click()
             page.locator('#spreadsheet-dialog').wait_for(state='hidden')
             # IPTV has separate records, source choices, and multicast support.
-            page.get_by_role('tab', name='IPTV channels', exact=True).click()
+            open_page('IPTV channels')
             assert page.locator('#total').inner_text() == '0'
             page.get_by_role('button', name='Add channel', exact=True).click()
             page.locator('#device-form [name=name]').fill('Ship information')
@@ -295,14 +302,14 @@ with tempfile.TemporaryDirectory() as temp:
             assert not page.locator('.ip-confirm').count()
             assert page.locator('.device-row').count() == 3
             page.screenshot(path='/tmp/broadcasthub-iptv-mobile.png', full_page=True)
-            page.get_by_role('tab', name='AV devices', exact=True).click()
+            open_page('AV devices')
             assert page.locator('.device-row').count() == 3
             assert page.get_by_role('button', name='Edit Ship information').count() == 0
-            page.get_by_role('tab', name='IPTV channels', exact=True).click()
+            open_page('IPTV channels')
             assert page.get_by_role('button', name='Edit Ship information').is_visible()
             assert page.locator('.ip-confirm').count() == 0
             # General equipment inventory is separate and has no network fields.
-            page.get_by_role('tab', name='Equipment inventory', exact=True).click()
+            open_page('Equipment inventory')
             page.locator('#equipment-empty').wait_for(state='visible')
             page.locator('#add-device').click()
             page.locator('#equipment-form [name=brand]').fill('Blackmagic Design')
@@ -351,17 +358,17 @@ with tempfile.TemporaryDirectory() as temp:
             path.write_text(json.dumps(equipment_export))
             page.locator('#import-file').set_input_files(str(path))
             page.get_by_role('button', name='Edit equipment Neutrik XLR').wait_for()
-            page.get_by_role('tab', name='IPTV channels', exact=True).click()
+            open_page('IPTV channels')
             assert page.locator('.device-row').count() == 3
-            page.get_by_role('tab', name='AV devices', exact=True).click()
+            open_page('AV devices')
             assert page.locator('.device-row').count() == 3
-            page.get_by_role('tab', name='Equipment inventory', exact=True).click()
+            open_page('Equipment inventory')
             page.get_by_role('button', name='Edit equipment Neutrik XLR').wait_for()
             assert page.locator('#equipment-rows tr').count() == 2
             assert page.title() == 'avtrack - AV & IPTV and device management'
             # Requested CSV workflow: prioritize exact headers, clean venues,
             # skip repeated IPs across VLANs, and keep devices with text VLANs.
-            page.get_by_role('tab', name='AV devices', exact=True).click()
+            open_page('AV devices')
             path = Path(temp) / 'venue-devices.csv'
             path.write_text('Device ID,o.O,Name,Location,IP,DEVICE NAME,VENUE,IP Adress,VLAN,Notes,Category,Inventory type,Channel source,Port,System\n'
                             'old-id,unwanted,Wrong name,Wrong location,invalid,CSV switcher,RD MAIN LOUNGE,10.24.176.90,1500,o.O\n'
@@ -422,9 +429,9 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('.device-row').filter(has_text='CSV camera').locator('.ip-cell .cell-caption').inner_text() == ''
             page.get_by_role('button', name='Confirm IP for CSV camera', exact=True).click()
             page.get_by_role('button', name='IP confirmed for CSV camera', exact=True).wait_for()
-            page.get_by_role('tab', name='IPTV channels', exact=True).click()
+            open_page('IPTV channels')
             assert not warnings.is_visible()
-            page.get_by_role('tab', name='AV devices', exact=True).click()
+            open_page('AV devices')
             assert warnings.is_visible()
             page.get_by_role('button', name='Refresh', exact=True).click()
             page.get_by_role('button', name='Edit CSV lights', exact=True).wait_for()
@@ -499,7 +506,7 @@ with tempfile.TemporaryDirectory() as temp:
                 page.locator('#confirm-import').click()
                 page.locator('#spreadsheet-dialog').wait_for(state='hidden')
                 assert len(app.inventory()) == before
-            page.get_by_role('tab', name='Equipment inventory', exact=True).click()
+            open_page('Equipment inventory')
             path = Path(temp) / 'partial-equipment.csv'
             path.write_text('Description\nUnidentified spare\nUnidentified spare\n')
             page.locator('#import-file').set_input_files(str(path))
@@ -519,7 +526,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('button', name='Save changes', exact=True).click()
             page.get_by_role('button', name='Edit equipment Sony', exact=True).wait_for()
             assert next(r for r in app.equipment_inventory() if r['id'] == spare['id'])['model'] == ''
-            page.get_by_role('tab', name='IPTV channels', exact=True).click()
+            open_page('IPTV channels')
             path = Path(temp) / 'partial-iptv.csv'
             path.write_text('Channel\nUnassigned channel\n')
             page.locator('#import-file').set_input_files(str(path))
@@ -528,7 +535,7 @@ with tempfile.TemporaryDirectory() as temp:
             accept_rows(1)
             page.get_by_role('button', name='Edit Unassigned channel', exact=True).wait_for()
             assert next(r for r in app.inventory() if r['name'] == 'Unassigned channel')['channel_source'] == ''
-            page.get_by_role('tab', name='AV devices', exact=True).click()
+            open_page('AV devices')
             # Every row requires a decision. DHCP stays a shared marker, while
             # text can be corrected, cleared, marked DHCP, or skipped.
             before = len(app.inventory())
@@ -637,7 +644,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#directory-venue-title').is_hidden()
             assert page.locator('#directory-vlan-title').is_hidden()
             assert page.locator('#directory-system-title').inner_text() == 'SOURCE'
-            page.get_by_role('tab', name='AV devices', exact=True).click()
+            open_page('AV devices')
             brand = page.locator('.site-footer strong')
             page.evaluate('document.fonts.ready')
             assert 'JetBrains Mono' in brand.evaluate('(node) => getComputedStyle(node).fontFamily')
@@ -703,7 +710,7 @@ with tempfile.TemporaryDirectory() as temp:
                 page.locator('#inventory').get_by_role('link', name='PDF ↓', exact=True).click()
             assert download.value.suggested_filename == 'broadcasthub-av-devices.pdf'
             assert Path(download.value.path()).read_bytes().startswith(b'%PDF-')
-            page.get_by_role('tab', name='Equipment inventory', exact=True).click()
+            open_page('Equipment inventory')
             for extension, label in [('xlsx','XLSX ↓'), ('pdf','PDF ↓')]:
                 open_export_menu('equipment-panel')
                 with page.expect_download() as download:
@@ -727,7 +734,7 @@ with tempfile.TemporaryDirectory() as temp:
                     'notes':'Sorting fixture', 'venue':'Sort venue', 'vlan':1500,
                 })
                 assert response.status == 201, response.text()
-            page.get_by_role('tab', name='AV devices', exact=True).click()
+            open_page('AV devices')
             page.locator('#refresh').click()
             page.wait_for_function("() => !document.getElementById('refresh').disabled")
             page.locator('#search').fill('Sorting fixture')
@@ -755,7 +762,7 @@ with tempfile.TemporaryDirectory() as temp:
                     'record_type':'iptv', 'name':name, 'ip':address, 'channel_source':source,
                 })
                 assert response.status == 201, response.text()
-            page.get_by_role('tab', name='IPTV channels', exact=True).click()
+            open_page('IPTV channels')
             page.locator('#refresh').click()
             page.wait_for_function("() => !document.getElementById('refresh').disabled")
             page.locator('#search').fill('IPTV sort')
@@ -764,7 +771,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#sort-order').select_option('system-desc')
             assert names() == ['IPTV sort A','IPTV sort Z']
             assert page.locator('#sort-order option[value="system-desc"]').inner_text() == 'Source · Z–A'
-            page.get_by_role('tab', name='AV devices', exact=True).click()
+            open_page('AV devices')
             assert page.locator('#sort-order').input_value() == 'name-asc'
             page.locator('#refresh').click()
             page.wait_for_function("() => !document.getElementById('refresh').disabled")
@@ -838,7 +845,7 @@ with tempfile.TemporaryDirectory() as temp:
                 with page.expect_download() as download:
                     page.locator('#'+panel).get_by_role('link', name=label, exact=True).click()
                 extension = {'JSON ↓':'json','CSV ↓':'csv','XLSX ↓':'xlsx','PDF ↓':'pdf'}[label]
-                prefix = 'equipment' if panel == 'equipment-panel' else ('iptv-channels' if page.locator('#iptv-tab').get_attribute('aria-selected') == 'true' else 'av-devices')
+                prefix = 'equipment' if panel == 'equipment-panel' else ('iptv-channels' if page.locator('#iptv-tab').get_attribute('aria-current') == 'page' else 'av-devices')
                 assert download.value.suggested_filename == f'broadcasthub-{prefix}.{extension}'
                 return Path(download.value.path()).read_bytes()
 
@@ -862,14 +869,14 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('checkbox', name='Select New review camera', exact=True).check()
             exported = json.loads(scoped_download('inventory', 'JSON ↓', 'selected'))['devices']
             assert {row['name'] for row in exported} == {'New review camera'}
-            page.get_by_role('tab', name='IPTV channels', exact=True).click()
+            open_page('IPTV channels')
             assert page.locator('#network-selection-summary').is_hidden()
             page.locator('#search').fill('IPTV sort')
             page.get_by_role('checkbox', name='Select IPTV sort A', exact=True).check()
             exported = json.loads(scoped_download('inventory', 'JSON ↓', 'selected'))['devices']
             assert [row['name'] for row in exported] == ['IPTV sort A']
             assert exported[0]['record_type'] == 'iptv'
-            page.get_by_role('tab', name='AV devices', exact=True).click()
+            open_page('AV devices')
             assert page.locator('#network-selection-count').inner_text().startswith('1 selected')
             page.locator('#clear-network-selection').click()
             assert page.locator('#network-export-scope').input_value() == 'filtered'
@@ -886,7 +893,7 @@ with tempfile.TemporaryDirectory() as temp:
             for brand, location in [('Export camera', 'Export theatre'), ('Export spare', 'Export store')]:
                 response = page.request.post(f'http://127.0.0.1:{server.server_port}/api/equipment', data={'brand':brand, 'location':location})
                 assert response.status == 201
-            page.get_by_role('tab', name='Equipment inventory', exact=True).click()
+            open_page('Equipment inventory')
             page.wait_for_function("() => !document.getElementById('equipment-refresh').disabled")
             page.locator('#equipment-clear').click()
             page.locator('#equipment-location-filter').select_option('Export theatre')
@@ -913,7 +920,7 @@ with tempfile.TemporaryDirectory() as temp:
             for name, venue in [('Batch delete A','Batch theatre'), ('Batch delete B','Batch theatre'), ('Batch keep C','Batch lounge')]:
                 response = page.request.post(f'http://127.0.0.1:{server.server_port}/api/devices', data={'name':name,'venue':venue})
                 assert response.status == 201
-            page.get_by_role('tab', name='AV devices', exact=True).click()
+            open_page('AV devices')
             page.locator('#refresh').click()
             page.wait_for_function("() => !document.getElementById('refresh').disabled")
             clear_network_filters()
@@ -938,7 +945,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert not any(row['name'] in ['Batch delete A','Batch delete B'] for row in app.inventory())
             assert any(row['name']=='Batch keep C' for row in app.inventory())
             assert page.locator('#network-selection-summary').is_hidden()
-            page.get_by_role('tab', name='IPTV channels', exact=True).click()
+            open_page('IPTV channels')
             if page.locator('#network-selection-summary').is_visible():
                 page.locator('#clear-network-selection').click()
             page.locator('#search').fill('IPTV sort')
@@ -954,7 +961,7 @@ with tempfile.TemporaryDirectory() as temp:
             for name in ['Decoder cabin 1', 'Decoder cabin 2', 'Encoder keep']:
                 response = page.request.post(f'http://127.0.0.1:{server.server_port}/api/devices', data={'name':name})
                 assert response.status == 201
-            page.get_by_role('tab', name='AV devices', exact=True).click()
+            open_page('AV devices')
             page.locator('#refresh').click()
             page.wait_for_function("() => !document.getElementById('refresh').disabled")
             clear_network_filters()
@@ -983,7 +990,7 @@ with tempfile.TemporaryDirectory() as temp:
                 ('AV devices','device','AV devices','IPTV channels'),
                 ('IPTV channels','iptv','IPTV channels','AV devices'),
             ]:
-                page.get_by_role('tab', name=tab, exact=True).click()
+                open_page(tab)
                 clear_network_filters()
                 assert page.locator('#inventory .export-links a[download]').evaluate_all('(links) => links.map(link => new URL(link.href).searchParams.get("record_type"))') == [record_type]*4
                 expected = [row for row in app.inventory() if row['record_type']==record_type]
@@ -1003,7 +1010,7 @@ with tempfile.TemporaryDirectory() as temp:
             # regardless of row order; existing notes and manual edits are kept.
             app.save_device(dict(record_type='iptv', name='Saved codec stream', ip='239.220.1.4', port=2000))
             page.reload()
-            page.locator('#iptv-tab').click()
+            open_page('IPTV channels')
             path = Path(temp) / 'codec-channels.csv'
             path.write_text('Channel Name,MCAST IP [S],MCAST PORT [S],Notes\n'
                             'Paired HEVC,239.220.1.1,1234,Live feed\n'
@@ -1165,7 +1172,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('.device-row').count() == 1
             assert 'Sport 24 HD' in page.locator('.device-row').inner_text()
             clear_network_filters()
-            page.locator('#device-tab').click()
+            open_page('AV devices')
             assert page.locator('#search-label').text_content() == 'Search devices'
             assert page.locator('#clear-filters').is_visible()
             assert page.locator('.udp-address').count() == 0

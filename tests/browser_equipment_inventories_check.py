@@ -22,7 +22,7 @@ with tempfile.TemporaryDirectory() as temp:
             errors = []
             page.on('pageerror', lambda error: errors.append(str(error)))
             page.goto(f'http://127.0.0.1:{server.server_port}')
-            assert page.locator('#nav-transfer').text_content() == 'Inventory'
+            assert page.locator('#equipment-tab').text_content() == 'Inventory'
             page.locator('#equipment-tab').click()
             page.wait_for_function("() => !document.getElementById('new-equipment-inventory').disabled")
 
@@ -70,6 +70,7 @@ with tempfile.TemporaryDirectory() as temp:
             import_csv('tvs.csv', 'Lounge TV,Sony,Bravia,ASSET-01,1,Main lounge,Wall mount\n'
                        'Cabin TV,Samsung,Q60,ASSET-02,1,Cabin 100,Remote included\n')
             assert len(app.equipment_inventory(tvs)) == 2
+            assert page.locator('#workspace-page-summary').text_content() == '2 items across 2 locations'
             assert app.equipment_inventory() == []
             page.locator('#equipment-location-filter').select_option('Main lounge')
             page.locator('#equipment-rows .equipment-confirm').check()
@@ -100,6 +101,7 @@ with tempfile.TemporaryDirectory() as temp:
             import_csv('scalas.csv', 'Scala player,Scala,Media player,ASSET-01,1,Theater,Signage\n')
             assert len(app.equipment_inventory(scalas)) == 1
             assert page.locator('#equipment-found').inner_text() == '0'
+            assert page.locator('#workspace-page-summary').text_content() == '1 item across 1 location'
             page.locator('#rename-equipment-inventory').click()
             page.locator('#equipment-inventory-name').fill('Scala players')
             page.locator('#save-equipment-inventory').click()

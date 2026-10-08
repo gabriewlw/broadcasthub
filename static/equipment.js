@@ -84,6 +84,7 @@
     }
   }
   function renderEquipment() {
+    updatePageSummary(items, inventories.find(inventory => inventory.id === inventoryId)?.name || 'Equipment inventory');
     const query = $('equipment-search').value.trim().toLowerCase();
     const results = items.filter(item => fields.some(field => String(item[field] ?? '').toLowerCase().includes(query)) &&
       (!$('equipment-location-filter').value || item.location === $('equipment-location-filter').value) &&

@@ -28,6 +28,25 @@ header.addEventListener('focusout', event => {
 });
 mobileNavigation.addEventListener('change', () => setNavigationOpen(false, mainNavigation.contains(document.activeElement)));
 let devices = [], editing = null, deleting = null, timer, currentTab = 'device';
+let equipmentPageSummary = null;
+let networkLoaded = false;
+function updatePageSummary(equipmentItems, inventoryName) {
+  if (equipmentItems) equipmentPageSummary = {count:equipmentItems.length, locations:new Set(equipmentItems.map(item => item.location).filter(Boolean)).size, name:inventoryName};
+  $('workspace-page-title').textContent = currentTab === 'equipment' ? `Inventory${equipmentPageSummary ? ' · ' + equipmentPageSummary.name : ''}` : currentTab === 'iptv' ? 'IPTV' : 'AV';
+  if (currentTab === 'equipment') {
+    $('workspace-page-summary').textContent = equipmentPageSummary
+      ? `${equipmentPageSummary.count} ${equipmentPageSummary.count === 1 ? 'item' : 'items'} across ${equipmentPageSummary.locations} ${equipmentPageSummary.locations === 1 ? 'location' : 'locations'}`
+      : 'Loading inventory…';
+  } else if (!networkLoaded) {
+    $('workspace-page-summary').textContent = currentTab === 'iptv' ? 'Loading IPTV channels…' : 'Loading AV devices…';
+  } else if (currentTab === 'iptv') {
+    const count = devices.filter(item => item.record_type === 'iptv').length;
+    $('workspace-page-summary').textContent = `${count} ${count === 1 ? 'channel' : 'channels'} running`;
+  } else {
+    const count = devices.filter(item => (item.record_type || 'device') === 'device' && item.ip_confirmed && item.ip && !isDHCP(item.ip)).length;
+    $('workspace-page-summary').textContent = `${count} ${count === 1 ? 'IP' : 'IPs'} validated`;
+  }
+}
 let visibleDevices = [];
 const networkSelections = {device:new Set(), iptv:new Set()};
 let batchDeletingIds = [];
@@ -213,14 +232,16 @@ function switchTab(type) {
   closeSystemMenu();
   closeExportMenus();
   currentTab = type;
+  updatePageSummary();
   const equipment = type === 'equipment';
   $('example-media').hidden = type === 'iptv';
-  $('nav-transfer').href = equipment ? '#equipment-transfer' : '#transfer';
   $('equipment-panel').hidden = !equipment;
   $('inventory').hidden = equipment;
   document.querySelector('main > .stats').hidden = equipment;
   for (const [id, tab] of [['device-tab','device'], ['iptv-tab','iptv'], ['equipment-tab','equipment']]) {
-    $(id).setAttribute('aria-selected', String(tab === type)); $(id).tabIndex = tab === type ? 0 : -1;
+    $(id).classList.toggle('nav-active', tab === type);
+    if (tab === type) $(id).setAttribute('aria-current', 'page');
+    else $(id).removeAttribute('aria-current');
   }
   if (equipment) {
     $('hero-title').replaceChildren(document.createTextNode('Every asset.'), element('br'), document.createTextNode('Every location.'), element('br'), element('span', '', 'One clear view.'));
@@ -231,10 +252,6 @@ function switchTab(type) {
     window.equipmentUI.load(); return;
   }
   filters.forEach(id => $(id).value = '');
-  for (const [id, tab] of [['device-tab','device'], ['iptv-tab','iptv']]) {
-    $(id).setAttribute('aria-selected', String(tab === type));
-    $(id).tabIndex = tab === type ? 0 : -1;
-  }
   $('inventory').setAttribute('aria-labelledby', type === 'iptv' ? 'iptv-tab' : 'device-tab');
   const iptv = type === 'iptv';
   $('inventory').querySelectorAll('.export-links a[download]').forEach(link => {
@@ -273,14 +290,28 @@ function switchTab(type) {
   updateFilterOptions(); render();
 }
 const inventoryTabs = [['device-tab','device'],['iptv-tab','iptv'],['equipment-tab','equipment']];
+function navigatePage(type) {
+  const link = $(inventoryTabs.find(([,page]) => page === type)[0]);
+  if (location.hash !== link.hash) history.pushState(null, '', link.hash);
+  switchTab(type);
+}
+function restorePage() {
+  const page = inventoryTabs.find(([id]) => $(id).hash === location.hash) || (!location.hash ? inventoryTabs[0] : null);
+  if (page && page[1] !== currentTab) switchTab(page[1]);
+}
+window.addEventListener('hashchange', restorePage);
+window.addEventListener('DOMContentLoaded', restorePage);
 for (const [id, type] of inventoryTabs) {
-  $(id).onclick = () => switchTab(type);
+  $(id).onclick = event => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault(); navigatePage(type);
+  };
   $(id).onkeydown = event => {
     if (['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) {
       event.preventDefault();
       const index = inventoryTabs.findIndex(([,tab]) => tab === currentTab);
       const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? 2 : (index + (event.key === 'ArrowRight' ? 1 : 2)) % 3;
-      const [nextId,next] = inventoryTabs[nextIndex]; switchTab(next); $(nextId).focus();
+      const [nextId,next] = inventoryTabs[nextIndex]; navigatePage(next); $(nextId).focus();
     }
   };
 }
@@ -446,6 +477,7 @@ async function load() {
   try {
     await satelliteCatalogReady;
     devices = (await api('/api/devices')).devices;
+    networkLoaded = true;
     $('load-error').hidden = true;
     updateFilterOptions();
     $('venues').replaceChildren(...savedVenues().map(v => new Option(v, v)));
@@ -500,6 +532,7 @@ function render() {
   syncButtons('system-buttons', $('system-filter').value);
   syncButtons('source-buttons', $('source-filter').value);
   syncButtons('address-buttons', $('address-filter').value);
+  updatePageSummary();
   const current = tabDevices();
   const selected = networkSelections[currentTab];
   const hasDHCP = currentTab === 'device' && current.some(d => isDHCP(d.ip));
