@@ -462,7 +462,7 @@ function render() {
   syncButtons('address-buttons', $('address-filter').value);
   const current = tabDevices();
   const selected = networkSelections[currentTab];
-  const hasDHCP = current.some(d => isDHCP(d.ip));
+  const hasDHCP = currentTab === 'device' && current.some(d => isDHCP(d.ip));
   $('address-filter-group').hidden = !hasDHCP;
   if (!hasDHCP) $('address-filter').value = '';
   $('total').textContent = current.length;
@@ -593,8 +593,8 @@ function openForm(device = null) {
   $('name-label').textContent = iptv ? 'Channel name' : 'Device name';
   $('form-intro').textContent = iptv ? 'Track the channel’s stream address, port, and source.' : 'Give this device a home in your inventory.';
   form.elements.name.placeholder = iptv ? 'e.g. Ship information or BBC News' : 'e.g. ATEM video switcher';
-  form.elements.ip.placeholder = iptv ? 'e.g. 239.1.1.10 or DHCP' : '10.24.176.66 or DHCP';
-  $('ip-hint').textContent = iptv ? 'IPv4 unicast, multicast, or DHCP' : 'IPv4 or DHCP · checked when saved';
+  form.elements.ip.placeholder = iptv ? 'e.g. 239.1.1.10' : '10.24.176.66 or DHCP';
+  $('ip-hint').textContent = iptv ? 'IPv4 unicast or multicast' : 'IPv4 or DHCP · checked when saved';
   $('form-title').textContent = editing ? (iptv ? 'Edit channel' : 'Edit device') : (iptv ? 'Add channel' : 'Add device');
   $('save-device').textContent = editing ? 'Save changes' : (iptv ? 'Save channel' : 'Save device');
   if (device) for (const field of ['name','category','venue','discipline','ip','vlan','notes','channel_source','port']) form.elements[field].value = device[field] ?? '';
@@ -806,28 +806,32 @@ function reviewImportRow(entry, index, total, tab, knownAddresses) {
     $('row-review-title').textContent = equipment ? 'Import this equipment?' : tab === 'iptv' ? 'Import this channel?' : 'Import this device?';
     $('row-review-progress').textContent = `Row ${entry.number} · ${index + 1} of ${total} · ${spreadsheetFile.filename}`;
     $('row-review-error').hidden = true;
+    $('row-review-ip-hint').textContent = tab === 'iptv'
+      ? 'There is text in the Multicast IP field. Enter an IPv4 address, leave the field blank, or skip this row.'
+      : 'There is text in the IP Address field. Enter an IPv4 address, click DHCP, leave the field blank, or skip this row.';
     const controls = new Map();
     const fields = importFields();
     $('row-review-fields').style.setProperty('--review-columns', fields.length);
     $('row-review-fields').replaceChildren(...fields.map(([field, label]) => {
       const group = element('label', '', label.replace(' (optional)', ''));
       const input = element(field === 'notes' ? 'textarea' : 'input'); input.id = `review-${field}`;
-      if (field === 'notes') input.rows = 2;
+      if (field === 'notes') input.rows = 1;
       input.value = entry.row[field] ?? ''; input.autocomplete = 'off';
       input.maxLength = field === 'notes' || field === 'description' ? 2000 : 120;
       if (field === 'ip') input.spellcheck = false;
       group.append(input); controls.set(field, input);
       if (field === 'ip') {
         const actions = element('div', 'review-ip-actions');
-        const dhcp = element('button', 'choice-button', 'DHCP'); dhcp.type = 'button'; dhcp.id = 'review-dhcp';
+        const dhcp = tab === 'device' ? element('button', 'choice-button', 'DHCP') : null;
+        if (dhcp) { dhcp.type = 'button'; dhcp.id = 'review-dhcp'; }
         const blank = element('button', 'quiet', 'Clear'); blank.type = 'button'; blank.id = 'review-clear-ip';
         const update = () => {
-          dhcp.setAttribute('aria-pressed', String(isDHCP(input.value)));
-          $('row-review-ip-hint').hidden = !input.value.trim() || isDHCP(input.value) || !/[^0-9.\s]/.test(input.value);
+          dhcp?.setAttribute('aria-pressed', String(isDHCP(input.value)));
+          $('row-review-ip-hint').hidden = !input.value.trim() || (dhcp && isDHCP(input.value)) || !/[^0-9.\s]/.test(input.value);
         };
-        dhcp.onclick = () => { input.value = 'DHCP'; update(); };
+        if (dhcp) dhcp.onclick = () => { input.value = 'DHCP'; update(); };
         blank.onclick = () => { input.value = ''; update(); input.focus(); };
-        input.oninput = update; update(); actions.append(dhcp, blank); group.append(actions);
+        input.oninput = update; update(); if (dhcp) actions.append(dhcp); actions.append(blank); group.append(actions);
       }
       return group;
     }));

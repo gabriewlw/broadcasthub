@@ -317,6 +317,7 @@ h1 { font-size: 36px; }
 .system-select{width:100%;min-width:0;min-height:44px;font-size:12px;padding:8px;border-radius:5px}.system-cell .cell-caption{display:block;margin-top:5px}
 
 .device-notes-editor{display:block;width:100%;min-width:0;min-height:44px;resize:vertical;font-size:12px;padding:8px;margin-top:5px}.device-identity>div{min-width:0;flex:1}
+.review-line textarea{height:44px;resize:none}
 
 #row-review-dialog{width:min(1000px,calc(100vw - 32px));max-width:1000px}.review-line-scroll{overflow-x:auto;padding-bottom:10px}.review-line{display:grid;grid-template-columns:repeat(var(--review-columns,4),minmax(140px,1fr));gap:12px}.review-line label{min-width:0;font-size:12px}.review-line input,.review-line select,.review-line textarea{display:block;width:100%;margin-top:8px;min-height:44px;font-size:13px}.review-ip-actions{display:flex;gap:6px;margin-top:8px}.review-ip-actions button{min-height:44px;padding:8px 10px;font-size:12px}.review-scroll-hint{display:none;color:var(--muted);font-size:12px}@media(max-width:650px){.review-scroll-hint{display:block}}
 
