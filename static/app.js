@@ -38,7 +38,7 @@ const tabSortOrders = {device: '', iptv: ''};
 const nameCollator = new Intl.Collator(undefined, {sensitivity: 'base', numeric: true});
 const tabDevices = () => devices.filter(d => (d.record_type || 'device') === currentTab);
 const form = $('device-form');
-const filters = ['search', 'venue-filter', 'system-filter', 'category-filter', 'source-filter', 'address-filter'];
+const filters = ['search', 'venue-filter', 'system-filter', 'source-filter', 'address-filter'];
 const element = (tag, className, text) => {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -207,7 +207,6 @@ makeButtons('address-buttons', ['DHCP'], '', value => { $('address-filter').valu
 makeButtons('form-source-buttons', ['Onboard','Satellite'], '', value => { form.elements.channel_source.value = form.elements.channel_source.value === value ? '' : value; syncButtons('form-source-buttons', form.elements.channel_source.value); });
 function updateFilterOptions() {
   updateVenueFilter();
-  options('category-filter', tabDevices().map(d => d.category));
   $('venues').replaceChildren(...savedVenues().map(v => new Option(v, v)));
 }
 function switchTab(type) {
@@ -261,7 +260,7 @@ function switchTab(type) {
   $('system-count-label').textContent = iptv ? 'Onboard / Satellite' : 'Video / Audio / Lighting';
   $('list-title').textContent = iptv ? 'IPTV channels' : 'All devices';
   $('search').placeholder = iptv ? 'Channel, IP, port, or notes…' : 'Name, IP, venue, or notes…';
-  $('system-filter-group').hidden = $('category-filter-label').hidden = iptv;
+  $('system-filter-group').hidden = $('system-filter-label').hidden = iptv;
   $('source-filter-group').hidden = !iptv;
   for (const id of ['venue-filter-group','venue-stat','vlan-stat','validation-note']) $(id).hidden = iptv;
   document.querySelector('.stats').classList.toggle('iptv-stats', iptv);
@@ -473,7 +472,6 @@ function render() {
     [d.name,d.ip,d.venue,d.category,d.discipline,d.notes,d.channel_source || '',String(d.vlan || ''), String(d.port || '')].some(v => v.toLowerCase().includes(query)) &&
     (!$('venue-filter').value || cleanVenue(d.venue) === $('venue-filter').value) &&
     (!$('system-filter').value || d.discipline === $('system-filter').value) &&
-    (!$('category-filter').value || d.category === $('category-filter').value) &&
     (!$('source-filter').value || d.channel_source === $('source-filter').value) &&
     (!$('address-filter').value || isDHCP(d.ip)));
   if ($('sort-order').value) results.sort((a, b) => compareDirectoryRecords(a, b, $('sort-order').value));

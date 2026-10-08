@@ -374,7 +374,7 @@ button.system-select{display:flex;justify-content:space-between;align-items:cent
 
 .directory-filters{grid-template-columns:minmax(160px,220px) minmax(150px,200px) auto minmax(0,1fr)}
 .directory-filters>.search{grid-column:4;grid-row:1;width:100%;max-width:360px;justify-self:end}
-@media(max-width:600px){.directory-filters{grid-template-columns:1fr 1fr}.directory-filters>.search{grid-column:1/-1;grid-row:1;max-width:none}.directory-filters>#venue-filter-group{grid-column:1}.directory-filters>#category-filter-label{grid-column:2}.directory-filters>#clear-filters{grid-column:1/-1;justify-self:end}}
+@media(max-width:600px){.directory-filters{grid-template-columns:1fr 1fr}.directory-filters>.search{grid-column:1/-1;grid-row:1;max-width:none}.directory-filters>#venue-filter-group{grid-column:1}.directory-filters>#system-filter-label{grid-column:2}.directory-filters>#clear-filters{grid-column:1/-1;justify-self:end}}
 
 /* Keep the transfer toolbar controls aligned and equally sized. */
 .file-actions .import-button,.file-actions .export-toggle{width:148px;height:44px;min-height:44px;flex-shrink:0;justify-content:center;padding:0 10px;font-size:13px;font-weight:600;line-height:1.2}

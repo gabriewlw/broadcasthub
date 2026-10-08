@@ -102,7 +102,8 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#no-results').is_visible()
             page.get_by_role('button', name='Clear', exact=True).click()
             page.locator('#venue-filter').select_option('Liquid Lounge')
-            page.locator('#category-filter').select_option('Video switcher')
+            page.locator('#system-filter').select_option('Video')
+            assert page.locator('#system-buttons').get_by_role('button', name='Video', exact=True).get_attribute('aria-pressed') == 'true'
             assert page.locator('.device-row').count() == 1
             page.locator('#search').fill('not found')
             assert page.locator('#no-results').is_visible()
@@ -439,10 +440,10 @@ with tempfile.TemporaryDirectory() as temp:
             system_select = page.get_by_role('combobox', name='System for Unassigned camera', exact=True)
             assert system_select.get_attribute('data-value') == 'Video'
             system_select.click()
-            page.get_by_role('option', name='Audio', exact=True).click()
+            page.locator('.system-options').get_by_role('option', name='Audio', exact=True).click()
             page.wait_for_function("() => document.querySelector('button[aria-label=\"System for Unassigned camera\"]').dataset.value === 'Audio'")
             system_select.click()
-            page.get_by_role('option', name='Video', exact=True).click()
+            page.locator('.system-options').get_by_role('option', name='Video', exact=True).click()
             page.wait_for_function("() => !document.querySelector('button[aria-label=\"System for Unassigned camera\"]').disabled")
             assert next(r for r in app.inventory() if r['name'] == 'Unassigned camera')['discipline'] == 'Video'
             notes_input = page.get_by_role('textbox', name='Notes for Unassigned camera', exact=True)
@@ -603,11 +604,11 @@ with tempfile.TemporaryDirectory() as temp:
             assert choices.count() == 7
             assert len(set(choices.evaluate_all('(nodes) => nodes.slice(1).map(n => getComputedStyle(n).color)'))) == 6
             assert picker.get_attribute('aria-expanded') == 'true'
-            page.get_by_role('option', name='Video', exact=True).press('Escape')
+            page.locator('.system-options').get_by_role('option', name='Video', exact=True).press('Escape')
             assert picker.get_attribute('aria-expanded') == 'false'
             assert not page.locator('.system-options').count()
             picker.press('ArrowDown')
-            page.get_by_role('option', name='Video', exact=True).wait_for()
+            page.locator('.system-options').get_by_role('option', name='Video', exact=True).wait_for()
             page.screenshot(path='/tmp/broadcasthub-system-picker-mobile.png')
             page.locator('#iptv-tab').evaluate('(node) => node.click()')
             assert not page.locator('.system-options').count()
