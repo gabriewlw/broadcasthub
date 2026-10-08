@@ -29,6 +29,7 @@ SYSTEM_NAME_RULES = (
 FIELDS = ('name', 'category', 'venue', 'discipline', 'ip', 'vlan', 'notes')
 ALL_FIELDS = FIELDS + ('record_type', 'channel_source', 'port')
 EQUIPMENT_FIELDS = ('brand', 'model', 'description', 'serial_number', 'quantity', 'location', 'notes')
+EQUIPMENT_CONFIRM_FIELDS = EQUIPMENT_FIELDS[:-1]
 
 
 SCHEMA = """CREATE TABLE {table} (
@@ -42,6 +43,7 @@ EQUIPMENT_SCHEMA = """CREATE TABLE {table} (
     id INTEGER PRIMARY KEY, brand TEXT NOT NULL, model TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '', serial_number TEXT NOT NULL DEFAULT '',
     quantity INTEGER, location TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '',
+    item_confirmed INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"""
 
 
@@ -93,12 +95,15 @@ def connect():
     con.execute('DROP INDEX IF EXISTS channel_endpoint_known')
     con.execute("CREATE UNIQUE INDEX IF NOT EXISTS channel_endpoint_static ON devices(ip,port) WHERE record_type='iptv' AND ip NOT IN ('','DHCP') AND port IS NOT NULL")
     con.execute(EQUIPMENT_SCHEMA.format(table='IF NOT EXISTS equipment'))
+    equipment_columns = {row['name']: row for row in con.execute('PRAGMA table_info(equipment)')}
+    if 'item_confirmed' not in equipment_columns:
+        con.execute('ALTER TABLE equipment ADD COLUMN item_confirmed INTEGER NOT NULL DEFAULT 0')
     if next(row for row in con.execute('PRAGMA table_info(equipment)') if row['name'] == 'quantity')['notnull']:
         # Preserve existing quantities; missing quantities are unknown, not zero or one.
         con.execute('BEGIN IMMEDIATE')
         try:
             con.execute(EQUIPMENT_SCHEMA.format(table='equipment_upgrade'))
-            names = 'id,' + ','.join(EQUIPMENT_FIELDS) + ',updated_at'
+            names = 'id,' + ','.join(EQUIPMENT_FIELDS) + ',item_confirmed,updated_at'
             con.execute(f'INSERT INTO equipment_upgrade ({names}) SELECT {names} FROM equipment')
             con.execute('DROP TABLE equipment')
             con.execute('ALTER TABLE equipment_upgrade RENAME TO equipment')
@@ -366,10 +371,43 @@ def save_equipment(value, item_id=None):
             cursor = con.execute('INSERT INTO equipment (' + ','.join(EQUIPMENT_FIELDS) + ') VALUES (?,?,?,?,?,?,?)', [row[f] for f in EQUIPMENT_FIELDS])
             item_id = cursor.lastrowid
         else:
-            cursor = con.execute('UPDATE equipment SET ' + ','.join(f+'=?' for f in EQUIPMENT_FIELDS) + ', updated_at=CURRENT_TIMESTAMP WHERE id=?', [row[f] for f in EQUIPMENT_FIELDS]+[item_id])
+            unchanged = ' AND '.join(f'{field} IS ?' for field in EQUIPMENT_CONFIRM_FIELDS)
+            cursor = con.execute('UPDATE equipment SET item_confirmed=CASE WHEN ' + unchanged +
+                ' THEN item_confirmed ELSE 0 END, ' + ','.join(f+'=?' for f in EQUIPMENT_FIELDS) +
+                ', updated_at=CURRENT_TIMESTAMP WHERE id=?',
+                [row[f] for f in EQUIPMENT_CONFIRM_FIELDS] + [row[f] for f in EQUIPMENT_FIELDS] + [item_id])
             if not cursor.rowcount:
                 raise LookupError('Inventory item not found.')
         return dict(con.execute('SELECT * FROM equipment WHERE id=?', (item_id,)).fetchone())
+
+
+def set_equipment_confirmation(item_id, value):
+    if not isinstance(value, dict) or type(value.get('item_confirmed')) is not bool:
+        raise ValueError('Choose whether this item has been found.')
+    if any(field not in value for field in EQUIPMENT_CONFIRM_FIELDS):
+        raise ValueError('Provide the current item details being confirmed.')
+    row = validate_equipment(value)
+    with connect() as con:
+        current = con.execute('SELECT * FROM equipment WHERE id=?', (item_id,)).fetchone()
+        if current is None:
+            raise LookupError('Inventory item not found.')
+        matches = ' AND '.join(f'{field} IS ?' for field in EQUIPMENT_CONFIRM_FIELDS)
+        cursor = con.execute('UPDATE equipment SET item_confirmed=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND ' + matches,
+            [int(value['item_confirmed']), item_id] + [row[f] for f in EQUIPMENT_CONFIRM_FIELDS])
+        if not cursor.rowcount:
+            raise ValueError('This item changed. Refresh the inventory before confirming it.')
+        return dict(con.execute('SELECT * FROM equipment WHERE id=?', (item_id,)).fetchone())
+
+
+def equipment_import_confirmation(value):
+    status = value.get('item_confirmed', 0)
+    if status is None or status == '':
+        return 0
+    if type(status) in (bool, int) and status in (0, 1):
+        return int(status)
+    if isinstance(status, str) and status.strip().lower() in ('0', '1', 'true', 'false', 'found', 'to find', 'pending'):
+        return int(status.strip().lower() in ('1', 'true', 'found'))
+    raise ValueError('Found status must be Found or To find.')
 
 
 def equipment_identity(row):
@@ -390,7 +428,7 @@ def import_equipment(payload):
         if blank_import_row(value, EQUIPMENT_FIELDS):
             continue
         try:
-            rows.append(validate_equipment(value))
+            rows.append(dict(validate_equipment(value), item_confirmed=equipment_import_confirmation(value)))
         except ValueError as exc:
             raise ValueError(f'Inventory row {index}: {exc} Nothing was imported.') from None
     identities = [identity for row in rows if (identity := equipment_identity(row)) is not None]
@@ -403,7 +441,8 @@ def import_equipment(payload):
             identity = equipment_identity(row)
             if identity is not None and identity in existing:
                 continue
-            con.execute('INSERT INTO equipment (' + ','.join(EQUIPMENT_FIELDS) + ') VALUES (?,?,?,?,?,?,?)', [row[f] for f in EQUIPMENT_FIELDS])
+            fields = EQUIPMENT_FIELDS + ('item_confirmed',)
+            con.execute('INSERT INTO equipment (' + ','.join(fields) + ') VALUES (?,?,?,?,?,?,?,?)', [row[f] for f in fields])
             added += 1
             if identity is not None:
                 existing.add(identity)
@@ -412,10 +451,11 @@ def import_equipment(payload):
 
 def equipment_csv(rows=None):
     output = io.StringIO(newline='')
-    writer = csv.DictWriter(output, fieldnames=EQUIPMENT_FIELDS, extrasaction='ignore')
+    fields = ('description', 'brand', 'model', 'serial_number', 'quantity', 'location', 'item_confirmed', 'notes')
+    writer = csv.DictWriter(output, fieldnames=fields, extrasaction='ignore')
     writer.writeheader()
     for row in equipment_inventory() if rows is None else rows:
-        writer.writerow({f: ("'"+str(row[f]) if str(row[f]).startswith(('=', '+', '-', '@', '\t', '\r', '\n')) else row[f]) for f in EQUIPMENT_FIELDS})
+        writer.writerow({f: ("'"+str(row[f]) if str(row[f]).startswith(('=', '+', '-', '@', '\t', '\r', '\n')) else row[f]) for f in fields})
     return output.getvalue().encode('utf-8-sig')
 
 
@@ -529,6 +569,12 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(201, save_equipment(self.body()))
         elif self.command == 'POST' and path == '/api/equipment/import':
             return self.send(200, import_equipment(self.body()))
+        elif self.command == 'POST' and path.startswith('/api/equipment/') and path.endswith('/confirm'):
+            try:
+                item_id = int(path.removeprefix('/api/equipment/').removesuffix('/confirm'))
+            except ValueError:
+                raise LookupError('Inventory item not found.') from None
+            return self.send(200, set_equipment_confirmation(item_id, self.body()))
         elif self.command == 'POST' and path == '/api/devices/batch-delete':
             payload = self.body()
             ids = payload.get('ids') if isinstance(payload, dict) else None

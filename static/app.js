@@ -407,10 +407,11 @@ document.querySelectorAll('.export-links a[download]').forEach(link => {
       const scope = $(equipment ? 'equipment-export-scope' : 'network-export-scope').value;
       let exportRows = scope === 'selected' ? visibleDevices.filter(row => networkSelections[currentTab]?.has(row.id)) : visibleDevices;
       if (!equipment && scope === 'selected' && $('sort-order').value) exportRows.sort((a,b) => compareDirectoryRecords(a,b,$('sort-order').value));
-      const ids = equipment ? window.equipmentUI.exportIds(scope) : exportRows.map(row => row.id);
       // A download immediately after a note edit must include that saved note.
       if (document.activeElement?.matches('.device-notes-editor')) document.activeElement.blur();
       await Promise.all([...pendingNoteSaves.values(), ...pendingWrites]);
+      if (equipment) await window.equipmentUI.flush();
+      const ids = equipment ? window.equipmentUI.exportIds(scope) : exportRows.map(row => row.id);
       const payload = equipment ? {ids} : {record_type:recordType, ...(scope === 'all' ? {} : {ids})};
       const response = await fetch(link.href, equipment && scope === 'all' ? {} : {
         method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
@@ -693,12 +694,13 @@ const networkImportFields = [
   ['port', 'Port (IPTV)', ['port','udp port','stream port','port number']]
 ];
 const equipmentImportFields = [
+  ['description','Item',['item','description','equipment','item name','item description']],
   ['brand','Brand',['brand','manufacturer','make']],
   ['model','Model',['model','model number','part number']],
-  ['description','Description',['description','item','equipment','item description']],
   ['serial_number','Serial number (optional)',['serial number','serial','serial no','s/n','sn']],
   ['quantity','Quantity',['quantity','qty','count','stock']],
   ['location','Location',['location','venue','room','storage','storage location']],
+  ['item_confirmed','Found (optional)',['item confirmed','found','confirmed','confirmation']],
   ['notes','Notes (optional)',['notes','note','comments']]
 ];
 const iptvImportFields = [

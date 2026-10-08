@@ -70,9 +70,45 @@ class ExportTests(unittest.TestCase):
         book = self.xlsx(True)
         self.assertEqual(book.sheetnames, ['Equipment'])
         values = list(book.active.values)
-        self.assertEqual(values[0], ('Brand','Model','Description','Serial number','Quantity','Location','Notes'))
-        self.assertIn(('Sony','X','Spare','SER-1',0,'Store','After inspection'), values)
-        self.assertIn((None,None,'Unknown spare',None,None,None,None), values)
+        self.assertEqual(values[0], ('Item','Brand','Model','Serial number','Quantity','Location','Found','Notes'))
+        self.assertIn(('Spare','Sony','X','SER-1',0,'Store','To find','After inspection'), values)
+        self.assertIn(('Unknown spare',None,None,None,None,None,'To find',None), values)
+
+    @unittest.skipUnless(shutil.which('pdftotext'), 'PDF text validation needs optional pdftotext')
+    def test_equipment_reports_group_by_location_and_include_found_status(self):
+        for location, item_name, serial in [('Z Store','Last item','Z-1'), ('A Theater','First item','A-1'), ('','Unassigned item','U-1')]:
+            item = self.request('/api/equipment', 'POST', dict(description=item_name, brand='Sony', model='X', serial_number=serial, location=location))[1]
+            if location == 'A Theater':
+                self.request(f"/api/equipment/{item['id']}/confirm", 'POST', dict(item, item_confirmed=True))
+        raw = self.request('/api/equipment/export.pdf', 'POST', dict(ids=[1,2,3]))[1]
+        text = subprocess.run(['pdftotext','-layout','-','-'],input=raw,stdout=subprocess.PIPE,check=True).stdout.decode()
+        self.assertLess(text.index('Location: Unassigned location'), text.index('Location: A Theater'))
+        self.assertLess(text.index('Location: A Theater'), text.index('Location: Z Store'))
+        headings = next(line for line in text.splitlines() if 'SERIAL NUMBER' in line)
+        self.assertLess(headings.index('ITEM'), headings.index('BRAND'))
+        self.assertLess(headings.index('MODEL'), headings.index('SERIAL NUMBER'))
+        self.assertIn('Found', text)
+        self.assertIn('To find', text)
+        self.assertIn('by broadcastgab.com', text)
+        book = self.xlsx(True)
+        row = next(cells for cells in list(book.active)[1:] if cells[0].value == 'First item')
+        self.assertEqual(row[6].value, 'Found')
+        self.assertEqual(row[6].fill.fgColor.rgb, '00D1EAD7')
+
+    @unittest.skipUnless(shutil.which('pdftotext'), 'PDF text validation needs optional pdftotext')
+    def test_equipment_pdf_repeats_location_on_continuation_pages(self):
+        rows = [dict(description=f'Inventory item {index}', serial_number=f'SN-{index}', location='Main lounge',
+                     notes='Long inspection note ' * 80 if index == 0 else '', item_confirmed=index % 2)
+                for index in range(45)]
+        self.assertEqual(self.request('/api/equipment/import', 'POST', dict(version=1,equipment=rows))[0], 200)
+        raw = self.request('/api/equipment/export.pdf')[1]
+        text = subprocess.run(['pdftotext','-','-'],input=raw,stdout=subprocess.PIPE,check=True).stdout.decode()
+        pages = [page for page in text.split('\f') if page.strip()]
+        self.assertGreater(len(pages), 1)
+        for page in pages:
+            self.assertIn('Location: Main lounge', page)
+            self.assertIn('SERIAL NUMBER', page)
+        self.assertIn('Inventory item 44', text)
 
     def test_empty_reports_download_without_inventing_records(self):
         self.assertEqual(self.xlsx()['AV devices'].max_row, 1)
@@ -124,7 +160,7 @@ class ExportTests(unittest.TestCase):
         raw = self.request('/api/equipment/export.csv', 'POST', payload)[1]
         self.assertEqual([row['brand'] for row in csv.DictReader(io.StringIO(raw.decode('utf-8-sig')))], ['Selected brand'])
         raw = self.request('/api/equipment/export.xlsx', 'POST', payload)[1]
-        self.assertEqual([row[0] for row in list(load_workbook(io.BytesIO(raw)).active.values)[1:]], ['Selected brand'])
+        self.assertEqual([row[1] for row in list(load_workbook(io.BytesIO(raw)).active.values)[1:]], ['Selected brand'])
         raw = self.request('/api/equipment/export.pdf', 'POST', payload)[1]
         self.assertTrue(raw.startswith(b'%PDF-'))
         if shutil.which('pdftotext'):
