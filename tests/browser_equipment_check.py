@@ -1,4 +1,4 @@
-"""Optional equipment CSV/location/found workflow check with Playwright."""
+"""Optional equipment CSV/location/located workflow check with Playwright."""
 import json
 import shutil
 import subprocess
@@ -43,7 +43,7 @@ with tempfile.TemporaryDirectory() as temp:
                     page.locator('#spreadsheet-dialog').wait_for(state='hidden')
             page.wait_for_function("() => document.querySelectorAll('#equipment-rows tr').length === 3")
             assert all(row['item_confirmed'] == 0 for row in app.equipment_inventory())
-            assert page.locator('#equipment-table th').all_text_contents() == ['Item','Brand','Model','Serial number','Quantity','Location','Found','Notes','Actions']
+            assert page.locator('#equipment-table th').all_text_contents() == ['Item','Brand','Model','Serial number','Quantity','Location','Located','Notes','Actions']
             page.locator('#equipment-location-filter').select_option('Main lounge')
             assert page.locator('#equipment-rows tr').count() == 2
             microphone = page.locator('#equipment-rows tr').filter(has_text='Handheld microphone')
@@ -54,10 +54,10 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#equipment-refresh').click()
             page.wait_for_function("() => !document.getElementById('equipment-refresh').disabled")
             assert microphone.locator('.equipment-confirm').is_checked()
-            page.locator('#equipment-status-buttons').get_by_role('button', name='To find', exact=True).click()
+            page.locator('#equipment-status-buttons').get_by_role('button', name='Not located', exact=True).click()
             assert page.locator('#equipment-rows tr').count() == 1
             assert 'Audio cable' in page.locator('#equipment-rows').inner_text()
-            page.locator('#equipment-status-buttons').get_by_role('button', name='Found', exact=True).click()
+            page.locator('#equipment-status-buttons').get_by_role('button', name='Located', exact=True).click()
             assert page.locator('#equipment-rows tr').count() == 1
             microphone.locator('.equipment-confirm').click()
             page.wait_for_function("() => document.getElementById('equipment-found').textContent === '0'")
@@ -69,7 +69,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#save-equipment').click()
             page.locator('#equipment-dialog').wait_for(state='hidden')
             # Hold the confirmation request to prove that an immediate export
-            # waits for the save and includes the completed found state.
+            # waits for the save and includes the completed located state.
             page.evaluate("""() => {
                 const original = window.fetch;
                 window.fetch = async (...args) => {
@@ -98,7 +98,7 @@ with tempfile.TemporaryDirectory() as temp:
                 text = subprocess.run(['pdftotext','-','-'],input=pdf,capture_output=True,check=True).stdout.decode()
                 assert 'Location: Main lounge' in text
                 assert 'Broadcast center' not in text
-                assert 'Found' in text and 'To find' in text
+                assert 'Located' in text and 'Not located' in text
             page.reload()
             page.locator('#equipment-tab').click()
             page.wait_for_function("() => !document.getElementById('equipment-refresh').disabled")
@@ -117,7 +117,7 @@ with tempfile.TemporaryDirectory() as temp:
                     assert page.locator('.equipment-filters').evaluate('node => { const location=node.querySelector("#equipment-location-filter-label").getBoundingClientRect(), search=node.querySelector(".search").getBoundingClientRect(); return location.left < search.left && Math.abs(location.top-search.top)<1; }')
             assert not errors, errors
             browser.close()
-            print('PASS: one CSV across locations, Item/Model/Serial order, persistent/reversible found checkboxes, filters, export waits for confirmation, location PDFs, desktop/mobile layouts.')
+            print('PASS: one CSV across locations, Item/Model/Serial order, persistent/reversible located checkboxes, filters, export waits for confirmation, location PDFs, desktop/mobile layouts.')
     finally:
         server.shutdown()
         server.server_close()

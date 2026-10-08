@@ -700,7 +700,7 @@ const equipmentImportFields = [
   ['serial_number','Serial number (optional)',['serial number','serial','serial no','s/n','sn']],
   ['quantity','Quantity',['quantity','qty','count','stock']],
   ['location','Location',['location','venue','room','storage','storage location']],
-  ['item_confirmed','Found (optional)',['item confirmed','found','confirmed','confirmation']],
+  ['item_confirmed','Located (optional)',['item confirmed','located','found','confirmed','confirmation']],
   ['notes','Notes (optional)',['notes','note','comments']]
 ];
 const iptvImportFields = [

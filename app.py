@@ -383,7 +383,7 @@ def save_equipment(value, item_id=None):
 
 def set_equipment_confirmation(item_id, value):
     if not isinstance(value, dict) or type(value.get('item_confirmed')) is not bool:
-        raise ValueError('Choose whether this item has been found.')
+        raise ValueError('Choose whether this item has been located.')
     if any(field not in value for field in EQUIPMENT_CONFIRM_FIELDS):
         raise ValueError('Provide the current item details being confirmed.')
     row = validate_equipment(value)
@@ -405,9 +405,9 @@ def equipment_import_confirmation(value):
         return 0
     if type(status) in (bool, int) and status in (0, 1):
         return int(status)
-    if isinstance(status, str) and status.strip().lower() in ('0', '1', 'true', 'false', 'found', 'to find', 'pending'):
-        return int(status.strip().lower() in ('1', 'true', 'found'))
-    raise ValueError('Found status must be Found or To find.')
+    if isinstance(status, str) and status.strip().lower() in ('0', '1', 'true', 'false', 'located', 'not located', 'found', 'to find', 'pending'):
+        return int(status.strip().lower() in ('1', 'true', 'located', 'found'))
+    raise ValueError('Located status must be Located or Not located.')
 
 
 def equipment_identity(row):

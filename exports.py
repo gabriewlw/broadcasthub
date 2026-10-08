@@ -52,8 +52,8 @@ def workbook(sections):
                     cell.fill = PatternFill('solid', fgColor='C92F38')
                 elif sheet.cell(1, cell.column).value == 'System' and cell.value in SYSTEM_COLORS:
                     cell.fill = PatternFill('solid', fgColor=SYSTEM_COLORS[cell.value])
-                elif sheet.cell(1, cell.column).value in ('IP confirmation', 'Found') and cell.value:
-                    cell.fill = PatternFill('solid', fgColor='D1EAD7' if cell.value in ('Confirmed', 'Found') else 'F9E8B2')
+                elif sheet.cell(1, cell.column).value in ('IP confirmation', 'Located') and cell.value:
+                    cell.fill = PatternFill('solid', fgColor='D1EAD7' if cell.value in ('Confirmed', 'Located') else 'F9E8B2')
         for index, (_, _, width) in enumerate(columns, 1):
             sheet.column_dimensions[get_column_letter(index)].width = width
         sheet.freeze_panes = 'A2'
@@ -86,11 +86,11 @@ def network_xlsx(rows, record_type=None):
 
 
 def equipment_xlsx(rows):
-    rows = [dict(row, found='Found' if row.get('item_confirmed') else 'To find') for row in rows]
+    rows = [dict(row, found='Located' if row.get('item_confirmed') else 'Not located') for row in rows]
     return workbook([('Equipment', [('Item','description',40), ('Brand','brand',24), ('Model','model',24),
                                    ('Serial number','serial_number',24),
                                    ('Quantity','quantity',12), ('Location','location',26),
-                                   ('Found','found',12),
+                                   ('Located','found',12),
                                    ('Notes','notes',55)], rows)])
 
 
@@ -136,8 +136,8 @@ def pdf_report(title, sections, repeat_section=False):
     def report_cell(label, value):
         if label == 'SYSTEM' and value in tag_colors:
             return paragraph(value, ParagraphStyle('HubTag', parent=body, textColor=colors.HexColor(tag_colors[value][1])))
-        if label in ('CONFIRMATION', 'FOUND') and value in ('Confirmed', 'Pending', 'Found', 'To find'):
-            confirmed = value in ('Confirmed', 'Found')
+        if label in ('CONFIRMATION', 'LOCATED') and value in ('Confirmed', 'Pending', 'Located', 'Not located'):
+            confirmed = value in ('Confirmed', 'Located')
             return paragraph(value, ParagraphStyle('HubConfirmation', parent=body,
                 fontName='HubBold' if confirmed else 'HubText',
                 textColor=colors.HexColor('#F0FFF5' if confirmed else '#E5C587')))
@@ -194,11 +194,11 @@ def pdf_report(title, sections, repeat_section=False):
                     # A tinted chip matches the colored selection in the website.
                     background, _ = tag_colors[record[column]]
                     table.setStyle(TableStyle([('BACKGROUND', (column,index), (column,index), colors.HexColor(background))]))
-        status_label = 'CONFIRMATION' if 'CONFIRMATION' in labels else 'FOUND' if 'FOUND' in labels else None
+        status_label = 'CONFIRMATION' if 'CONFIRMATION' in labels else 'LOCATED' if 'LOCATED' in labels else None
         if status_label:
             column = labels.index(status_label)
             for index, record in enumerate(records, header_rows):
-                if record[column] in ('Confirmed', 'Found'):
+                if record[column] in ('Confirmed', 'Located'):
                     table.setStyle(TableStyle([('BACKGROUND', (column,index), (column,index), colors.HexColor('#216E43'))]))
         story.append(table)
 
@@ -248,12 +248,12 @@ def network_pdf(rows, record_type=None):
 
 
 def equipment_pdf(rows):
-    labels = ['ITEM','BRAND','MODEL','SERIAL NUMBER','QUANTITY','FOUND','NOTES']
+    labels = ['ITEM','BRAND','MODEL','SERIAL NUMBER','QUANTITY','LOCATED','NOTES']
     widths = [.23,.12,.13,.15,.07,.10,.20]
     locations = {}
     for row in sorted(rows, key=lambda row: (row['location'].casefold(), row['description'].casefold(), row['brand'].casefold(), row['model'].casefold())):
         locations.setdefault(row['location'], []).append([
             row['description'], row['brand'], row['model'], row['serial_number'], row['quantity'],
-            'Found' if row.get('item_confirmed') else 'To find', row['notes']])
+            'Located' if row.get('item_confirmed') else 'Not located', row['notes']])
     sections = [(f'Location: {location or "Unassigned location"}', labels, widths, records) for location, records in locations.items()]
     return pdf_report('Equipment inventory', sections or [('Equipment', labels, widths, [])], repeat_section=True)

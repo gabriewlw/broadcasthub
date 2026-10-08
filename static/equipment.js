@@ -55,7 +55,7 @@
     $('equipment-locations').textContent = new Set(items.map(i => i.location).filter(Boolean)).size;
     $('equipment-found').textContent = items.filter(item => item.item_confirmed).length;
     $('equipment-result-count').textContent = results.length;
-    $('equipment-showing').textContent = `${results.length} of ${items.length} items · ${results.filter(item => item.item_confirmed).length} found in this view`;
+    $('equipment-showing').textContent = `${results.length} of ${items.length} items · ${results.filter(item => item.item_confirmed).length} located in this view`;
     $('equipment-empty').hidden = items.length > 0;
     $('equipment-no-results').hidden = !items.length || !!results.length;
     $('equipment-table').hidden = !results.length;
@@ -74,19 +74,19 @@
         }
         cell.dataset.label = label(field); row.append(cell);
         if (field === 'location') {
-          const status = element('td', 'equipment-status'); status.dataset.label = 'Found';
+          const status = element('td', 'equipment-status'); status.dataset.label = 'Located';
           const control = element('label', `equipment-confirm-label${item.item_confirmed ? ' confirmed' : ''}`);
           const check = element('input', 'equipment-confirm'); check.type = 'checkbox';
           check.checked = Boolean(item.item_confirmed); check.disabled = pendingConfirmations.has(item.id);
-          check.setAttribute('aria-label', `Mark equipment ${displayName(item)} as found`);
-          control.append(check, element('span', '', item.item_confirmed ? 'Found' : 'To find'));
+          check.setAttribute('aria-label', `Mark equipment ${displayName(item)} as located`);
+          control.append(check, element('span', '', item.item_confirmed ? 'Located' : 'Not located'));
           check.onchange = async () => {
             const write = api(`/api/equipment/${item.id}/confirm`, 'POST', {...item, item_confirmed:check.checked});
             pendingConfirmations.set(item.id, write); check.disabled = true;
             try {
               const updated = await write;
               items = items.map(record => record.id === updated.id ? updated : record);
-            } catch(error) { toast('Could not update found status: ' + error.message); }
+            } catch(error) { toast('Could not update located status: ' + error.message); }
             finally { pendingConfirmations.delete(item.id); renderEquipment(); }
           };
           status.append(control); row.append(status);
@@ -127,7 +127,7 @@
   $('equipment-refresh').onclick = loadEquipment;
   $('equipment-import').onclick = () => $('import-file').click();
   for (const id of ['equipment-search','equipment-location-filter']) $(id).addEventListener(id.endsWith('search') ? 'input' : 'change', renderEquipment);
-  for (const [value, text] of [['','All items'], ['pending','To find'], ['found','Found']]) {
+  for (const [value, text] of [['','All items'], ['pending','Not located'], ['found','Located']]) {
     const button = element('button', 'choice-button', text); button.type = 'button';
     button.dataset.value = value; button.setAttribute('aria-pressed', String(value === ''));
     button.onclick = () => {
