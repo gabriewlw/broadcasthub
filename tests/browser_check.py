@@ -603,7 +603,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.reload()
             page.locator('#venue-filter option[value="Main Lounge"]').wait_for(state='attached')
             assert page.get_by_role('combobox', name='System for Unassigned camera', exact=True).get_attribute('data-value') == 'Video'
-            assert page.locator('#directory-head span:not(.sr-only)').all_text_contents() == ['DEVICE','VENUE','IP','VLAN','SYSTEM','NOTES']
+            assert page.locator('#directory-head span:not(.sr-only):visible').all_text_contents() == ['DEVICE','VENUE','IP','VLAN','SYSTEM','NOTES']
             assert page.locator('.device-row').first.locator(':scope > div').evaluate_all('(nodes) => nodes.map(n => n.className)') == ['device-identity identity-cell','venue-cell','ip-cell','vlan-cell','system-cell','notes-cell','row-actions']
             directory = page.locator('#device-directory')
             header_top = page.locator('#directory-head').evaluate('(node) => node.getBoundingClientRect().top')
@@ -989,6 +989,59 @@ with tempfile.TemporaryDirectory() as temp:
                 if shutil.which('pdftotext'):
                     text = subprocess.run(['pdftotext','-','-'],input=raw,stdout=subprocess.PIPE,check=True).stdout.decode()
                     assert sheet_name in text and excluded_heading not in text
+            # Codec notes use same-IP pairs from the spreadsheet or saved IPTV,
+            # regardless of row order; existing notes and manual edits are kept.
+            app.save_device(dict(record_type='iptv', name='Saved codec stream', ip='239.220.1.4', port=2000))
+            page.reload()
+            page.locator('#iptv-tab').click()
+            path = Path(temp) / 'codec-channels.csv'
+            path.write_text('Channel Name,MCAST IP [S],MCAST PORT [S],Notes\n'
+                            'Paired HEVC,239.220.1.1,1234,Live feed\n'
+                            'Paired AVC,239.220.1.1,2000,Primary feed\n'
+                            'Existing codec note,239.220.1.2,2000,Already h.264\n'
+                            'Unpaired stream,239.220.1.3,1234,Keep this note\n'
+                            'Saved pair,239.220.1.4,1234,\n'
+                            'Manual codec note,239.220.1.5,2000,Operator note\n'
+                            'Edited port,239.220.1.6,2000,Edited note\n')
+            page.locator('#import-file').set_input_files(str(path))
+            page.locator('#confirm-import').wait_for(state='visible')
+            page.wait_for_function("() => !document.getElementById('confirm-import').disabled")
+            page.locator('#confirm-import').click()
+            expected_notes = ['Live feed · H.265','Primary feed · H.264','Already h.264','Keep this note','H.265','Operator note · H.264','Edited note · H.264']
+            for index, expected_note in enumerate(expected_notes):
+                page.locator('#row-review-dialog').wait_for(state='visible')
+                assert page.locator('#review-notes').input_value() == expected_note
+                if index == 5:
+                    page.locator('#review-notes').fill('Custom codec notes')
+                    page.locator('#review-port').fill('1234')
+                    assert page.locator('#review-notes').input_value() == 'Custom codec notes'
+                if index == 6:
+                    page.locator('#review-port').fill('1234')
+                    assert page.locator('#review-notes').input_value() == 'Edited note'
+                    page.locator('#review-port').fill('2000')
+                    assert page.locator('#review-notes').input_value() == 'Edited note · H.264'
+                page.locator('#accept-review-row').click()
+                if index + 1 < len(expected_notes):
+                    page.wait_for_function("name => document.getElementById('review-name').value !== name", arg=['Paired HEVC','Paired AVC','Existing codec note','Unpaired stream','Saved pair','Manual codec note','Edited port'][index])
+                else:
+                    page.locator('#spreadsheet-dialog').wait_for(state='hidden')
+            by_name = {row['name']:row for row in app.inventory()}
+            for name, expected_note in zip(['Paired HEVC','Paired AVC','Existing codec note','Unpaired stream','Saved pair','Manual codec note','Edited port'], expected_notes):
+                assert by_name[name]['notes'] == ('Custom codec notes' if name == 'Manual codec note' else expected_note)
+            hevc_row = page.locator('.device-row').filter(has=page.locator('.device-name').filter(has_text='Paired HEVC'))
+            assert hevc_row.locator('.udp-address').input_value() == 'udp://@239.220.1.1:1234'
+            context.grant_permissions(['clipboard-read','clipboard-write'])
+            hevc_row.get_by_role('button', name='Copy UDP address for Paired HEVC', exact=True).click()
+            page.wait_for_function("() => document.getElementById('toast').textContent === 'UDP address copied.'")
+            assert page.evaluate('navigator.clipboard.readText()') == 'udp://@239.220.1.1:1234'
+            app.save_device(dict(record_type='iptv', name='Incomplete UDP channel', ip='239.220.1.7'))
+            page.locator('#refresh').click()
+            incomplete = page.locator('.device-row').filter(has=page.locator('.device-name').filter(has_text='Incomplete UDP channel'))
+            incomplete.wait_for()
+            assert incomplete.locator('.udp-address').input_value() == ''
+            assert incomplete.get_by_role('button', name='Copy UDP address for Incomplete UDP channel', exact=True).is_disabled()
+            page.locator('#device-tab').click()
+            assert page.locator('.udp-address').count() == 0
             assert not errors, errors
             browser.close()
             print('PASS: mobile create, all filters, validation, edit, export, delete, import, reload persistence; filtered/selected downloads across inventories; desktop/mobile overflow; no JS errors.')
