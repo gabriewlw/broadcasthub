@@ -103,6 +103,27 @@ class AppTests(unittest.TestCase):
             self.assertEqual(self.request(path)[0], 200)
         self.assertEqual(self.request('/../app.py')[0], 404)
 
+    def test_batch_delete_only_selected_ids_and_retry(self):
+        first = self.request('/api/devices', 'POST', EXAMPLE)[1]
+        second = self.request('/api/devices', 'POST', dict(name='Camera', venue='Theatre', ip='10.24.176.67'))[1]
+        keep = self.request('/api/devices', 'POST', dict(name='DSP', ip='10.24.176.68'))[1]
+        channel = self.request('/api/devices', 'POST', dict(record_type='iptv', name='Channel', ip='239.1.1.1', port=5000))[1]
+        payload = {'ids':[first['id'], second['id'], first['id'], 999999]}
+        self.assertEqual(self.request('/api/devices/batch-delete', 'POST', payload), (200, {'deleted':2}))
+        self.assertEqual({row['id'] for row in app.inventory()}, {keep['id'], channel['id']})
+        self.assertEqual(self.request('/api/devices/batch-delete', 'POST', payload), (200, {'deleted':0}))
+        self.assertEqual(self.request('/api/devices/batch-delete', 'POST', {'ids':[channel['id']]}), (200, {'deleted':1}))
+        self.assertEqual([row['id'] for row in app.inventory()], [keep['id']])
+
+    def test_invalid_batch_delete_is_atomic_and_cross_origin_rejected(self):
+        saved = self.request('/api/devices', 'POST', EXAMPLE)[1]
+        for payload in [{}, [], {'ids':[]}, {'ids':'all'}, {'ids':[saved['id'], False]}, {'ids':[saved['id'], '2']}, {'ids':[saved['id'], -1]}]:
+            with self.subTest(payload=payload):
+                self.assertEqual(self.request('/api/devices/batch-delete', 'POST', payload)[0], 400)
+                self.assertEqual([row['id'] for row in app.inventory()], [saved['id']])
+        self.assertEqual(self.request('/api/devices/batch-delete', 'POST', {'ids':[saved['id']]}, {'Content-Type':'application/json','Origin':'https://other.example'})[0], 403)
+        self.assertEqual([row['id'] for row in app.inventory()], [saved['id']])
+
 
 if __name__ == '__main__':
     unittest.main()

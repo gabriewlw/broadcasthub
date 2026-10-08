@@ -589,8 +589,8 @@ with tempfile.TemporaryDirectory() as temp:
             page.reload()
             page.locator('#venue-filter option[value="Main Lounge"]').wait_for(state='attached')
             assert page.get_by_role('combobox', name='System for Unassigned camera', exact=True).get_attribute('data-value') == 'Video'
-            assert page.locator('#directory-head span:not(.sr-only)').all_text_contents() == ['VENUE','DEVICE','IP','VLAN','SYSTEM','NOTES']
-            assert page.locator('.device-row').first.locator(':scope > div').evaluate_all('(nodes) => nodes.map(n => n.className)') == ['venue-cell','device-identity identity-cell','ip-cell','vlan-cell','system-cell','notes-cell','row-actions']
+            assert page.locator('#directory-head span:not(.sr-only)').all_text_contents() == ['DEVICE','VENUE','IP','VLAN','SYSTEM','NOTES']
+            assert page.locator('.device-row').first.locator(':scope > div').evaluate_all('(nodes) => nodes.map(n => n.className)') == ['device-identity identity-cell','venue-cell','ip-cell','vlan-cell','system-cell','notes-cell','row-actions']
             directory = page.locator('#device-directory')
             header_top = page.locator('#directory-head').evaluate('(node) => node.getBoundingClientRect().top')
             directory.evaluate('(node) => { node.scrollTop = 200; }')
@@ -876,6 +876,51 @@ with tempfile.TemporaryDirectory() as temp:
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
                 page.keyboard.press('Escape')
                 assert page.get_by_role('checkbox', name='Select equipment Export spare', exact=True).is_visible()
+            # Batch deletion previews hidden selections, supports cancellation, and
+            # removes only the confirmed IDs while keeping other inventories intact.
+            page.set_viewport_size({'width':1440,'height':1000})
+            assert page.locator('#equipment-rows .row-select').evaluate_all('(nodes) => {const x=document.getElementById("select-visible-equipment").getBoundingClientRect().left; return nodes.every(n=>Math.abs(n.getBoundingClientRect().left-x)<1);}')
+            for name, venue in [('Batch delete A','Batch lounge'), ('Batch delete B','Batch theatre'), ('Batch keep C','Batch theatre')]:
+                response = page.request.post(f'http://127.0.0.1:{server.server_port}/api/devices', data={'name':name,'venue':venue})
+                assert response.status == 201
+            page.get_by_role('tab', name='AV devices', exact=True).click()
+            page.locator('#refresh').click()
+            page.wait_for_function("() => !document.getElementById('refresh').disabled")
+            page.locator('#clear-filters').click()
+            page.locator('#clear-network-selection').click() if page.locator('#network-selection-summary').is_visible() else None
+            assert page.locator('.device-row .row-select').evaluate_all('(nodes) => {const x=document.getElementById("select-visible-devices").getBoundingClientRect().left; return nodes.every(n=>Math.abs(n.getBoundingClientRect().left-x)<1);}')
+            page.locator('#venue-filter').select_option('Batch lounge')
+            page.get_by_role('checkbox', name='Select Batch delete A', exact=True).check()
+            page.locator('#venue-filter').select_option('Batch theatre')
+            page.get_by_role('checkbox', name='Select Batch delete B', exact=True).check()
+            before = app.inventory()
+            page.locator('#delete-selected-devices').click()
+            assert page.locator('#batch-delete-title').inner_text() == 'Delete 2 devices?'
+            assert '1 selected record is outside' in page.locator('#batch-delete-description').inner_text()
+            assert page.locator('#batch-delete-list li').count() == 2
+            assert 'Batch keep C' not in page.locator('#batch-delete-list').inner_text()
+            page.locator('#cancel-batch-delete').click()
+            assert app.inventory() == before
+            page.locator('#delete-selected-devices').click()
+            page.locator('#confirm-batch-delete').click()
+            page.locator('#batch-delete-dialog').wait_for(state='hidden')
+            page.wait_for_function("() => !document.getElementById('confirm-batch-delete').disabled")
+            assert len(app.inventory()) == len(before)-2
+            assert not any(row['name'] in ['Batch delete A','Batch delete B'] for row in app.inventory())
+            assert any(row['name']=='Batch keep C' for row in app.inventory())
+            assert page.locator('#network-selection-summary').is_hidden()
+            page.get_by_role('tab', name='IPTV channels', exact=True).click()
+            if page.locator('#network-selection-summary').is_visible():
+                page.locator('#clear-network-selection').click()
+            page.locator('#search').fill('IPTV sort')
+            page.locator('#select-visible-devices').check()
+            page.locator('#delete-selected-devices').click()
+            assert page.locator('#batch-delete-title').inner_text() == 'Delete 2 channels?'
+            page.locator('#confirm-batch-delete').click()
+            page.locator('#batch-delete-dialog').wait_for(state='hidden')
+            page.wait_for_function("() => !document.getElementById('confirm-batch-delete').disabled")
+            assert not any(row['name'].startswith('IPTV sort') for row in app.inventory())
+            assert any(row['name']=='Batch keep C' for row in app.inventory())
             assert not errors, errors
             browser.close()
             print('PASS: mobile create, all filters, validation, edit, export, delete, import, reload persistence; filtered/selected downloads across inventories; desktop/mobile overflow; no JS errors.')

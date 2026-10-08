@@ -30,6 +30,7 @@ mobileNavigation.addEventListener('change', () => setNavigationOpen(false, mainN
 let devices = [], editing = null, deleting = null, timer, currentTab = 'device';
 let visibleDevices = [];
 const networkSelections = {device:new Set(), iptv:new Set()};
+let batchDeletingIds = [];
 let importWarnings = [];
 const pendingNoteSaves = new Map();
 const pendingWrites = new Set();
@@ -332,6 +333,7 @@ function updateNetworkSelection() {
   check.setAttribute('aria-label', `Select all visible ${currentTab === 'iptv' ? 'channels' : 'devices'}`);
   $('device-list').querySelectorAll('.row-select').forEach(checkbox => { checkbox.checked = selected.has(Number(checkbox.dataset.recordId)); });
   $('network-selection-summary').hidden = !selected.size;
+  $('delete-selected-devices').disabled = !selected.size;
   $('network-selection-count').textContent = `${selected.size} selected${selected.size > visibleSelected ? ` · ${selected.size - visibleSelected} outside current filters` : ''}`;
   updateExportScope('network-export-scope', visibleDevices.length, selected.size, devices.length);
 }
@@ -342,6 +344,35 @@ $('select-visible-devices').onchange = event => {
   updateNetworkSelection();
 };
 $('clear-network-selection').onclick = () => { networkSelections[currentTab].clear(); updateNetworkSelection(); };
+$('delete-selected-devices').onclick = () => {
+  const selected = tabDevices().filter(row => networkSelections[currentTab].has(row.id));
+  if (!selected.length) return;
+  batchDeletingIds = selected.map(row => row.id);
+  const hiddenCount = selected.filter(row => !visibleDevices.some(visible => visible.id === row.id)).length;
+  const type = currentTab === 'iptv' ? 'channel' : 'device';
+  $('batch-delete-title').textContent = `Delete ${selected.length} ${type}${selected.length === 1 ? '' : 's'}?`;
+  $('batch-delete-description').textContent = `This permanently removes the selected records from the shared inventory.${hiddenCount ? ` ${hiddenCount} selected ${hiddenCount === 1 ? 'record is' : 'records are'} outside the current filters.` : ''}`;
+  $('batch-delete-list').replaceChildren(...selected.map(row => element('li', '', [deviceLabel(row), row.venue, row.ip].filter(Boolean).join(' · '))));
+  $('confirm-batch-delete').textContent = `Delete ${selected.length} ${type}${selected.length === 1 ? '' : 's'}`;
+  $('batch-delete-error').hidden = true;
+  $('batch-delete-dialog').showModal(); $('cancel-batch-delete').focus();
+};
+$('cancel-batch-delete').onclick = () => $('batch-delete-dialog').close();
+$('confirm-batch-delete').onclick = async () => {
+  const ids = [...batchDeletingIds];
+  $('confirm-batch-delete').disabled = true;
+  $('cancel-batch-delete').disabled = true;
+  try {
+    await Promise.allSettled([...pendingNoteSaves.values(), ...pendingWrites]);
+    const result = await api('/api/devices/batch-delete', 'POST', {ids});
+    for (const selected of Object.values(networkSelections)) ids.forEach(id => selected.delete(id));
+    $('batch-delete-dialog').close(); toast(`${result.deleted} ${result.deleted === 1 ? 'record' : 'records'} deleted.`); await load();
+  } catch(error) { $('batch-delete-error').textContent = error.message; $('batch-delete-error').hidden = false; }
+  finally { $('confirm-batch-delete').disabled = false; $('cancel-batch-delete').disabled = false; }
+};
+$('batch-delete-dialog').addEventListener('cancel', event => {
+  if ($('confirm-batch-delete').disabled) event.preventDefault();
+});
 document.querySelectorAll('.export-dropdown').forEach(menu => {
   menu.addEventListener('toggle', () => {
     if (menu.open) document.querySelectorAll('.export-dropdown').forEach(other => { if (other !== menu) other.open = false; });
@@ -521,8 +552,9 @@ function render() {
     const remove = element('button', 'quiet', 'Delete'); remove.setAttribute('aria-label', `Delete ${deviceLabel(device)}`);
     remove.onclick = () => { deleting = device; $('delete-description').textContent = `${device.name} · ${device.ip} · ${iptv ? 'Port ' + (device.port || 'not set') : 'VLAN ' + device.vlan}`; $('delete-error').hidden = true; $('delete-dialog').showModal(); $('cancel-delete').focus(); };
     actions.append(edit,remove);
+    row.append(identity);
     if (!iptv) row.append(venue);
-    row.append(identity,ip);
+    row.append(ip);
     if (!iptv) row.append(element('div', 'vlan-cell', device.vlan ?? ''));
     row.append(system,notesCell,actions); return row;
   });

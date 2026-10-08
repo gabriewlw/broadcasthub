@@ -498,6 +498,14 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(201, save_equipment(self.body()))
         elif self.command == 'POST' and path == '/api/equipment/import':
             return self.send(200, import_equipment(self.body()))
+        elif self.command == 'POST' and path == '/api/devices/batch-delete':
+            payload = self.body()
+            ids = payload.get('ids') if isinstance(payload, dict) else None
+            if not isinstance(ids, list) or not ids or len(ids) > 10000 or any(type(value) is not int or value < 1 for value in ids):
+                raise ValueError('Choose between 1 and 10,000 device IDs, using positive whole numbers.')
+            with connect() as con:
+                deleted = con.executemany('DELETE FROM devices WHERE id=?', ((value,) for value in dict.fromkeys(ids))).rowcount
+            return self.send(200, {'deleted': deleted})
         elif self.command in ('PUT','DELETE') and path.startswith('/api/equipment/'):
             try:
                 item_id = int(path.removeprefix('/api/equipment/'))

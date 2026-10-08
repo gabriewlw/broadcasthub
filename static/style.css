@@ -270,6 +270,8 @@ textarea { resize: vertical; }
 @media (max-width: 600px) {
   .brand { font-size: 10px; letter-spacing: 1.7px; }
   .inventory-tabs button { padding: 12px 9px; font-size: 11px; }
+}
+@media (max-width: 900px) {
   #equipment-table, #equipment-table tbody { display: block; background: transparent; }
   #equipment-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
   #equipment-table tr { display: block; padding: 12px 16px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); margin-bottom: 12px; }
@@ -286,8 +288,18 @@ textarea { resize: vertical; }
 #equipment-table th, #equipment-table td { border-right: 1px solid #373b44; }
 #equipment-table th:last-child, #equipment-table td:last-child { border-right: 0; }
 #equipment-table th { background: #1b1e24; }
-@media (min-width: 601px) { #equipment-table { min-width: 1050px; } }
-@media (max-width: 600px) {
+@media (min-width: 901px) {
+  #equipment-table th { vertical-align: middle; overflow-wrap: anywhere; }
+  #equipment-table th:nth-child(1) { width: 14%; }
+  #equipment-table th:nth-child(2) { width: 12%; }
+  #equipment-table th:nth-child(3) { width: 16%; }
+  #equipment-table th:nth-child(4) { width: 13%; }
+  #equipment-table th:nth-child(5) { width: 7%; }
+  #equipment-table th:nth-child(6) { width: 14%; }
+  #equipment-table th:nth-child(7) { width: 15%; }
+  #equipment-table th:nth-child(8) { width: 9%; }
+}
+@media (max-width: 900px) {
   #equipment-table td { display: block; padding: 12px; margin: 8px 0; border: 1px solid #373b44; border-radius: 5px; background: #101318; }
   #equipment-table td::before { display: block; padding: 0 0 8px; }
   #equipment-table td.equipment-actions { border: 0; background: transparent; padding: 6px 0; }
@@ -313,7 +325,7 @@ textarea { resize: vertical; }
 #row-review-dialog{width:min(1000px,calc(100vw - 32px));max-width:1000px}.review-line-scroll{overflow-x:auto;padding-bottom:10px}.review-line{display:grid;grid-template-columns:repeat(var(--review-columns,4),minmax(140px,1fr));gap:12px}.review-line label{min-width:0;font-size:12px}.review-line input,.review-line select,.review-line textarea{display:block;width:100%;margin-top:8px;min-height:44px;font-size:13px}.review-ip-actions{display:flex;gap:6px;margin-top:8px}.review-ip-actions button{min-height:44px;padding:8px 10px;font-size:12px}.review-scroll-hint{display:none;color:var(--muted);font-size:12px}@media(max-width:650px){.review-scroll-hint{display:block}}
 
 /* A shared grid keeps every heading aligned with the directory values. */
-.device-directory{--directory-columns:130px minmax(170px,1.2fr) 230px 75px 130px minmax(140px,.8fr) 104px;max-height:70vh;overflow:auto;position:relative;border:1px solid var(--border);border-radius:8px;margin-top:20px;scroll-padding-top:48px;background:var(--panel)}
+.device-directory{--directory-columns:minmax(170px,1.2fr) 130px 230px 75px 130px minmax(140px,.8fr) 104px;max-height:70vh;overflow:auto;position:relative;border:1px solid var(--border);border-radius:8px;margin-top:20px;scroll-padding-top:48px;background:var(--panel)}
 .device-directory.iptv-directory{--directory-columns:minmax(210px,1.4fr) 180px 145px minmax(180px,.8fr) 108px}
 .directory-head,.device-directory .device-row{display:grid;grid-template-columns:var(--directory-columns);gap:0;min-width:1010px;align-items:start;padding:0;border:0;border-radius:0}
 .directory-head{position:sticky;top:0;z-index:2;background:#1c2027;border-bottom:1px solid #373b44;font:600 11px var(--font-ui);letter-spacing:1px;color:#c4c7cf}
@@ -421,5 +433,9 @@ input.row-select{width:18px;height:18px;min-height:18px;margin:0;padding:0;flex-
 #equipment-table .selection-heading{padding:0}
 .equipment-brand-value{display:flex;align-items:center;gap:6px}
 .equipment-brand-value>span{min-width:0;overflow-wrap:anywhere}
-.selection-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;color:var(--muted);font-size:11px}
+.selection-summary{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;color:var(--muted);font-size:11px}
 .selection-summary button{min-height:32px;padding:6px 8px;font-size:11px}
+
+.selection-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.batch-delete-list{max-height:240px;overflow-y:auto;padding-left:22px;font-size:12px;line-height:1.8;overflow-wrap:anywhere}
+.selection-heading input.row-select{margin-inline:3px}
