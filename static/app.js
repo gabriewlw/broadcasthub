@@ -445,6 +445,33 @@ async function load() {
     return false;
   } finally { $('loading').hidden = true; $('refresh').disabled = false; }
 }
+function udpCell(device) {
+  const cell = element('div', 'udp-cell');
+  const field = element('div', 'udp-field');
+  const input = element('input', 'udp-address');
+  input.type = 'text'; input.readOnly = true; input.spellcheck = false;
+  input.value = device.ip && !isDHCP(device.ip) && device.port ? `udp://@${device.ip}:${device.port}` : '';
+  input.setAttribute('aria-label', `UDP address for ${deviceLabel(device)}`);
+  input.onfocus = () => input.select();
+  input.onclick = input.ondblclick = () => requestAnimationFrame(() => input.select());
+  const copy = element('button', 'quiet udp-copy');
+  copy.type = 'button'; copy.disabled = !input.value;
+  copy.setAttribute('aria-label', `Copy UDP address for ${deviceLabel(device)}`);
+  copy.title = 'Copy UDP address';
+  copy.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>';
+  copy.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(input.value);
+      toast('UDP address copied.');
+    } catch {
+      input.focus(); input.select();
+      let copied = false;
+      try { copied = document.execCommand('copy'); } catch {}
+      toast(copied ? 'UDP address copied.' : 'UDP address selected. Copy it using your browser’s menu.');
+    }
+  };
+  field.append(input, copy); cell.append(field); return cell;
+}
 function render() {
   if (currentTab === 'equipment') return;
   closeSystemMenu();
@@ -452,6 +479,7 @@ function render() {
   $('device-directory').classList.toggle('iptv-directory', iptvDirectory);
   $('directory-venue-title').hidden = iptvDirectory;
   $('directory-vlan-title').hidden = iptvDirectory;
+  $('directory-udp-title').hidden = !iptvDirectory;
   $('directory-device-title').textContent = iptvDirectory ? 'CHANNEL' : 'DEVICE';
   $('directory-system-title').textContent = iptvDirectory ? 'SOURCE' : 'SYSTEM';
   $('venue-filter').classList.remove('venue-choice');
@@ -560,6 +588,7 @@ function render() {
     row.append(identity);
     if (!iptv) row.append(venue);
     row.append(ip);
+    if (iptv) row.append(udpCell(device));
     if (!iptv) row.append(element('div', 'vlan-cell', device.vlan ?? ''));
     row.append(system,notesCell,actions); return row;
   });
@@ -671,6 +700,16 @@ function channelSourceFromName(name) {
   if (['espn','national geographic','nat geo'].some(keyword => text.includes(keyword))) return 'Satellite';
   return '';
 }
+function channelCodecIPs(rows) {
+  return new Set(rows.filter(row => row.record_type === 'iptv' && Number(row.port) === 2000 && importAddressKey(row)).map(row => row.ip.trim()));
+}
+function channelNotesWithCodec(row, codecIPs) {
+  const notes = row.notes || '';
+  const codec = Number(row.port) === 2000 ? 'H.264'
+    : Number(row.port) === 1234 && importAddressKey(row) && codecIPs.has(row.ip.trim()) ? 'H.265' : '';
+  if (!codec || new RegExp(`\\b${codec.replace('.', '\\.')}\\b`, 'i').test(notes)) return notes;
+  return notes ? `${notes} · ${codec}` : codec;
+}
 const importFields = () => currentTab === 'equipment' ? equipmentImportFields : currentTab === 'device'
   ? networkImportFields.filter(([field]) => ['venue','name','ip','vlan','notes'].includes(field))
   : iptvImportFields;
@@ -727,6 +766,10 @@ function showVenueEditors() {
 }
 function showSpreadsheetPreview() {
   const rows = mappedRows();
+  if (currentTab === 'iptv') {
+    const codecIPs = channelCodecIPs([...devices, ...rows]);
+    rows.forEach(row => { row.notes = channelNotesWithCodec(row, codecIPs); });
+  }
   $('spreadsheet-preview').replaceChildren(...rows.slice(0,3).map((row, index) => {
     const card = element('div', 'spreadsheet-preview-row');
     if (currentTab === 'equipment') {
@@ -852,6 +895,19 @@ function reviewImportRow(entry, index, total, tab, knownAddresses) {
       controls.get('name').addEventListener('input', () => {
         if (!sourceEdited) source.value = channelSourceFromName(controls.get('name').value);
       });
+      const codecIPs = channelCodecIPs(mappedRows().filter((row, index) => spreadsheetData.row_numbers[index] !== entry.number));
+      knownAddresses.forEach(key => {
+        if (key.startsWith('iptv:') && key.endsWith(':2000')) codecIPs.add(key.split(':')[1]);
+      });
+      const notes = controls.get('notes');
+      let notesEdited = false;
+      notes.addEventListener('input', () => { notesEdited = true; });
+      const updateCodecNotes = () => {
+        if (!notesEdited) notes.value = channelNotesWithCodec({record_type:'iptv', ip:controls.get('ip').value.trim(), port:controls.get('port').value.trim(), notes:entry.row.notes}, codecIPs);
+      };
+      controls.get('ip').addEventListener('input', updateCodecNotes);
+      controls.get('port').addEventListener('input', updateCodecNotes);
+      updateCodecNotes();
     }
     if (equipment) $('row-review-ip-hint').hidden = true;
     $('accept-review-row').onclick = async () => {
