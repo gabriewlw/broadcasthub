@@ -336,7 +336,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('tab', name='Equipment inventory', exact=True).click()
             page.get_by_role('button', name='Edit equipment Neutrik XLR').wait_for()
             assert page.locator('#equipment-rows tr').count() == 2
-            assert 'Broadcast Hub' in page.title()
+            assert 'avtrack' in page.title()
             # Requested CSV workflow: prioritize exact headers, clean venues,
             # skip repeated IPs across VLANs, and keep devices with text VLANs.
             page.get_by_role('tab', name='AV devices', exact=True).click()
@@ -623,10 +623,11 @@ with tempfile.TemporaryDirectory() as temp:
             assert 'DM Sans' in page.locator('body').evaluate('(node) => getComputedStyle(node).fontFamily')
             for family in ['Space Grotesk','DM Sans','JetBrains Mono']:
                 assert page.evaluate('name => document.fonts.check(`12px "${name}"`) && Array.from(document.fonts).some(font => font.family.includes(name) && font.status === "loaded")', family)
-            assert brand.inner_text() == 'BROADCAST HUB'
+            assert brand.inner_text() == 'avtrack'
             assert brand.evaluate('(node) => getComputedStyle(node).animationName') == 'none'
-            assert page.locator('.topbar .brand-logo').get_attribute('src') == '/brand-logo.png'
-            assert page.locator('.topbar .brand-logo').evaluate('(image) => image.complete && image.naturalWidth > 0')
+            assert page.locator('.topbar .brand-logo').inner_text() == 'avtrack'
+            assert 'Space Grotesk' in page.locator('.topbar .brand-logo').evaluate('(node) => getComputedStyle(node).fontFamily')
+            assert page.locator('link[rel=icon]').get_attribute('href') == '/favicon.svg'
             assert not page.locator('.topbar .brand-word').count()
             assert page.locator('.topbar .record-o').count() == 0
             assert not page.locator('.site-footer .record-o').count()
@@ -670,7 +671,7 @@ with tempfile.TemporaryDirectory() as temp:
             open_export_menu('inventory')
             with page.expect_download() as download:
                 page.locator('#inventory').get_by_role('link', name='XLSX ↓', exact=True).click()
-            assert download.value.suggested_filename == 'broadcast-network.xlsx'
+            assert download.value.suggested_filename == 'avtrack-av-devices.xlsx'
             workbook = load_workbook(io.BytesIO(Path(download.value.path()).read_bytes()))
             assert workbook.sheetnames == ['AV devices']
             exported = next(row for row in list(workbook['AV devices'].values)[1:] if row[1] == 'Unassigned camera')
@@ -678,14 +679,14 @@ with tempfile.TemporaryDirectory() as temp:
             open_export_menu('inventory')
             with page.expect_download() as download:
                 page.locator('#inventory').get_by_role('link', name='PDF ↓', exact=True).click()
-            assert download.value.suggested_filename == 'broadcast-network.pdf'
+            assert download.value.suggested_filename == 'avtrack-av-devices.pdf'
             assert Path(download.value.path()).read_bytes().startswith(b'%PDF-')
             page.get_by_role('tab', name='Equipment inventory', exact=True).click()
             for extension, label in [('xlsx','XLSX ↓'), ('pdf','PDF ↓')]:
                 open_export_menu('equipment-panel')
                 with page.expect_download() as download:
                     page.locator('#equipment-panel').get_by_role('link', name=label, exact=True).click()
-                assert download.value.suggested_filename == f'broadcast-equipment.{extension}'
+                assert download.value.suggested_filename == f'avtrack-equipment.{extension}'
                 data = Path(download.value.path()).read_bytes()
                 assert data.startswith(b'PK') if extension == 'xlsx' else data.startswith(b'%PDF-')
             # Numeric address ordering, missing values, system groups, and per-tab order.
@@ -814,6 +815,9 @@ with tempfile.TemporaryDirectory() as temp:
                 open_export_menu(panel, scope)
                 with page.expect_download() as download:
                     page.locator('#'+panel).get_by_role('link', name=label, exact=True).click()
+                extension = {'JSON ↓':'json','CSV ↓':'csv','XLSX ↓':'xlsx','PDF ↓':'pdf'}[label]
+                prefix = 'equipment' if panel == 'equipment-panel' else ('iptv-channels' if page.locator('#iptv-tab').get_attribute('aria-selected') == 'true' else 'av-devices')
+                assert download.value.suggested_filename == f'avtrack-{prefix}.{extension}'
                 return Path(download.value.path()).read_bytes()
 
             raw = scoped_download('inventory', 'JSON ↓', 'filtered')

@@ -1,4 +1,4 @@
-"""Broadcast Hub server. Python 3.12+; install requirements.txt for Excel import."""
+"""avtrack server. Python 3.12+; install requirements.txt for Excel import."""
 import csv
 import io
 import ipaddress
@@ -14,7 +14,7 @@ from exports import network_xlsx, equipment_xlsx, network_pdf, equipment_pdf
 
 ROOT = Path(__file__).resolve().parent
 # Keep existing hosted database configurations working during the project rename.
-DB_PATH = Path(os.environ.get('BROADCASTHUB_DB') or os.environ.get('IPTRACKING_DB') or ROOT / 'data' / 'inventory.sqlite3')
+DB_PATH = Path(os.environ.get('AVTRACK_DB') or os.environ.get('BROADCASTHUB_DB') or os.environ.get('IPTRACKING_DB') or ROOT / 'data' / 'inventory.sqlite3')
 DISCIPLINES = {'Video', 'Audio', 'Lighting', 'Control', 'Network', 'Other'}
 SYSTEM_NAME_RULES = (
     ('audio', 'Audio'), ('amx', 'Control'), ('scheduler', 'Control'), ('dsp', 'Audio'),
@@ -273,7 +273,7 @@ def system_from_name(name):
 
 def import_devices(payload):
     if not isinstance(payload, dict) or payload.get('version') != 1 or not isinstance(payload.get('devices'), list):
-        raise ValueError('Choose a Broadcast Hub network JSON export (version 1).')
+        raise ValueError('Choose an avtrack network JSON export (version 1).')
     if len(payload['devices']) > 10000:
         raise ValueError('Import supports up to 10,000 devices per file.')
     spreadsheet = payload.get('source') == 'spreadsheet'
@@ -382,7 +382,7 @@ def equipment_identity(row):
 
 def import_equipment(payload):
     if not isinstance(payload, dict) or payload.get('version') != 1 or not isinstance(payload.get('equipment'), list):
-        raise ValueError('Choose a Broadcast Hub equipment JSON export.')
+        raise ValueError('Choose an avtrack equipment JSON export.')
     if len(payload['equipment']) > 10000:
         raise ValueError('Import supports up to 10,000 inventory items.')
     rows = []
@@ -471,14 +471,14 @@ class Handler(BaseHTTPRequestHandler):
     def dispatch(self):
         path = urlsplit(self.path).path
         exports = {
-            '/api/export': (lambda rows: {'version':1, 'devices':rows}, inventory, 'application/json; charset=utf-8', 'broadcast-network.json'),
-            '/api/export.csv': (network_csv, inventory, 'text/csv; charset=utf-8', 'broadcast-network.csv'),
-            '/api/export.xlsx': (network_xlsx, inventory, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'broadcast-network.xlsx'),
-            '/api/export.pdf': (network_pdf, inventory, 'application/pdf', 'broadcast-network.pdf'),
-            '/api/equipment/export': (lambda rows: {'version':1, 'equipment':rows}, equipment_inventory, 'application/json; charset=utf-8', 'broadcast-equipment.json'),
-            '/api/equipment/export.csv': (equipment_csv, equipment_inventory, 'text/csv; charset=utf-8', 'broadcast-equipment.csv'),
-            '/api/equipment/export.xlsx': (equipment_xlsx, equipment_inventory, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'broadcast-equipment.xlsx'),
-            '/api/equipment/export.pdf': (equipment_pdf, equipment_inventory, 'application/pdf', 'broadcast-equipment.pdf'),
+            '/api/export': (lambda rows: {'version':1, 'devices':rows}, inventory, 'application/json; charset=utf-8', 'avtrack-network.json'),
+            '/api/export.csv': (network_csv, inventory, 'text/csv; charset=utf-8', 'avtrack-network.csv'),
+            '/api/export.xlsx': (network_xlsx, inventory, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'avtrack-network.xlsx'),
+            '/api/export.pdf': (network_pdf, inventory, 'application/pdf', 'avtrack-network.pdf'),
+            '/api/equipment/export': (lambda rows: {'version':1, 'equipment':rows}, equipment_inventory, 'application/json; charset=utf-8', 'avtrack-equipment.json'),
+            '/api/equipment/export.csv': (equipment_csv, equipment_inventory, 'text/csv; charset=utf-8', 'avtrack-equipment.csv'),
+            '/api/equipment/export.xlsx': (equipment_xlsx, equipment_inventory, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'avtrack-equipment.xlsx'),
+            '/api/equipment/export.pdf': (equipment_pdf, equipment_inventory, 'application/pdf', 'avtrack-equipment.pdf'),
         }
         if self.command in ('GET', 'POST') and path in exports:
             payload = self.body() if self.command == 'POST' else None
@@ -502,6 +502,9 @@ class Handler(BaseHTTPRequestHandler):
                         rows = selected_export_rows(rows, payload)
                 else:
                     rows = selected_export_rows(rows, payload)
+            if record_type:
+                suffix = filename.rsplit('.', 1)[1]
+                filename = f'avtrack-{"av-devices" if record_type == "device" else "iptv-channels"}.{suffix}'
             if record_type and generate in (network_pdf, network_xlsx):
                 return self.send(200, generate(rows, record_type=record_type), mime, filename)
             return self.send(200, generate(rows), mime, filename)
@@ -510,7 +513,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, {'equipment': equipment_inventory()})
             if path == '/api/devices':
                 return self.send(200, {'devices': inventory()})
-            assets = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css'), '/equipment.js': ('equipment.js', 'text/javascript'), '/icon.svg': ('icon.svg', 'image/svg+xml'), '/brand-logo.png': ('brand-logo.png', 'image/png'), '/example-switcher.png': ('example-switcher.png', 'image/png'), '/fonts/Poppins-Regular.woff2': ('fonts/Poppins-Regular.woff2', 'font/woff2'), '/fonts/Poppins-Medium.woff2': ('fonts/Poppins-Medium.woff2', 'font/woff2'), '/fonts/Poppins-SemiBold.woff2': ('fonts/Poppins-SemiBold.woff2', 'font/woff2'), '/fonts/Poppins-Bold.woff2': ('fonts/Poppins-Bold.woff2', 'font/woff2')}
+            assets = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css'), '/equipment.js': ('equipment.js', 'text/javascript'), '/icon.svg': ('icon.svg', 'image/svg+xml'), '/favicon.svg': ('favicon.svg', 'image/svg+xml'), '/example-switcher.png': ('example-switcher.png', 'image/png'), '/fonts/Poppins-Regular.woff2': ('fonts/Poppins-Regular.woff2', 'font/woff2'), '/fonts/Poppins-Medium.woff2': ('fonts/Poppins-Medium.woff2', 'font/woff2'), '/fonts/Poppins-SemiBold.woff2': ('fonts/Poppins-SemiBold.woff2', 'font/woff2'), '/fonts/Poppins-Bold.woff2': ('fonts/Poppins-Bold.woff2', 'font/woff2')}
             assets.update({f'/fonts/{family}-Variable.woff2': (f'fonts/{family}-Variable.woff2', 'font/woff2')
                            for family in ('SpaceGrotesk', 'DMSans', 'JetBrainsMono')})
             if path in assets:
@@ -602,5 +605,5 @@ if __name__ == '__main__':
         pass
     host = os.environ.get('HOST', '127.0.0.1')
     port = int(os.environ.get('PORT', '8000'))
-    print(f'Broadcast Hub listening on {host}:{port}', flush=True)
+    print(f'avtrack listening on {host}:{port}', flush=True)
     ThreadingHTTPServer((host, port), Handler).serve_forever()
