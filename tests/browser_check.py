@@ -336,7 +336,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('tab', name='Equipment inventory', exact=True).click()
             page.get_by_role('button', name='Edit equipment Neutrik XLR').wait_for()
             assert page.locator('#equipment-rows tr').count() == 2
-            assert page.title() == 'AV & IPTV and device management'
+            assert page.title() == 'avtrack - AV & IPTV and device management'
             # Requested CSV workflow: prioritize exact headers, clean venues,
             # skip repeated IPs across VLANs, and keep devices with text VLANs.
             page.get_by_role('tab', name='AV devices', exact=True).click()
