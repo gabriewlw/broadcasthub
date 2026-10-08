@@ -403,6 +403,7 @@ document.querySelectorAll('.export-links a[download]').forEach(link => {
     link.setAttribute('aria-disabled', 'true');
     try {
       const equipment = link.closest('#equipment-panel') !== null;
+      const exportInventory = equipment ? window.equipmentUI.currentInventory() : null;
       const recordType = currentTab;
       const scope = $(equipment ? 'equipment-export-scope' : 'network-export-scope').value;
       let exportRows = scope === 'selected' ? visibleDevices.filter(row => networkSelections[currentTab]?.has(row.id)) : visibleDevices;
@@ -411,16 +412,22 @@ document.querySelectorAll('.export-links a[download]').forEach(link => {
       if (document.activeElement?.matches('.device-notes-editor')) document.activeElement.blur();
       await Promise.all([...pendingNoteSaves.values(), ...pendingWrites]);
       if (equipment) await window.equipmentUI.flush();
-      const ids = equipment ? window.equipmentUI.exportIds(scope) : exportRows.map(row => row.id);
-      const payload = equipment ? {ids} : {record_type:recordType, ...(scope === 'all' ? {} : {ids})};
-      const response = await fetch(link.href, equipment && scope === 'all' ? {} : {
+      if (equipment && window.equipmentUI.currentInventory().id !== exportInventory.id) throw new Error('The inventory changed. Choose the export again.');
+      const equipmentExport = equipment ? window.equipmentUI.exportData(scope) : null;
+      const ids = equipment ? equipmentExport.ids : exportRows.map(row => row.id);
+      const payload = equipment ? {ids, inventory_id:equipmentExport.inventory_id} : {record_type:recordType, ...(scope === 'all' ? {} : {ids})};
+      const exportURL = new URL(link.href);
+      if (equipment && scope === 'all') exportURL.searchParams.set('inventory_id', equipmentExport.inventory_id);
+      const response = await fetch(exportURL, equipment && scope === 'all' ? {} : {
         method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
       });
       if (!response.ok) throw new Error((await response.json()).error || 'Could not export inventory.');
       const url = URL.createObjectURL(await response.blob());
       const download = element('a'); download.href = url;
       const extension = new URL(link.href).pathname.split('.').pop();
-      download.download = `broadcasthub-${equipment ? 'equipment' : recordType === 'iptv' ? 'iptv-channels' : 'av-devices'}.${['csv','xlsx','pdf'].includes(extension) ? extension : 'json'}`;
+      let inventoryFilename = equipment ? equipmentExport.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'equipment' : '';
+      if (equipment && equipmentExport.inventory_id === 1 && equipmentExport.name === 'Equipment inventory') inventoryFilename = 'equipment';
+      download.download = `broadcasthub-${equipment ? inventoryFilename : recordType === 'iptv' ? 'iptv-channels' : 'av-devices'}.${['csv','xlsx','pdf'].includes(extension) ? extension : 'json'}`;
       document.body.append(download); download.click(); download.remove();
       setTimeout(() => URL.revokeObjectURL(url), 30000);
     } catch(error) { toast('Export failed: ' + error.message); }
@@ -679,6 +686,7 @@ $('confirm-delete').onclick = async () => {
   finally { $('confirm-delete').disabled = false; }
 };
 let spreadsheetFile = null, spreadsheetData = null;
+let spreadsheetInventory = null;
 let spreadsheetReviewing = false, stopSpreadsheetReview = false;
 let venueEdits = new Map();
 const networkImportFields = [
@@ -826,7 +834,7 @@ async function loadSpreadsheet() {
     $('sheet-label').hidden = !data.sheets.length;
     $('sheet-choice').replaceChildren(...data.sheets.map(sheet => new Option(sheet, sheet)));
     $('sheet-choice').value = data.sheet;
-    $('spreadsheet-summary').textContent = `${spreadsheetFile.filename} · ${data.rows.length} records`;
+    $('spreadsheet-summary').textContent = `${spreadsheetFile.filename} · ${data.rows.length} records${spreadsheetInventory ? ' · Inventory: ' + spreadsheetInventory.name : ''}`;
     if (data.ignored_columns?.length) $('spreadsheet-summary').textContent += ` · Ignored columns: ${data.ignored_columns.join(', ')}`;
     $('column-mappings').replaceChildren(...importFields().map(([field, label, aliases]) => {
       const group = element('div', 'mapping-row');
@@ -881,12 +889,12 @@ function endRowReview(result) {
 $('stop-row-review').onclick = $('cancel-row-review').onclick = () => endRowReview(null);
 $('skip-review-row').onclick = () => endRowReview({skippedRow:true});
 $('row-review-dialog').addEventListener('cancel', event => { event.preventDefault(); endRowReview(null); });
-function reviewImportRow(entry, index, total, tab, knownAddresses) {
+function reviewImportRow(entry, index, total, tab, knownAddresses, inventory = null) {
   return new Promise(resolve => {
     finishRowReview = resolve;
     const equipment = tab === 'equipment';
     $('row-review-title').textContent = equipment ? 'Import this equipment?' : tab === 'iptv' ? 'Import this channel?' : 'Import this device?';
-    $('row-review-progress').textContent = `Row ${entry.number} · ${index + 1} of ${total} · ${spreadsheetFile.filename}`;
+    $('row-review-progress').textContent = `Row ${entry.number} · ${index + 1} of ${total} · ${spreadsheetFile.filename}${inventory ? ' · Inventory: ' + inventory.name : ''}`;
     $('row-review-error').hidden = true;
     $('row-review-ip-hint').textContent = tab === 'iptv'
       ? 'There is text in the Multicast IP field. Enter an IPv4 address, leave the field blank, or skip this row.'
@@ -963,7 +971,7 @@ function reviewImportRow(entry, index, total, tab, knownAddresses) {
       let result;
       try {
         result = await api(equipment ? '/api/equipment/import' : '/api/import', 'POST', equipment
-          ? {version:1,equipment:[row]}
+          ? {version:1,inventory_id:inventory.id,equipment:[row]}
           : {version:1,devices:[row],source:'spreadsheet',row_numbers:[entry.number]});
         if (result.added && addressKey) knownAddresses.add(addressKey);
       } catch(error) {
@@ -995,7 +1003,7 @@ $('spreadsheet-form').onsubmit = async event => {
       const addressKey = tab === 'equipment' ? null : importAddressKey(entries[index].row);
       const result = addressKey && knownAddresses.has(addressKey)
         ? skippedDuplicateImport(entries[index])
-        : await reviewImportRow(entries[index], index, entries.length, tab, knownAddresses);
+        : await reviewImportRow(entries[index], index, entries.length, tab, knownAddresses, spreadsheetInventory);
       if (result === null) { stopped = true; break; }
       if (result.skippedRow) skipped++;
       else {
@@ -1015,12 +1023,15 @@ $('import-file').onchange = async event => {
   const file = event.target.files[0]; if (!file) return;
   $('import').disabled = true;
   try {
+    const importTab = currentTab;
+    const importInventory = importTab === 'equipment' ? await window.equipmentUI.waitUntilReady() : null;
     if (file.size > 5_000_000) throw new Error('Choose a file smaller than 5 MB.');
     if (/\.(xlsx|csv)$/i.test(file.name)) {
       const content = await new Promise((resolve, reject) => {
         const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = () => reject(new Error('Could not read file.')); reader.readAsDataURL(file);
       });
       spreadsheetFile = {filename:file.name, content};
+      spreadsheetInventory = importInventory;
       spreadsheetData = null; venueEdits = new Map(); $('import-venue-editor').hidden = true;
       $('import-venue-list').replaceChildren(); $('header-row').value = '1'; $('sheet-choice').replaceChildren();
       $('column-mappings').replaceChildren(); $('spreadsheet-preview').replaceChildren();
@@ -1028,7 +1039,9 @@ $('import-file').onchange = async event => {
       $('spreadsheet-dialog').showModal();
       await loadSpreadsheet();
     } else if (/\.json$/i.test(file.name)) {
-      const result = await api(currentTab === 'equipment' ? '/api/equipment/import' : '/api/import', 'POST', JSON.parse(await file.text()));
+      const payload = JSON.parse(await file.text());
+      if (importInventory && payload && typeof payload === 'object' && !Array.isArray(payload)) payload.inventory_id = importInventory.id;
+      const result = await api(importTab === 'equipment' ? '/api/equipment/import' : '/api/import', 'POST', payload);
       if (currentTab === 'device') importWarnings = result.warnings || [];
       toast(`Imported ${result.added} records. Skipped ${result.skipped} existing assignments.`);
       await load();

@@ -59,7 +59,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert nav_toggle.get_attribute('aria-expanded') == 'false'
             nav_toggle.focus(); nav_toggle.press('Enter')
             assert navigation.is_visible()
-            assert navigation.get_by_role('link', name='Devices', exact=True).is_visible()
+            assert navigation.get_by_role('link', name='Inventory', exact=True).is_visible()
             nav_toggle.press('Tab')
             assert navigation.get_by_role('link', name='Workspace', exact=True).evaluate('(node) => node === document.activeElement')
             page.keyboard.press('Escape')
@@ -69,7 +69,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#hero-intro').click()
             assert navigation.is_hidden()
             nav_toggle.click()
-            navigation.get_by_role('link', name='Devices', exact=True).click()
+            navigation.get_by_role('link', name='Inventory', exact=True).click()
             assert navigation.is_hidden() and nav_toggle.get_attribute('aria-expanded') == 'false'
             nav_toggle.click()
             page.set_viewport_size({'width':1440,'height':1000})
@@ -122,7 +122,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#form-error').wait_for(state='visible')
             assert 'valid IPv4' in page.locator('#form-error').inner_text()
             page.locator('[name=ip]').fill('10.24.176.66')
-            page.locator('[name=name]').fill('ATEM main')
+            page.locator('#device-form [name=name]').fill('ATEM main')
             page.get_by_role('button', name='Save changes').click()
             page.get_by_role('button', name='Edit ATEM main').wait_for()
             assert page.get_by_role('button', name='IP confirmed for ATEM main', exact=True).is_visible()
@@ -143,7 +143,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('button',name='Edit ATEM main').wait_for()
             # A second venue verifies combined button filters and form choices.
             page.get_by_role('button', name='Add device', exact=True).click()
-            page.locator('[name=name]').fill('Audio console')
+            page.locator('#device-form [name=name]').fill('Audio console')
             page.locator('[name=category]').fill('Audio console')
             page.locator('#form-system').select_option('Audio')
             page.locator('#form-venue-buttons').get_by_role('button', name='Liquid Lounge', exact=True).click()
@@ -217,7 +217,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.get_by_role('tab', name='IPTV channels', exact=True).click()
             assert page.locator('#total').inner_text() == '0'
             page.get_by_role('button', name='Add channel', exact=True).click()
-            page.locator('[name=name]').fill('Ship information')
+            page.locator('#device-form [name=name]').fill('Ship information')
             page.locator('[name=ip]').fill('239.1.1.10')
             page.locator('[name=port]').fill('1234')
             page.locator('#form-source-buttons').get_by_role('button', name='Onboard', exact=True).click()
@@ -232,7 +232,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#no-results').is_visible()
             clear_network_filters()
             page.get_by_role('button', name='Add channel', exact=True).click()
-            page.locator('[name=name]').fill('BBC News')
+            page.locator('#device-form [name=name]').fill('BBC News')
             page.locator('[name=ip]').fill('239.1.1.11')
             page.locator('[name=port]').fill('1234')
             page.locator('#form-source-buttons').get_by_role('button', name='Satellite', exact=True).click()

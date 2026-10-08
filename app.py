@@ -44,6 +44,7 @@ EQUIPMENT_SCHEMA = """CREATE TABLE {table} (
     description TEXT NOT NULL DEFAULT '', serial_number TEXT NOT NULL DEFAULT '',
     quantity INTEGER, location TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '',
     item_confirmed INTEGER NOT NULL DEFAULT 0,
+    inventory_id INTEGER NOT NULL DEFAULT 1 REFERENCES equipment_inventories(id),
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"""
 
 
@@ -94,16 +95,22 @@ def connect():
     con.execute('DROP INDEX IF EXISTS channel_endpoint')
     con.execute('DROP INDEX IF EXISTS channel_endpoint_known')
     con.execute("CREATE UNIQUE INDEX IF NOT EXISTS channel_endpoint_static ON devices(ip,port) WHERE record_type='iptv' AND ip NOT IN ('','DHCP') AND port IS NOT NULL")
+    con.execute('CREATE TABLE IF NOT EXISTS equipment_inventories (id INTEGER PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE UNIQUE)')
+    if not con.execute('SELECT 1 FROM equipment_inventories WHERE id=1').fetchone():
+        con.execute("INSERT OR IGNORE INTO equipment_inventories (id,name) VALUES (1,'Equipment inventory')")
+        con.commit()
     con.execute(EQUIPMENT_SCHEMA.format(table='IF NOT EXISTS equipment'))
     equipment_columns = {row['name']: row for row in con.execute('PRAGMA table_info(equipment)')}
     if 'item_confirmed' not in equipment_columns:
         con.execute('ALTER TABLE equipment ADD COLUMN item_confirmed INTEGER NOT NULL DEFAULT 0')
+    if 'inventory_id' not in equipment_columns:
+        con.execute('ALTER TABLE equipment ADD COLUMN inventory_id INTEGER NOT NULL DEFAULT 1 REFERENCES equipment_inventories(id)')
     if next(row for row in con.execute('PRAGMA table_info(equipment)') if row['name'] == 'quantity')['notnull']:
         # Preserve existing quantities; missing quantities are unknown, not zero or one.
         con.execute('BEGIN IMMEDIATE')
         try:
             con.execute(EQUIPMENT_SCHEMA.format(table='equipment_upgrade'))
-            names = 'id,' + ','.join(EQUIPMENT_FIELDS) + ',item_confirmed,updated_at'
+            names = 'id,' + ','.join(EQUIPMENT_FIELDS) + ',item_confirmed,inventory_id,updated_at'
             con.execute(f'INSERT INTO equipment_upgrade ({names}) SELECT {names} FROM equipment')
             con.execute('DROP TABLE equipment')
             con.execute('ALTER TABLE equipment_upgrade RENAME TO equipment')
@@ -112,9 +119,11 @@ def connect():
             con.rollback()
             con.close()
             raise
-    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS equipment_serial ON equipment(serial_number COLLATE NOCASE) WHERE serial_number != ''")
+    con.execute('DROP INDEX IF EXISTS equipment_serial')
+    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS equipment_inventory_serial ON equipment(inventory_id, serial_number COLLATE NOCASE) WHERE serial_number != ''")
     con.execute('DROP INDEX IF EXISTS equipment_stock')
-    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS equipment_stock_known ON equipment(brand COLLATE NOCASE, model COLLATE NOCASE, description, location COLLATE NOCASE) WHERE serial_number='' AND brand!='' AND model!='' AND location!=''")
+    con.execute('DROP INDEX IF EXISTS equipment_stock_known')
+    con.execute("CREATE UNIQUE INDEX IF NOT EXISTS equipment_inventory_stock ON equipment(inventory_id, brand COLLATE NOCASE, model COLLATE NOCASE, description, location COLLATE NOCASE) WHERE serial_number='' AND brand!='' AND model!='' AND location!=''")
     return con
 
 
@@ -359,23 +368,59 @@ def validate_equipment(value):
     return row
 
 
-def equipment_inventory():
+def equipment_inventory_id(value=1):
+    if type(value) is int and 0 < value <= 9223372036854775807:
+        return value
+    if isinstance(value, str) and value.isascii() and value.isdigit() and 0 < int(value) <= 9223372036854775807:
+        return int(value)
+    raise ValueError('Choose an inventory using a positive whole number.')
+
+
+def equipment_inventory_details(con, inventory_id):
+    record = con.execute('SELECT * FROM equipment_inventories WHERE id=?', (equipment_inventory_id(inventory_id),)).fetchone()
+    if record is None:
+        raise LookupError('Inventory not found.')
+    return dict(record)
+
+
+def equipment_inventories():
     with connect() as con:
-        return [dict(row) for row in con.execute('SELECT * FROM equipment ORDER BY location COLLATE NOCASE, brand COLLATE NOCASE, model COLLATE NOCASE')]
+        return [dict(row) for row in con.execute('SELECT * FROM equipment_inventories ORDER BY name COLLATE NOCASE')]
+
+
+def save_equipment_inventory(value, inventory_id=None):
+    name = value.get('name') if isinstance(value, dict) else None
+    if not isinstance(name, str) or not name.strip() or len(name.strip()) > 120:
+        raise ValueError('Enter an inventory name from 1 to 120 characters.')
+    with connect() as con:
+        if inventory_id is None:
+            inventory_id = con.execute('INSERT INTO equipment_inventories (name) VALUES (?)', (name.strip(),)).lastrowid
+        else:
+            equipment_inventory_details(con, inventory_id)
+            con.execute('UPDATE equipment_inventories SET name=? WHERE id=?', (name.strip(), inventory_id))
+        return equipment_inventory_details(con, inventory_id)
+
+
+def equipment_inventory(inventory_id=1):
+    with connect() as con:
+        equipment_inventory_details(con, inventory_id)
+        return [dict(row) for row in con.execute('SELECT * FROM equipment WHERE inventory_id=? ORDER BY location COLLATE NOCASE, brand COLLATE NOCASE, model COLLATE NOCASE', (inventory_id,))]
 
 
 def save_equipment(value, item_id=None):
     row = validate_equipment(value)
+    inventory_id = equipment_inventory_id(value.get('inventory_id', 1))
     with connect() as con:
+        equipment_inventory_details(con, inventory_id)
         if item_id is None:
-            cursor = con.execute('INSERT INTO equipment (' + ','.join(EQUIPMENT_FIELDS) + ') VALUES (?,?,?,?,?,?,?)', [row[f] for f in EQUIPMENT_FIELDS])
+            cursor = con.execute('INSERT INTO equipment (' + ','.join(EQUIPMENT_FIELDS) + ',inventory_id) VALUES (?,?,?,?,?,?,?,?)', [row[f] for f in EQUIPMENT_FIELDS] + [inventory_id])
             item_id = cursor.lastrowid
         else:
             unchanged = ' AND '.join(f'{field} IS ?' for field in EQUIPMENT_CONFIRM_FIELDS)
             cursor = con.execute('UPDATE equipment SET item_confirmed=CASE WHEN ' + unchanged +
                 ' THEN item_confirmed ELSE 0 END, ' + ','.join(f+'=?' for f in EQUIPMENT_FIELDS) +
-                ', updated_at=CURRENT_TIMESTAMP WHERE id=?',
-                [row[f] for f in EQUIPMENT_CONFIRM_FIELDS] + [row[f] for f in EQUIPMENT_FIELDS] + [item_id])
+                ', updated_at=CURRENT_TIMESTAMP WHERE id=? AND inventory_id=?',
+                [row[f] for f in EQUIPMENT_CONFIRM_FIELDS] + [row[f] for f in EQUIPMENT_FIELDS] + [item_id, inventory_id])
             if not cursor.rowcount:
                 raise LookupError('Inventory item not found.')
         return dict(con.execute('SELECT * FROM equipment WHERE id=?', (item_id,)).fetchone())
@@ -387,8 +432,10 @@ def set_equipment_confirmation(item_id, value):
     if any(field not in value for field in EQUIPMENT_CONFIRM_FIELDS):
         raise ValueError('Provide the current item details being confirmed.')
     row = validate_equipment(value)
+    inventory_id = equipment_inventory_id(value.get('inventory_id', 1))
     with connect() as con:
-        current = con.execute('SELECT * FROM equipment WHERE id=?', (item_id,)).fetchone()
+        equipment_inventory_details(con, inventory_id)
+        current = con.execute('SELECT * FROM equipment WHERE id=? AND inventory_id=?', (item_id, inventory_id)).fetchone()
         if current is None:
             raise LookupError('Inventory item not found.')
         matches = ' AND '.join(f'{field} IS ?' for field in EQUIPMENT_CONFIRM_FIELDS)
@@ -423,6 +470,7 @@ def import_equipment(payload):
         raise ValueError('Choose an avtrack equipment JSON export.')
     if len(payload['equipment']) > 10000:
         raise ValueError('Import supports up to 10,000 inventory items.')
+    inventory_id = equipment_inventory_id(payload.get('inventory_id', 1))
     rows = []
     for index, value in enumerate(payload['equipment'], 1):
         if blank_import_row(value, EQUIPMENT_FIELDS):
@@ -435,14 +483,15 @@ def import_equipment(payload):
     if len(set(identities)) != len(identities):
         raise ValueError('Duplicate serial numbers or stock records in this file. Nothing was imported.')
     with connect() as con:
-        existing = {identity for row in con.execute('SELECT * FROM equipment') if (identity := equipment_identity(dict(row))) is not None}
+        equipment_inventory_details(con, inventory_id)
+        existing = {identity for row in con.execute('SELECT * FROM equipment WHERE inventory_id=?', (inventory_id,)) if (identity := equipment_identity(dict(row))) is not None}
         added = 0
         for row in rows:
             identity = equipment_identity(row)
             if identity is not None and identity in existing:
                 continue
             fields = EQUIPMENT_FIELDS + ('item_confirmed',)
-            con.execute('INSERT INTO equipment (' + ','.join(fields) + ') VALUES (?,?,?,?,?,?,?,?)', [row[f] for f in fields])
+            con.execute('INSERT INTO equipment (' + ','.join(fields) + ',inventory_id) VALUES (?,?,?,?,?,?,?,?,?)', [row[f] for f in fields] + [inventory_id])
             added += 1
             if identity is not None:
                 existing.add(identity)
@@ -510,6 +559,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def dispatch(self):
         path = urlsplit(self.path).path
+        query = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
         exports = {
             '/api/export': (lambda rows: {'version':1, 'devices':rows}, inventory, 'application/json; charset=utf-8', 'broadcasthub-network.json'),
             '/api/export.csv': (network_csv, inventory, 'text/csv; charset=utf-8', 'broadcasthub-network.csv'),
@@ -523,10 +573,17 @@ class Handler(BaseHTTPRequestHandler):
         if self.command in ('GET', 'POST') and path in exports:
             payload = self.body() if self.command == 'POST' else None
             generate, read, mime, filename = exports[path]
-            rows = read()
+            equipment_export = path.startswith('/api/equipment/')
+            named_inventory = None
+            if equipment_export:
+                inventory_id = equipment_inventory_id(payload.get('inventory_id', 1) if isinstance(payload, dict) else query.get('inventory_id', [1])[0])
+                with connect() as con:
+                    named_inventory = equipment_inventory_details(con, inventory_id)
+                rows = read(inventory_id)
+            else:
+                rows = read()
             record_type = None
             if self.command == 'GET' and path.startswith('/api/export'):
-                query = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
                 if 'record_type' in query:
                     record_type = query['record_type'][0]
                     if record_type not in ('device', 'iptv'):
@@ -547,6 +604,15 @@ class Handler(BaseHTTPRequestHandler):
                 filename = f'broadcasthub-{"av-devices" if record_type == "device" else "iptv-channels"}.{suffix}'
             if record_type and generate in (network_pdf, network_xlsx):
                 return self.send(200, generate(rows, record_type=record_type), mime, filename)
+            if named_inventory:
+                suffix = filename.rsplit('.', 1)[1]
+                slug = re.sub(r'[^a-z0-9]+', '-', named_inventory['name'].lower()).strip('-') or 'equipment'
+                if named_inventory['id'] != 1 or named_inventory['name'] != 'Equipment inventory':
+                    filename = f'broadcasthub-{slug}.{suffix}'
+                if generate in (equipment_pdf, equipment_xlsx):
+                    return self.send(200, generate(rows, inventory_name=named_inventory['name']), mime, filename)
+                if path == '/api/equipment/export':
+                    return self.send(200, {'version':1, 'inventory_name':named_inventory['name'], 'equipment':rows}, mime, filename)
             return self.send(200, generate(rows), mime, filename)
         if self.command == 'GET':
             if path == '/satellite-channels.json':
@@ -556,7 +622,9 @@ class Handler(BaseHTTPRequestHandler):
                 if logo.is_file():
                     return self.send(200, logo.read_bytes(), 'image/png')
             if path == '/api/equipment':
-                return self.send(200, {'equipment': equipment_inventory()})
+                return self.send(200, {'equipment': equipment_inventory(equipment_inventory_id(query.get('inventory_id', [1])[0]))})
+            if path == '/api/equipment/inventories':
+                return self.send(200, {'inventories': equipment_inventories()})
             if path == '/api/devices':
                 return self.send(200, {'devices': inventory()})
             assets = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css'), '/equipment.js': ('equipment.js', 'text/javascript'), '/icon.svg': ('icon.svg', 'image/svg+xml'), '/favicon.svg': ('favicon.svg', 'image/svg+xml'), '/example-switcher.png': ('example-switcher.png', 'image/png'), '/fonts/Poppins-Regular.woff2': ('fonts/Poppins-Regular.woff2', 'font/woff2'), '/fonts/Poppins-Medium.woff2': ('fonts/Poppins-Medium.woff2', 'font/woff2'), '/fonts/Poppins-SemiBold.woff2': ('fonts/Poppins-SemiBold.woff2', 'font/woff2'), '/fonts/Poppins-Bold.woff2': ('fonts/Poppins-Bold.woff2', 'font/woff2')}
@@ -565,6 +633,11 @@ class Handler(BaseHTTPRequestHandler):
             if path in assets:
                 file, mime = assets[path]
                 return self.send(200, (ROOT / 'static' / file).read_bytes(), mime + '; charset=utf-8' if mime.startswith('text/') or mime == 'image/svg+xml' else mime)
+        elif self.command == 'POST' and path == '/api/equipment/inventories':
+            return self.send(201, save_equipment_inventory(self.body()))
+        elif self.command == 'PUT' and path.startswith('/api/equipment/inventories/'):
+            inventory_id = equipment_inventory_id(path.removeprefix('/api/equipment/inventories/'))
+            return self.send(200, save_equipment_inventory(self.body(), inventory_id))
         elif self.command == 'POST' and path == '/api/equipment':
             return self.send(201, save_equipment(self.body()))
         elif self.command == 'POST' and path == '/api/equipment/import':
@@ -590,9 +663,13 @@ class Handler(BaseHTTPRequestHandler):
                 raise LookupError('Inventory item not found.') from None
             if self.command == 'PUT':
                 return self.send(200, save_equipment(self.body(), item_id))
-            self.body()
+            payload = self.body()
+            if not isinstance(payload, dict):
+                raise ValueError('Choose the inventory item to delete.')
+            inventory_id = equipment_inventory_id(payload.get('inventory_id', 1))
             with connect() as con:
-                if not con.execute('DELETE FROM equipment WHERE id=?', (item_id,)).rowcount:
+                equipment_inventory_details(con, inventory_id)
+                if not con.execute('DELETE FROM equipment WHERE id=? AND inventory_id=?', (item_id, inventory_id)).rowcount:
                     raise LookupError('Inventory item not found.')
             return self.send(200, {'deleted':item_id})
         elif self.command == 'POST' and path == '/api/devices':
@@ -643,7 +720,12 @@ class Handler(BaseHTTPRequestHandler):
         except LookupError as exc:
             self.send(404, {'error': str(exc)})
         except sqlite3.IntegrityError as exc:
-            message = 'This IP address already exists in AV devices. Each AV IP must be unique, even across VLANs.' if 'Duplicate AV IP' in str(exc) else 'This assignment, serial number, or stock record already exists in the inventory.'
+            if 'equipment_inventories.name' in str(exc):
+                message = 'An inventory with this name already exists.'
+            elif 'Duplicate AV IP' in str(exc):
+                message = 'This IP address already exists in AV devices. Each AV IP must be unique, even across VLANs.'
+            else:
+                message = 'This assignment, serial number, or stock record already exists in the inventory.'
             self.send(409, {'error': message})
         except Exception:
             self.log_error('Internal request error')

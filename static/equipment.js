@@ -4,6 +4,22 @@
   let visibleItems = [];
   const selectedItems = new Set();
   const pendingConfirmations = new Map();
+  let inventoryId = 1, inventories = [], inventoryReady = false, loadVersion = 0;
+  let formInventoryId = 1, renamingInventoryId = null;
+  let inventoryLoad = Promise.resolve();
+  try { inventoryId = Number(localStorage.getItem('avtrack-equipment-inventory')) || 1; } catch (_) {}
+  const currentInventory = () => {
+    if (!inventoryReady) throw new Error('Wait for the inventory to finish loading.');
+    return {...inventories.find(inventory => inventory.id === inventoryId)};
+  };
+  function resetEquipmentFilters(switchedInventory = false) {
+    if (switchedInventory) {
+      selectedItems.clear();
+      $('equipment-export-scope').value = 'filtered';
+    }
+    ['equipment-search','equipment-location-filter','equipment-status-filter'].forEach(id => { $(id).value = ''; });
+    $('equipment-status-buttons').querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.value === '')));
+  }
   const equipmentForm = $('equipment-form');
   const fields = ['description','brand','model','serial_number','quantity','location','notes'];
   const label = field => field === 'description' ? 'Item' : field.replaceAll('_', ' ').replace(/^./, s => s.toUpperCase());
@@ -25,21 +41,47 @@
     updateEquipmentSelection();
   };
   $('clear-equipment-selection').onclick = () => { selectedItems.clear(); updateEquipmentSelection(); };
-  async function loadEquipment() {
+  function loadEquipment(targetId = inventoryId) {
+    inventoryLoad = fetchEquipment(targetId);
+    return inventoryLoad;
+  }
+  async function fetchEquipment(targetId) {
+    const version = ++loadVersion, previouslyReady = inventoryReady;
+    inventoryReady = false;
     $('equipment-refresh').disabled = true;
+    ['equipment-inventory-select','new-equipment-inventory','rename-equipment-inventory','equipment-import'].forEach(id => { $(id).disabled = true; });
+    $('equipment-rows').inert = true;
     try {
       await Promise.all([...pendingConfirmations.values()]);
-      items = (await api('/api/equipment')).equipment;
+      const catalog = (await api('/api/equipment/inventories')).inventories;
+      const target = catalog.find(inventory => inventory.id === targetId) || catalog.find(inventory => inventory.id === 1);
+      const records = (await api(`/api/equipment?inventory_id=${target.id}`)).equipment;
+      if (version !== loadVersion) return false;
+      if (inventoryId !== target.id) resetEquipmentFilters(true);
+      inventoryId = target.id; inventories = catalog; items = records; inventoryReady = true;
+      $('equipment-inventory-select').replaceChildren(...catalog.map(inventory => new Option(inventory.name, inventory.id)));
+      $('equipment-inventory-select').value = String(inventoryId);
+      $('equipment-inventory-title').textContent = target.name;
+      try { localStorage.setItem('avtrack-equipment-inventory', inventoryId); } catch (_) {}
       $('equipment-error').hidden = true;
       options('equipment-location-filter', items.map(i => i.location));
       $('equipment-location-options').replaceChildren(...[...new Set(items.map(i => i.location))].map(v => new Option(v,v)));
       renderEquipment();
       return true;
     } catch(error) {
+      if (version !== loadVersion) return false;
+      inventoryReady = previouslyReady;
+      $('equipment-inventory-select').value = String(inventoryId);
       $('equipment-error').textContent = 'Could not load equipment. ' + error.message;
       $('equipment-error').hidden = false;
       return false;
-    } finally { $('equipment-refresh').disabled = false; }
+    } finally {
+      if (version === loadVersion) {
+        $('equipment-refresh').disabled = false;
+        ['equipment-inventory-select','new-equipment-inventory','rename-equipment-inventory','equipment-import'].forEach(id => { $(id).disabled = !inventoryReady; });
+        $('equipment-rows').inert = !inventoryReady;
+      }
+    }
   }
   function renderEquipment() {
     const query = $('equipment-search').value.trim().toLowerCase();
@@ -106,6 +148,8 @@
     updateEquipmentSelection();
   }
   function openEquipment(item = null) {
+    if (!inventoryReady) { toast('Wait for the inventory to finish loading.'); return; }
+    formInventoryId = item?.inventory_id ?? inventoryId;
     editingId = item?.id ?? null;
     equipmentForm.reset(); $('equipment-form-error').hidden = true;
     $('equipment-form-title').textContent = editingId ? 'Edit equipment' : 'Add equipment';
@@ -117,14 +161,39 @@
     event.preventDefault(); $('save-equipment').disabled = true;
     $('equipment-form-error').hidden = true;
     try {
-      await api(editingId ? `/api/equipment/${editingId}` : '/api/equipment', editingId ? 'PUT' : 'POST', Object.fromEntries(new FormData(equipmentForm)));
+      await api(editingId ? `/api/equipment/${editingId}` : '/api/equipment', editingId ? 'PUT' : 'POST', {...Object.fromEntries(new FormData(equipmentForm)), inventory_id:formInventoryId});
       $('equipment-dialog').close(); toast(editingId ? 'Equipment updated.' : 'Equipment added.'); await loadEquipment();
     } catch(error) { $('equipment-form-error').textContent = error.message; $('equipment-form-error').hidden = false; }
     finally { $('save-equipment').disabled = false; }
   };
   for (const id of ['close-equipment','cancel-equipment']) $(id).onclick = () => $('equipment-dialog').close();
   $('equipment-empty-add').onclick = () => openEquipment();
-  $('equipment-refresh').onclick = loadEquipment;
+  $('equipment-refresh').onclick = () => loadEquipment();
+  $('equipment-inventory-select').onchange = event => loadEquipment(Number(event.target.value));
+  function openInventoryForm(rename = false) {
+    if (!inventoryReady) return;
+    renamingInventoryId = rename ? inventoryId : null;
+    $('equipment-inventory-form').reset();
+    $('equipment-inventory-name').value = rename ? currentInventory().name : '';
+    $('equipment-inventory-form-title').textContent = rename ? 'Rename inventory' : 'New inventory';
+    $('save-equipment-inventory').textContent = rename ? 'Save name' : 'Create inventory';
+    $('equipment-inventory-form-error').hidden = true;
+    $('equipment-inventory-dialog').showModal(); $('equipment-inventory-name').focus();
+  }
+  $('new-equipment-inventory').onclick = () => openInventoryForm();
+  $('rename-equipment-inventory').onclick = () => openInventoryForm(true);
+  for (const id of ['close-equipment-inventory','cancel-equipment-inventory']) $(id).onclick = () => $('equipment-inventory-dialog').close();
+  $('equipment-inventory-form').onsubmit = async event => {
+    event.preventDefault(); $('save-equipment-inventory').disabled = true;
+    $('equipment-inventory-form-error').hidden = true;
+    try {
+      const inventory = await api(renamingInventoryId ? `/api/equipment/inventories/${renamingInventoryId}` : '/api/equipment/inventories', renamingInventoryId ? 'PUT' : 'POST', {name:$('equipment-inventory-name').value});
+      $('equipment-inventory-dialog').close();
+      await loadEquipment(inventory.id);
+      toast(renamingInventoryId ? 'Inventory renamed.' : 'Inventory created. Import a file or add items.');
+    } catch(error) { $('equipment-inventory-form-error').textContent = error.message; $('equipment-inventory-form-error').hidden = false; }
+    finally { $('save-equipment-inventory').disabled = false; }
+  };
   $('equipment-import').onclick = () => $('import-file').click();
   for (const id of ['equipment-search','equipment-location-filter']) $(id).addEventListener(id.endsWith('search') ? 'input' : 'change', renderEquipment);
   for (const [value, text] of [['','All items'], ['pending','Not located'], ['found','Located']]) {
@@ -138,18 +207,23 @@
     $('equipment-status-buttons').append(button);
   }
   $('equipment-clear').onclick = () => {
-    ['equipment-search','equipment-location-filter','equipment-status-filter'].forEach(id => { $(id).value = ''; });
-    $('equipment-status-buttons').querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.value === '')));
+    resetEquipmentFilters();
     renderEquipment();
   };
   $('cancel-equipment-delete').onclick = () => $('equipment-delete-dialog').close();
   $('confirm-equipment-delete').onclick = async () => {
     $('confirm-equipment-delete').disabled = true;
-    try { await api(`/api/equipment/${deletingItem.id}`, 'DELETE', {}); $('equipment-delete-dialog').close(); toast('Equipment deleted.'); await loadEquipment(); }
+    try { await api(`/api/equipment/${deletingItem.id}`, 'DELETE', {inventory_id:deletingItem.inventory_id}); $('equipment-delete-dialog').close(); toast('Equipment deleted.'); await loadEquipment(); }
     catch(error) { $('equipment-delete-error').textContent = error.message; $('equipment-delete-error').hidden = false; }
     finally { $('confirm-equipment-delete').disabled = false; }
   };
   window.equipmentUI = {load:loadEquipment, open:openEquipment,
+    currentInventory,
+    waitUntilReady:async () => { await inventoryLoad; return currentInventory(); },
     flush:() => Promise.all([...pendingConfirmations.values()]),
-    exportIds:scope => (scope === 'selected' ? visibleItems.filter(item => selectedItems.has(item.id)) : visibleItems).map(item => item.id)};
+    exportData:scope => {
+      const inventory = currentInventory();
+      const records = scope === 'all' ? items : scope === 'selected' ? visibleItems.filter(item => selectedItems.has(item.id)) : visibleItems;
+      return {inventory_id:inventory.id, ids:records.map(item => item.id), name:inventory.name};
+    }};
 })();

@@ -85,9 +85,10 @@ def network_xlsx(rows, record_type=None):
     return workbook(sections)
 
 
-def equipment_xlsx(rows):
+def equipment_xlsx(rows, inventory_name='Equipment inventory'):
     rows = [dict(row, found='Located' if row.get('item_confirmed') else 'Not located') for row in rows]
-    return workbook([('Equipment', [('Item','description',40), ('Brand','brand',24), ('Model','model',24),
+    sheet_name = 'Equipment' if inventory_name == 'Equipment inventory' else re.sub(r'[\\/*?:\[\]]', '-', clean_text(inventory_name))[:31].strip("'") or 'Equipment'
+    return workbook([(sheet_name, [('Item','description',40), ('Brand','brand',24), ('Model','model',24),
                                    ('Serial number','serial_number',24),
                                    ('Quantity','quantity',12), ('Location','location',26),
                                    ('Located','found',12),
@@ -247,7 +248,7 @@ def network_pdf(rows, record_type=None):
     return pdf_report(title, sections)
 
 
-def equipment_pdf(rows):
+def equipment_pdf(rows, inventory_name='Equipment inventory'):
     labels = ['ITEM','BRAND','MODEL','SERIAL NUMBER','QUANTITY','LOCATED','NOTES']
     widths = [.23,.12,.13,.15,.07,.10,.20]
     locations = {}
@@ -256,4 +257,4 @@ def equipment_pdf(rows):
             row['description'], row['brand'], row['model'], row['serial_number'], row['quantity'],
             'Located' if row.get('item_confirmed') else 'Not located', row['notes']])
     sections = [(f'Location: {location or "Unassigned location"}', labels, widths, records) for location, records in locations.items()]
-    return pdf_report('Equipment inventory', sections or [('Equipment', labels, widths, [])], repeat_section=True)
+    return pdf_report(inventory_name, sections or [('Equipment', labels, widths, [])], repeat_section=True)

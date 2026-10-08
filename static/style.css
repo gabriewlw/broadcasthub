@@ -459,3 +459,10 @@ input.row-select{width:18px;height:18px;min-height:18px;margin:0;padding:0;flex-
 nav a,.eyebrow,.network-card-top,.stats span,.filters label>span,.button-filter legend,.directory-head,#equipment-table th,#equipment-table td::before,.export-scope-label,.panel-footer,.site-footer strong,.site-footer a{font-family:var(--mono)}
 .network-ip,.device-directory .vlan-cell{font-family:var(--mono)}
 .stats strong{font-family:var(--font-display)}
+
+.equipment-inventory-bar{display:flex;align-items:end;gap:16px;flex-wrap:wrap;margin:0 0 24px;padding:16px 20px;border:1px solid var(--border);border-radius:8px;background:var(--panel)}
+.equipment-inventory-bar>label{flex:1;min-width:0;max-width:400px}
+.equipment-inventory-bar label>span{font:9px var(--mono);letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+.inventory-management{display:flex;gap:8px;flex-wrap:wrap}
+#equipment-inventory-title{overflow-wrap:anywhere}
+@media(max-width:600px){.equipment-inventory-bar{padding:16px}.equipment-inventory-bar>label{flex-basis:100%;max-width:none}.inventory-management{width:100%}}
