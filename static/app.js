@@ -583,7 +583,7 @@ function openForm(device = null) {
   form.reset(); $('form-error').hidden = true;
   const iptv = currentTab === 'iptv';
   form.elements.record_type.value = currentTab;
-  $('category-field').hidden = false;
+  $('category-field').hidden = iptv;
   $('form-system-group').hidden = iptv;
   $('form-source-group').hidden = !iptv;
   $('venue-field').hidden = $('vlan-field').hidden = iptv;

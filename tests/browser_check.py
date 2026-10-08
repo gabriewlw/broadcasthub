@@ -237,6 +237,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('[name=port]').input_value() == '1234'
             assert page.locator('#venue-field').is_hidden()
             assert page.locator('#vlan-field').is_hidden()
+            assert page.locator('#category-field').is_hidden()
             page.get_by_role('button', name='Cancel', exact=True).click()
             path = Path(temp) / 'iptv.csv'
             path.write_text('Name,IP Address,Port,Channel Name,MCAST IP [S],MCAST PORT [S],Source,Category,Inventory type,Notes\n'
