@@ -47,13 +47,13 @@ Automatic AV system matching uses these keywords:
 
 | System | Keywords in device names |
 | --- | --- |
-| Audio | audio, DSP, BGM, Dante, IEM |
-| Control | AMX |
-| Video | Clickshare, Pixera, TV, Video, CAM / Camera / Cam, Decoder, Encoder, Multiview, Scala, Blackmagic, Castus, CCTV |
+| Audio | audio, DSP, Yamaha, Behringer, Shure, BGM, Dante, IEM |
+| Control | AMX, Scheduler |
+| Video | Clickshare, Pixera, TV, Video, LED, CAM / Camera / Cam, Decoder, Encoder, Multiview, Scala, Blackmagic, Castus, CCTV |
 | Lighting | Light |
 | Network | Switch |
 
-Matching checks for text anywhere in the name, regardless of capitalization. For competing matches, the rule order is audio, AMX, DSP, Clickshare, Pixera, TV, Video, Light, CAM/Camera/Cam, BGM, Decoder, Encoder, Multiview, Scala, Blackmagic, Castus, Switch, Dante, CCTV, IEM. For example, **Blackmagic Switcher** selects Video; **Dante Switch** selects Network. Automatic selection adds no extra fields to spreadsheet review.
+Matching checks for text anywhere in the name, regardless of capitalization. For competing matches, the rule order is audio, AMX, Scheduler, DSP, Yamaha, Behringer, Shure, Clickshare, Pixera, TV, Video, LED, Light, CAM/Camera/Cam, BGM, Decoder, Encoder, Multiview, Scala, Blackmagic, Castus, Switch, Dante, CCTV, IEM. For example, **Blackmagic Switcher** selects Video; **LED lighting panel** selects Video; **Dante Switch** selects Network. Automatic selection adds no extra fields to spreadsheet review.
 
 ## Equipment inventory
 

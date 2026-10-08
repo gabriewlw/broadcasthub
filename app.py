@@ -17,9 +17,10 @@ ROOT = Path(__file__).resolve().parent
 DB_PATH = Path(os.environ.get('BROADCASTHUB_DB') or os.environ.get('IPTRACKING_DB') or ROOT / 'data' / 'inventory.sqlite3')
 DISCIPLINES = {'Video', 'Audio', 'Lighting', 'Control', 'Network', 'Other'}
 SYSTEM_NAME_RULES = (
-    ('audio', 'Audio'), ('amx', 'Control'), ('dsp', 'Audio'),
+    ('audio', 'Audio'), ('amx', 'Control'), ('scheduler', 'Control'), ('dsp', 'Audio'),
+    ('yamaha', 'Audio'), ('behringer', 'Audio'), ('shure', 'Audio'),
     ('clickshare', 'Video'), ('pixera', 'Video'), ('tv', 'Video'),
-    ('video', 'Video'), ('light', 'Lighting'), ('cam', 'Video'),
+    ('video', 'Video'), ('led', 'Video'), ('light', 'Lighting'), ('cam', 'Video'),
     ('camera', 'Video'), ('bgm', 'Audio'), ('decoder', 'Video'),
     ('encoder', 'Video'), ('multiview', 'Video'), ('scala', 'Video'),
     ('blackmagic', 'Video'), ('castus', 'Video'),

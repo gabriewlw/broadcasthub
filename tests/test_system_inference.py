@@ -18,8 +18,9 @@ class SystemInferenceTests(unittest.TestCase):
         return self.request('/api/import', 'POST', payload)
 
     def test_every_requested_keyword_persists_after_import(self):
-        rules = [('audio','Audio'), ('AMX','Control'), ('DSP','Audio'), ('Clickshare','Video'),
-                 ('Pixera','Video'), ('TV','Video'), ('Video','Video'), ('Light','Lighting'),
+        rules = [('audio','Audio'), ('AMX','Control'), ('Scheduler','Control'), ('DSP','Audio'), ('Yamaha','Audio'),
+                 ('Behringer','Audio'), ('Shure','Audio'), ('Clickshare','Video'),
+                 ('Pixera','Video'), ('TV','Video'), ('Video','Video'), ('LED','Video'), ('Light','Lighting'),
                  ('CAM','Video'), ('Camera','Video'), ('Cam','Video'), ('BGM','Audio'),
                  ('Decoder','Video'), ('Encoder','Video'), ('Multiview','Video'), ('Scala','Video'),
                  ('Blackmagic','Video'), ('Castus','Video'),
@@ -37,7 +38,10 @@ class SystemInferenceTests(unittest.TestCase):
                  'AMX DSP controller':'Control', 'Pixera Switch':'Video',
                  'Dante Switch':'Network', 'LIGHTING console':'Lighting',
                  'Rack bLaCkMaGiC Design':'Video', 'Rack cAsTuS server':'Video',
-                 'Blackmagic Switcher':'Video', 'Castus Switch':'Video'}
+                 'Blackmagic Switcher':'Video', 'Castus Switch':'Video',
+                 'Rack yAmAhA console':'Audio', 'Rack bEhRiNgEr mixer':'Audio',
+                 'lEd wall':'Video', 'LED lighting panel':'Video', 'Behringer Switch':'Audio',
+                 'sHuRe wireless receiver':'Audio', 'Show sChEdUlEr':'Control'}
         self.assertEqual(self.import_rows([dict(name=name) for name in names])[0], 200)
         self.assertEqual({row['name']:row['discipline'] for row in app.inventory()}, names)
 
