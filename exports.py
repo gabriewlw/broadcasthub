@@ -227,8 +227,8 @@ def network_pdf(rows, record_type=None):
         else:
             channels.append([name, row['ip'], row['port'], row['channel_source'], row['notes']])
     sections = [
-        ('AV devices', ['VENUE','DEVICE','IP','VLAN','CONFIRMATION','SYSTEM','NOTES'], [.14,.16,.15,.07,.12,.11,.25], av),
-        ('IPTV channels', ['CHANNEL','IP','PORT','SOURCE','NOTES'], [.21,.20,.08,.15,.36], channels)]
+        ('AV devices', ['VENUE','DEVICE','IP','VLAN','CONFIRMATION','SYSTEM','NOTES'], [.14,.16,.11,.07,.12,.11,.29], av),
+        ('IPTV channels', ['CHANNEL','IP','PORT','SOURCE','NOTES'], [.21,.11,.08,.15,.45], channels)]
     if record_type:
         sections = [sections[0 if record_type == 'device' else 1]]
     title = sections[0][0] if record_type else 'AV devices and IPTV channels'
