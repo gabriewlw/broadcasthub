@@ -1,4 +1,5 @@
 import io
+import csv
 import re
 import shutil
 import subprocess
@@ -78,6 +79,69 @@ class ExportTests(unittest.TestCase):
             self.assertIn(b'%%EOF', raw)
         self.assertEqual(app.inventory(), [])
         self.assertEqual(app.equipment_inventory(), [])
+
+    def test_scoped_exports_use_only_requested_records_and_latest_saved_values(self):
+        camera = self.request('/api/devices', 'POST', dict(name='Selected camera', ip='10.20.0.1', venue='Theatre', discipline='Video'))[1]
+        panel = self.request('/api/devices', 'POST', dict(name='Selected panel', ip='10.20.0.2', venue='Lounge', discipline='Video'))[1]
+        self.request('/api/devices', 'POST', dict(name='Excluded DSP', ip='10.20.0.3', discipline='Audio'))
+        channel = self.request('/api/devices', 'POST', dict(record_type='iptv', name='Selected channel', ip='239.20.0.1', port=5000))[1]
+        self.request(f"/api/devices/{camera['id']}/notes", 'POST', dict(notes='Latest saved note'))
+        self.request(f"/api/devices/{camera['id']}/confirm", 'POST', dict(ip=camera['ip'], vlan=camera['vlan']))
+        payload = {'ids':[panel['id'], camera['id'], camera['id'], 999999]}
+        status, exported = self.request('/api/export', 'POST', payload)
+        self.assertEqual(status, 200)
+        self.assertEqual([row['id'] for row in exported['devices']], [panel['id'], camera['id']])
+        self.assertEqual(exported['devices'][1]['notes'], 'Latest saved note')
+        self.assertEqual(exported['devices'][1]['ip_confirmed'], 1)
+        status, raw = self.request('/api/export.csv', 'POST', payload)
+        self.assertEqual(status, 200)
+        self.assertEqual([row['name'] for row in csv.DictReader(io.StringIO(raw.decode('utf-8-sig')))], ['Selected panel', 'Selected camera'])
+        status, raw = self.request('/api/export.xlsx', 'POST', payload)
+        self.assertEqual(status, 200)
+        book = load_workbook(io.BytesIO(raw))
+        self.assertEqual([row[1] for row in list(book['AV devices'].values)[1:]], ['Selected panel', 'Selected camera'])
+        self.assertEqual(book['IPTV channels'].max_row, 1)
+        status, raw = self.request('/api/export.pdf', 'POST', payload)
+        self.assertEqual(status, 200)
+        self.assertIn(b'http://10.20.0.1', raw)
+        self.assertIn(b'http://10.20.0.2', raw)
+        self.assertNotIn(b'http://10.20.0.3', raw)
+        self.assertNotIn(b'http://239.20.0.1', raw)
+        selected_channel = self.request('/api/export', 'POST', {'ids':[channel['id']]})[1]
+        self.assertEqual([row['record_type'] for row in selected_channel['devices']], ['iptv'])
+        self.assertEqual(len(self.request('/api/export')[1]['devices']), 4)
+
+    def test_scoped_equipment_formats_and_empty_selection(self):
+        selected = self.request('/api/equipment', 'POST', dict(brand='Selected brand', model='Panel', location='Theatre'))[1]
+        self.request('/api/equipment', 'POST', dict(brand='Excluded brand', model='DSP', location='Store'))
+        payload = {'ids':[selected['id']]}
+        exported = self.request('/api/equipment/export', 'POST', payload)[1]
+        self.assertEqual([row['id'] for row in exported['equipment']], [selected['id']])
+        raw = self.request('/api/equipment/export.csv', 'POST', payload)[1]
+        self.assertEqual([row['brand'] for row in csv.DictReader(io.StringIO(raw.decode('utf-8-sig')))], ['Selected brand'])
+        raw = self.request('/api/equipment/export.xlsx', 'POST', payload)[1]
+        self.assertEqual([row[0] for row in list(load_workbook(io.BytesIO(raw)).active.values)[1:]], ['Selected brand'])
+        raw = self.request('/api/equipment/export.pdf', 'POST', payload)[1]
+        self.assertTrue(raw.startswith(b'%PDF-'))
+        if shutil.which('pdftotext'):
+            text = subprocess.run(['pdftotext', '-', '-'], input=raw, stdout=subprocess.PIPE, check=True).stdout.decode()
+            self.assertIn('Selected brand', text)
+            self.assertNotIn('Excluded brand', text)
+        for base, key in [('/api/export', 'devices'), ('/api/equipment/export', 'equipment')]:
+            self.assertEqual(self.request(base, 'POST', {'ids':[]})[1][key], [])
+            self.assertEqual(len(list(csv.DictReader(io.StringIO(self.request(base+'.csv', 'POST', {'ids':[]})[1].decode('utf-8-sig'))))), 0)
+            book = load_workbook(io.BytesIO(self.request(base+'.xlsx', 'POST', {'ids':[]})[1]))
+            self.assertTrue(all(sheet.max_row == 1 for sheet in book))
+            self.assertTrue(self.request(base+'.pdf', 'POST', {'ids':[]})[1].startswith(b'%PDF-'))
+
+    def test_invalid_export_scope_never_falls_back_to_all_records(self):
+        self.request('/api/devices', 'POST', test_app.EXAMPLE)
+        for base in ['/api/export', '/api/equipment/export']:
+            for payload in [{}, [], {'ids':None}, {'ids':'all'}, {'ids':[True]}, {'ids':['1']}, {'ids':[0]}, {'ids':[-1]}]:
+                with self.subTest(base=base, payload=payload):
+                    self.assertEqual(self.request(base, 'POST', payload)[0], 400)
+            self.assertEqual(self.request(base, 'POST', {'ids':[]}, headers={'Content-Type':'application/json', 'Origin':'https://other.example'})[0], 403)
+            self.assertEqual(self.request(base, 'POST', headers={'Content-Type':'application/json'})[0], 400)
 
     def test_pdf_ipv4_links_include_channels_without_linking_blank_or_dhcp(self):
         self.request('/api/devices', 'POST', dict(name='Fixed', ip='10.24.176.99', vlan=1500))

@@ -411,3 +411,15 @@ button.system-select{display:flex;justify-content:space-between;align-items:cent
 .iptv-directory .notes-sort-header{grid-column:4/6}
 .directory-sort{flex-direction:row;align-items:center;gap:6px;white-space:nowrap;font:500 10px var(--font-ui);letter-spacing:0;color:var(--muted)}
 .directory-sort select{width:120px;min-height:32px;height:32px;padding:5px 22px 5px 8px;font-size:10px;line-height:1.2}
+
+.export-links{width:232px}
+.export-scope-label{display:block;padding:8px 10px 5px;font-size:10px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted)}
+.export-scope{width:calc(100% - 16px);margin:0 8px 8px;font-size:12px;min-height:40px}
+input.row-select{width:18px;height:18px;min-height:18px;margin:0;padding:0;flex-shrink:0;accent-color:var(--accent);cursor:pointer}
+.row-select-control{display:flex;align-items:center;justify-content:center;width:24px;min-width:24px;height:30px;flex-shrink:0;cursor:pointer}
+.selection-heading{display:flex;flex-direction:row;align-items:center;gap:8px;padding:8px 10px;font:inherit;letter-spacing:inherit}
+#equipment-table .selection-heading{padding:0}
+.equipment-brand-value{display:flex;align-items:center;gap:6px}
+.equipment-brand-value>span{min-width:0;overflow-wrap:anywhere}
+.selection-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px;color:var(--muted);font-size:11px}
+.selection-summary button{min-height:32px;padding:6px 8px;font-size:11px}

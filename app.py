@@ -408,13 +408,33 @@ def import_equipment(payload):
     return {'added': added, 'skipped': len(rows)-added}
 
 
-def equipment_csv():
+def equipment_csv(rows=None):
     output = io.StringIO(newline='')
     writer = csv.DictWriter(output, fieldnames=EQUIPMENT_FIELDS, extrasaction='ignore')
     writer.writeheader()
-    for row in equipment_inventory():
+    for row in equipment_inventory() if rows is None else rows:
         writer.writerow({f: ("'"+str(row[f]) if str(row[f]).startswith(('=', '+', '-', '@', '\t', '\r', '\n')) else row[f]) for f in EQUIPMENT_FIELDS})
     return output.getvalue().encode('utf-8-sig')
+
+
+def network_csv(rows):
+    output = io.StringIO(newline='')
+    writer = csv.DictWriter(output, fieldnames=ALL_FIELDS, extrasaction='ignore')
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({f: ("'" + str(row[f]) if str(row[f]).startswith(('=', '+', '-', '@', '\t', '\r', '\n')) else row[f]) for f in ALL_FIELDS})
+    return output.getvalue().encode('utf-8-sig')
+
+
+def selected_export_rows(rows, payload):
+    if not isinstance(payload, dict) or not isinstance(payload.get('ids'), list):
+        raise ValueError('Choose the records to export using an IDs list.')
+    ids = payload['ids']
+    if len(ids) > 100000 or any(type(value) is not int or value < 1 for value in ids):
+        raise ValueError('Export IDs must be positive whole numbers; choose up to 100,000 records.')
+    by_id = {row['id']: row for row in rows}
+    # Preserve the displayed order, ignore deleted records, and include each ID once.
+    return [by_id[value] for value in dict.fromkeys(ids) if value in by_id]
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -448,35 +468,28 @@ class Handler(BaseHTTPRequestHandler):
 
     def dispatch(self):
         path = urlsplit(self.path).path
+        exports = {
+            '/api/export': (lambda rows: {'version':1, 'devices':rows}, inventory, 'application/json; charset=utf-8', 'broadcast-network.json'),
+            '/api/export.csv': (network_csv, inventory, 'text/csv; charset=utf-8', 'broadcast-network.csv'),
+            '/api/export.xlsx': (network_xlsx, inventory, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'broadcast-network.xlsx'),
+            '/api/export.pdf': (network_pdf, inventory, 'application/pdf', 'broadcast-network.pdf'),
+            '/api/equipment/export': (lambda rows: {'version':1, 'equipment':rows}, equipment_inventory, 'application/json; charset=utf-8', 'broadcast-equipment.json'),
+            '/api/equipment/export.csv': (equipment_csv, equipment_inventory, 'text/csv; charset=utf-8', 'broadcast-equipment.csv'),
+            '/api/equipment/export.xlsx': (equipment_xlsx, equipment_inventory, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'broadcast-equipment.xlsx'),
+            '/api/equipment/export.pdf': (equipment_pdf, equipment_inventory, 'application/pdf', 'broadcast-equipment.pdf'),
+        }
+        if self.command in ('GET', 'POST') and path in exports:
+            payload = self.body() if self.command == 'POST' else None
+            generate, read, mime, filename = exports[path]
+            rows = read()
+            if self.command == 'POST':
+                rows = selected_export_rows(rows, payload)
+            return self.send(200, generate(rows), mime, filename)
         if self.command == 'GET':
-            reports = {
-                '/api/export.xlsx': (network_xlsx, inventory, 'broadcast-network.xlsx'),
-                '/api/export.pdf': (network_pdf, inventory, 'broadcast-network.pdf'),
-                '/api/equipment/export.xlsx': (equipment_xlsx, equipment_inventory, 'broadcast-equipment.xlsx'),
-                '/api/equipment/export.pdf': (equipment_pdf, equipment_inventory, 'broadcast-equipment.pdf'),
-            }
-            if path in reports:
-                generate, read, filename = reports[path]
-                mime = 'application/pdf' if filename.endswith('.pdf') else 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-                return self.send(200, generate(read()), mime, filename)
             if path == '/api/equipment':
                 return self.send(200, {'equipment': equipment_inventory()})
-            if path == '/api/equipment/export':
-                return self.send(200, {'version':1, 'equipment':equipment_inventory()}, filename='broadcast-equipment.json')
-            if path == '/api/equipment/export.csv':
-                return self.send(200, equipment_csv(), 'text/csv; charset=utf-8', 'broadcast-equipment.csv')
             if path == '/api/devices':
                 return self.send(200, {'devices': inventory()})
-            if path == '/api/export':
-                return self.send(200, {'version': 1, 'devices': inventory()}, filename='broadcast-network.json')
-            if path == '/api/export.csv':
-                output = io.StringIO(newline='')
-                writer = csv.DictWriter(output, fieldnames=ALL_FIELDS, extrasaction='ignore')
-                writer.writeheader()
-                for row in inventory():
-                    # Prevent spreadsheet formula injection in user-supplied strings.
-                    writer.writerow({f: ("'" + str(row[f]) if str(row[f]).startswith(('=', '+', '-', '@', '\t', '\r', '\n')) else row[f]) for f in ALL_FIELDS})
-                return self.send(200, output.getvalue().encode('utf-8-sig'), 'text/csv; charset=utf-8', 'broadcast-network.csv')
             assets = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css'), '/equipment.js': ('equipment.js', 'text/javascript'), '/icon.svg': ('icon.svg', 'image/svg+xml'), '/brand-logo.png': ('brand-logo.png', 'image/png'), '/example-switcher.png': ('example-switcher.png', 'image/png'), '/fonts/Poppins-Regular.woff2': ('fonts/Poppins-Regular.woff2', 'font/woff2'), '/fonts/Poppins-Medium.woff2': ('fonts/Poppins-Medium.woff2', 'font/woff2'), '/fonts/Poppins-SemiBold.woff2': ('fonts/Poppins-SemiBold.woff2', 'font/woff2'), '/fonts/Poppins-Bold.woff2': ('fonts/Poppins-Bold.woff2', 'font/woff2')}
             if path in assets:
                 file, mime = assets[path]

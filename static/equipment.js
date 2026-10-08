@@ -1,10 +1,29 @@
 /* Equipment uses its own records and forms, with shared spreadsheet import. */
 (() => {
   let items = [], editingId = null, deletingItem = null;
+  let visibleItems = [];
+  const selectedItems = new Set();
   const equipmentForm = $('equipment-form');
   const fields = ['brand','model','description','serial_number','quantity','location','notes'];
   const label = field => field.replaceAll('_', ' ').replace(/^./, s => s.toUpperCase());
   const displayName = item => [item.brand, item.model].filter(Boolean).join(' ') || `record ${item.id}`;
+  function updateEquipmentSelection() {
+    const visibleSelected = visibleItems.filter(item => selectedItems.has(item.id)).length;
+    const check = $('select-visible-equipment');
+    check.disabled = !visibleItems.length;
+    check.checked = !!visibleItems.length && visibleSelected === visibleItems.length;
+    check.indeterminate = visibleSelected > 0 && visibleSelected < visibleItems.length;
+    $('equipment-rows').querySelectorAll('.row-select').forEach(checkbox => { checkbox.checked = selectedItems.has(Number(checkbox.dataset.recordId)); });
+    $('equipment-selection-summary').hidden = !selectedItems.size;
+    $('equipment-selection-count').textContent = `${selectedItems.size} selected${selectedItems.size > visibleSelected ? ` · ${selectedItems.size-visibleSelected} outside current filters` : ''}`;
+    updateExportScope('equipment-export-scope', visibleItems.length, selectedItems.size, items.length);
+  }
+  $('select-visible-equipment').onchange = event => {
+    visibleItems.forEach(item => event.target.checked ? selectedItems.add(item.id) : selectedItems.delete(item.id));
+    if (selectedItems.size) $('equipment-export-scope').value = 'selected';
+    updateEquipmentSelection();
+  };
+  $('clear-equipment-selection').onclick = () => { selectedItems.clear(); updateEquipmentSelection(); };
   async function loadEquipment() {
     $('equipment-refresh').disabled = true;
     try {
@@ -24,6 +43,9 @@
     const query = $('equipment-search').value.trim().toLowerCase();
     const results = items.filter(item => fields.some(field => String(item[field] ?? '').toLowerCase().includes(query)) &&
       (!$('equipment-location-filter').value || item.location === $('equipment-location-filter').value));
+    visibleItems = results;
+    const availableIds = new Set(items.map(item => item.id));
+    for (const id of selectedItems) if (!availableIds.has(id)) selectedItems.delete(id);
     $('equipment-records').textContent = items.length;
     $('equipment-units').textContent = items.reduce((total,item) => total + (item.quantity ?? 0), 0);
     $('equipment-units').title = 'Sum of known quantities; blank quantities are not counted.';
@@ -38,6 +60,14 @@
       const row = element('tr');
       fields.forEach(field => {
         const cell = element('td', '', item[field] ?? '');
+        if (field === 'brand') {
+          const value = element('div', 'equipment-brand-value');
+          value.append(selectionControl(item.id, `equipment ${displayName(item)}`, selectedItems, () => {
+            if (selectedItems.size) $('equipment-export-scope').value = 'selected';
+            updateEquipmentSelection();
+          }), element('span', '', item[field] ?? ''));
+          cell.replaceChildren(value);
+        }
         cell.dataset.label = label(field); row.append(cell);
       });
       const actions = element('td', 'equipment-actions'); actions.dataset.label = 'Actions';
@@ -51,6 +81,7 @@
       };
       actions.append(edit,remove); row.append(actions); return row;
     }));
+    updateEquipmentSelection();
   }
   function openEquipment(item = null) {
     editingId = item?.id ?? null;
@@ -82,5 +113,6 @@
     catch(error) { $('equipment-delete-error').textContent = error.message; $('equipment-delete-error').hidden = false; }
     finally { $('confirm-equipment-delete').disabled = false; }
   };
-  window.equipmentUI = {load:loadEquipment, open:openEquipment};
+  window.equipmentUI = {load:loadEquipment, open:openEquipment,
+    exportIds:scope => (scope === 'selected' ? items.filter(item => selectedItems.has(item.id)) : visibleItems).map(item => item.id)};
 })();

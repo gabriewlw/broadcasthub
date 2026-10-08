@@ -28,6 +28,8 @@ header.addEventListener('focusout', event => {
 });
 mobileNavigation.addEventListener('change', () => setNavigationOpen(false, mainNavigation.contains(document.activeElement)));
 let devices = [], editing = null, deleting = null, timer, currentTab = 'device';
+let visibleDevices = [];
+const networkSelections = {device:new Set(), iptv:new Set()};
 let importWarnings = [];
 const pendingNoteSaves = new Map();
 const pendingWrites = new Set();
@@ -297,6 +299,49 @@ function closeExportMenus(restoreFocus = false) {
     if (restoreFocus && menu.contains(document.activeElement)) menu.querySelector('summary').focus();
   });
 }
+function updateExportScope(id, visible, selected, total) {
+  const select = $(id);
+  for (const [value, text] of [['filtered', `Current view · ${visible}`], ['selected', `Selected rows · ${selected}`], ['all', `All records · ${total}`]]) {
+    const option = select.querySelector(`option[value="${value}"]`);
+    option.textContent = text;
+    if (value === 'selected') option.disabled = !selected;
+  }
+  if (!selected && select.value === 'selected') select.value = 'filtered';
+}
+function selectionControl(id, name, selected, onChange) {
+  const control = element('label', 'row-select-control');
+  const checkbox = element('input', 'row-select');
+  checkbox.type = 'checkbox'; checkbox.dataset.recordId = id;
+  checkbox.checked = selected.has(id);
+  checkbox.setAttribute('aria-label', `Select ${name}`);
+  checkbox.onchange = () => {
+    if (checkbox.checked) selected.add(id); else selected.delete(id);
+    onChange();
+  };
+  control.append(checkbox);
+  return control;
+}
+function updateNetworkSelection() {
+  if (currentTab === 'equipment') return;
+  const selected = networkSelections[currentTab];
+  const check = $('select-visible-devices');
+  const visibleSelected = visibleDevices.filter(row => selected.has(row.id)).length;
+  check.disabled = !visibleDevices.length;
+  check.checked = !!visibleDevices.length && visibleSelected === visibleDevices.length;
+  check.indeterminate = visibleSelected > 0 && visibleSelected < visibleDevices.length;
+  check.setAttribute('aria-label', `Select all visible ${currentTab === 'iptv' ? 'channels' : 'devices'}`);
+  $('device-list').querySelectorAll('.row-select').forEach(checkbox => { checkbox.checked = selected.has(Number(checkbox.dataset.recordId)); });
+  $('network-selection-summary').hidden = !selected.size;
+  $('network-selection-count').textContent = `${selected.size} selected${selected.size > visibleSelected ? ` · ${selected.size - visibleSelected} outside current filters` : ''}`;
+  updateExportScope('network-export-scope', visibleDevices.length, selected.size, devices.length);
+}
+$('select-visible-devices').onchange = event => {
+  const selected = networkSelections[currentTab];
+  visibleDevices.forEach(row => event.target.checked ? selected.add(row.id) : selected.delete(row.id));
+  if (selected.size) $('network-export-scope').value = 'selected';
+  updateNetworkSelection();
+};
+$('clear-network-selection').onclick = () => { networkSelections[currentTab].clear(); updateNetworkSelection(); };
 document.querySelectorAll('.export-dropdown').forEach(menu => {
   menu.addEventListener('toggle', () => {
     if (menu.open) document.querySelectorAll('.export-dropdown').forEach(other => { if (other !== menu) other.open = false; });
@@ -313,19 +358,28 @@ document.addEventListener('keydown', event => {
     event.preventDefault(); closeExportMenus(true);
   }
 });
-document.querySelectorAll('.report-download').forEach(link => {
+document.querySelectorAll('.export-links a[download]').forEach(link => {
   link.addEventListener('click', async event => {
     event.preventDefault();
     if (link.getAttribute('aria-disabled') === 'true') return;
     link.setAttribute('aria-disabled', 'true');
     try {
+      const equipment = link.closest('#equipment-panel') !== null;
+      const scope = $(equipment ? 'equipment-export-scope' : 'network-export-scope').value;
+      let exportRows = scope === 'selected' ? tabDevices().filter(row => networkSelections[currentTab]?.has(row.id)) : visibleDevices;
+      if (!equipment && scope === 'selected' && $('sort-order').value) exportRows.sort((a,b) => compareDirectoryRecords(a,b,$('sort-order').value));
+      const ids = equipment ? window.equipmentUI.exportIds(scope) : exportRows.map(row => row.id);
       // A download immediately after a note edit must include that saved note.
       if (document.activeElement?.matches('.device-notes-editor')) document.activeElement.blur();
       await Promise.all([...pendingNoteSaves.values(), ...pendingWrites]);
-      const response = await fetch(link.href);
+      const response = await fetch(link.href, scope === 'all' ? {} : {
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids})
+      });
       if (!response.ok) throw new Error((await response.json()).error || 'Could not export inventory.');
       const url = URL.createObjectURL(await response.blob());
-      const download = element('a'); download.href = url; download.download = link.download;
+      const download = element('a'); download.href = url;
+      const extension = new URL(link.href).pathname.split('.').pop();
+      download.download = link.download || `broadcast-${equipment ? 'equipment' : 'network'}.${['csv','xlsx','pdf'].includes(extension) ? extension : 'json'}`;
       document.body.append(download); download.click(); download.remove();
       setTimeout(() => URL.revokeObjectURL(url), 30000);
     } catch(error) { toast('Export failed: ' + error.message); }
@@ -355,6 +409,7 @@ async function load() {
   } finally { $('loading').hidden = true; $('refresh').disabled = false; }
 }
 function render() {
+  if (currentTab === 'equipment') return;
   closeSystemMenu();
   const iptvDirectory = currentTab === 'iptv';
   $('device-directory').classList.toggle('iptv-directory', iptvDirectory);
@@ -369,6 +424,9 @@ function render() {
   syncButtons('source-buttons', $('source-filter').value);
   syncButtons('address-buttons', $('address-filter').value);
   const current = tabDevices();
+  const selected = networkSelections[currentTab];
+  const availableIds = new Set(current.map(row => row.id));
+  for (const id of selected) if (!availableIds.has(id)) selected.delete(id);
   const hasDHCP = current.some(d => isDHCP(d.ip));
   $('address-filter-group').hidden = !hasDHCP;
   if (!hasDHCP) $('address-filter').value = '';
@@ -385,6 +443,7 @@ function render() {
     (!$('source-filter').value || d.channel_source === $('source-filter').value) &&
     (!$('address-filter').value || isDHCP(d.ip)));
   if ($('sort-order').value) results.sort((a, b) => compareDirectoryRecords(a, b, $('sort-order').value));
+  visibleDevices = results;
   $('result-count').textContent = results.length;
   $('showing').textContent = `${results.length} of ${current.length} ${currentTab === 'iptv' ? 'channels' : 'devices'}`;
   $('empty').hidden = current.length > 0;
@@ -392,6 +451,10 @@ function render() {
   const rows = results.map(device => {
     const row = element('article', 'device-row');
     const identity = element('div', 'device-identity identity-cell');
+    identity.append(selectionControl(device.id, deviceLabel(device), selected, () => {
+      if (selected.size) $('network-export-scope').value = 'selected';
+      updateNetworkSelection();
+    }));
     const title = element('div');
     title.append(element('div', 'device-name', device.name), element('span', 'device-category', device.category));
     const notes = element('textarea', 'device-notes-editor');
@@ -464,6 +527,7 @@ function render() {
     row.append(system,notesCell,actions); return row;
   });
   $('device-list').replaceChildren(...rows);
+  updateNetworkSelection();
   renderImportWarnings();
 }
 function renderImportWarnings() {

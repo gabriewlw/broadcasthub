@@ -1,4 +1,5 @@
 """Optional end-to-end check: requires Playwright and Chromium."""
+import csv
 import json
 import io
 import shutil
@@ -35,11 +36,12 @@ with tempfile.TemporaryDirectory() as temp:
                     else:
                         page.locator('#spreadsheet-dialog').wait_for(state='hidden')
 
-            def open_export_menu(panel='inventory'):
+            def open_export_menu(panel='inventory', scope='all'):
                 menu = page.locator('#' + panel + ' .export-dropdown')
                 menu.locator('summary').click()
                 assert menu.get_attribute('open') is not None
                 assert menu.locator('a[download]').count() == 4
+                menu.locator('.export-scope').select_option(scope)
 
             page.on('pageerror', lambda error: errors.append(str(error)))
             page.goto(f'http://127.0.0.1:{server.server_port}')
@@ -796,9 +798,87 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#row-review-dialog').is_hidden()
             assert len(app.inventory()) == before + 2
             assert next(row['notes'] for row in app.inventory() if row['name'] == 'New review camera') == 'Reviewed notes\nRack 3'
+            # Current-view exports follow venue/system/search filters and display order.
+            page.set_viewport_size({'width':1440,'height':1000})
+            page.locator('#clear-filters').click()
+            page.locator('#venue-filter').select_option('Sort venue')
+            page.locator('#system-buttons').get_by_role('button', name='Audio', exact=True).click()
+            page.locator('#sort-order').select_option('ip-asc')
+            assert names() == ['Sort Alpha', 'Sort foxtrot']
+
+            def scoped_download(panel, label, scope):
+                open_export_menu(panel, scope)
+                with page.expect_download() as download:
+                    page.locator('#'+panel).get_by_role('link', name=label, exact=True).click()
+                return Path(download.value.path()).read_bytes()
+
+            raw = scoped_download('inventory', 'JSON ↓', 'filtered')
+            assert [row['name'] for row in json.loads(raw)['devices']] == ['Sort Alpha', 'Sort foxtrot']
+            raw = scoped_download('inventory', 'CSV ↓', 'filtered')
+            assert [row['name'] for row in csv.DictReader(io.StringIO(raw.decode('utf-8-sig')))] == ['Sort Alpha', 'Sort foxtrot']
+            raw = scoped_download('inventory', 'XLSX ↓', 'filtered')
+            book = load_workbook(io.BytesIO(raw))
+            assert [row[1] for row in list(book['AV devices'].values)[1:]] == ['Sort Alpha', 'Sort foxtrot']
+            assert book['IPTV channels'].max_row == 1
+            raw = scoped_download('inventory', 'PDF ↓', 'filtered')
+            assert b'http://10.99.0.10' in raw and b'http://200.1.1.1' in raw
+            assert b'http://10.99.0.2' not in raw
+            page.get_by_role('checkbox', name='Select Sort Alpha', exact=True).check()
+            assert page.locator('#select-visible-devices').evaluate('(node) => node.indeterminate')
+            assert page.locator('#network-export-scope').input_value() == 'selected'
+            page.locator('#clear-filters').click()
+            page.locator('#venue-filter').select_option('CONTROL ROOM')
+            assert '1 outside current filters' in page.locator('#network-selection-count').inner_text()
+            page.get_by_role('checkbox', name='Select New review camera', exact=True).check()
+            exported = json.loads(scoped_download('inventory', 'JSON ↓', 'selected'))['devices']
+            assert {row['name'] for row in exported} == {'Sort Alpha', 'New review camera'}
+            page.get_by_role('tab', name='IPTV channels', exact=True).click()
+            assert page.locator('#network-selection-summary').is_hidden()
+            page.locator('#search').fill('IPTV sort')
+            page.get_by_role('checkbox', name='Select IPTV sort A', exact=True).check()
+            exported = json.loads(scoped_download('inventory', 'JSON ↓', 'selected'))['devices']
+            assert [row['name'] for row in exported] == ['IPTV sort A']
+            assert exported[0]['record_type'] == 'iptv'
+            page.get_by_role('tab', name='AV devices', exact=True).click()
+            assert page.locator('#network-selection-count').inner_text().startswith('2 selected')
+            page.locator('#clear-network-selection').click()
+            assert page.locator('#network-export-scope').input_value() == 'filtered'
+            page.locator('#clear-filters').click()
+            page.locator('#venue-filter').select_option('Sort venue')
+            page.locator('#select-visible-devices').check()
+            assert page.locator('.device-row .row-select:checked').count() == 7
+            page.locator('#select-visible-devices').uncheck()
+            assert page.locator('#network-selection-summary').is_hidden()
+            page.locator('#search').fill('No matching record for export')
+            assert json.loads(scoped_download('inventory', 'JSON ↓', 'filtered'))['devices'] == []
+            assert len(json.loads(scoped_download('inventory', 'JSON ↓', 'all'))['devices']) == len(app.inventory())
+            # Equipment scope is independent and supports selected rows across locations.
+            for brand, location in [('Export camera', 'Export theatre'), ('Export spare', 'Export store')]:
+                response = page.request.post(f'http://127.0.0.1:{server.server_port}/api/equipment', data={'brand':brand, 'location':location})
+                assert response.status == 201
+            page.get_by_role('tab', name='Equipment inventory', exact=True).click()
+            page.wait_for_function("() => !document.getElementById('equipment-refresh').disabled")
+            page.locator('#equipment-clear').click()
+            page.locator('#equipment-location-filter').select_option('Export theatre')
+            assert [row['brand'] for row in json.loads(scoped_download('equipment-panel', 'JSON ↓', 'filtered'))['equipment']] == ['Export camera']
+            page.locator('#select-visible-equipment').check()
+            page.locator('#equipment-location-filter').select_option('Export store')
+            page.get_by_role('checkbox', name='Select equipment Export spare', exact=True).check()
+            assert '1 outside current filters' in page.locator('#equipment-selection-count').inner_text()
+            exported = json.loads(scoped_download('equipment-panel', 'JSON ↓', 'selected'))['equipment']
+            assert {row['brand'] for row in exported} == {'Export camera', 'Export spare'}
+            page.locator('#clear-equipment-selection').click()
+            assert page.locator('#equipment-export-scope').input_value() == 'filtered'
+            for width in [390, 320]:
+                page.set_viewport_size({'width':width,'height':844})
+                open_export_menu('equipment-panel', 'filtered')
+                assert page.locator('#equipment-panel .export-links').evaluate('(node) => {const r=node.getBoundingClientRect(); return r.left>=0 && r.right<=innerWidth;}')
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+                page.keyboard.press('Escape')
+                assert page.get_by_role('checkbox', name='Select equipment Export spare', exact=True).is_visible()
             assert not errors, errors
             browser.close()
-            print('PASS: mobile create, all filters, validation, edit, export, delete, import, reload persistence; desktop/mobile overflow; no JS errors.')
+            print('PASS: mobile create, all filters, validation, edit, export, delete, import, reload persistence; filtered/selected downloads across inventories; desktop/mobile overflow; no JS errors.')
     finally:
         server.shutdown()
         server.server_close()
