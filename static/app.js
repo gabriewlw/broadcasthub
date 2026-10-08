@@ -238,6 +238,9 @@ function switchTab(type) {
   }
   $('inventory').setAttribute('aria-labelledby', type === 'iptv' ? 'iptv-tab' : 'device-tab');
   const iptv = type === 'iptv';
+  $('inventory').querySelectorAll('.export-links a[download]').forEach(link => {
+    const url = new URL(link.href); url.searchParams.set('record_type', type); link.href = url.href;
+  });
   $('sort-order').value = tabSortOrders[type];
   for (const direction of ['asc', 'desc']) {
     $('sort-order').querySelector(`option[value="system-${direction}"]`).textContent = `${iptv ? 'Source' : 'System'} · ${direction === 'asc' ? 'A–Z' : 'Z–A'}`;
@@ -302,7 +305,7 @@ function closeExportMenus(restoreFocus = false) {
 }
 function updateExportScope(id, visible, selected, total) {
   const select = $(id);
-  for (const [value, text] of [['filtered', `Current view · ${visible}`], ['selected', `Selected rows · ${selected}`], ['all', `All records · ${total}`]]) {
+  for (const [value, text] of [['filtered', `Current view · ${visible}`], ['selected', `Selected rows · ${selected}`], ['all', `All in this tab · ${total}`]]) {
     const option = select.querySelector(`option[value="${value}"]`);
     option.textContent = text;
     if (value === 'selected') option.disabled = !selected;
@@ -334,8 +337,8 @@ function updateNetworkSelection() {
   $('device-list').querySelectorAll('.row-select').forEach(checkbox => { checkbox.checked = selected.has(Number(checkbox.dataset.recordId)); });
   $('network-selection-summary').hidden = !selected.size;
   $('delete-selected-devices').disabled = !selected.size;
-  $('network-selection-count').textContent = `${selected.size} selected${selected.size > visibleSelected ? ` · ${selected.size - visibleSelected} outside current filters` : ''}`;
-  updateExportScope('network-export-scope', visibleDevices.length, selected.size, devices.length);
+  $('network-selection-count').textContent = `${selected.size} selected`;
+  updateExportScope('network-export-scope', visibleDevices.length, selected.size, tabDevices().length);
 }
 $('select-visible-devices').onchange = event => {
   const selected = networkSelections[currentTab];
@@ -396,15 +399,17 @@ document.querySelectorAll('.export-links a[download]').forEach(link => {
     link.setAttribute('aria-disabled', 'true');
     try {
       const equipment = link.closest('#equipment-panel') !== null;
+      const recordType = currentTab;
       const scope = $(equipment ? 'equipment-export-scope' : 'network-export-scope').value;
-      let exportRows = scope === 'selected' ? tabDevices().filter(row => networkSelections[currentTab]?.has(row.id)) : visibleDevices;
+      let exportRows = scope === 'selected' ? visibleDevices.filter(row => networkSelections[currentTab]?.has(row.id)) : visibleDevices;
       if (!equipment && scope === 'selected' && $('sort-order').value) exportRows.sort((a,b) => compareDirectoryRecords(a,b,$('sort-order').value));
       const ids = equipment ? window.equipmentUI.exportIds(scope) : exportRows.map(row => row.id);
       // A download immediately after a note edit must include that saved note.
       if (document.activeElement?.matches('.device-notes-editor')) document.activeElement.blur();
       await Promise.all([...pendingNoteSaves.values(), ...pendingWrites]);
-      const response = await fetch(link.href, scope === 'all' ? {} : {
-        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ids})
+      const payload = equipment ? {ids} : {record_type:recordType, ...(scope === 'all' ? {} : {ids})};
+      const response = await fetch(link.href, equipment && scope === 'all' ? {} : {
+        method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)
       });
       if (!response.ok) throw new Error((await response.json()).error || 'Could not export inventory.');
       const url = URL.createObjectURL(await response.blob());
@@ -456,8 +461,6 @@ function render() {
   syncButtons('address-buttons', $('address-filter').value);
   const current = tabDevices();
   const selected = networkSelections[currentTab];
-  const availableIds = new Set(current.map(row => row.id));
-  for (const id of selected) if (!availableIds.has(id)) selected.delete(id);
   const hasDHCP = current.some(d => isDHCP(d.ip));
   $('address-filter-group').hidden = !hasDHCP;
   if (!hasDHCP) $('address-filter').value = '';
@@ -475,6 +478,8 @@ function render() {
     (!$('address-filter').value || isDHCP(d.ip)));
   if ($('sort-order').value) results.sort((a, b) => compareDirectoryRecords(a, b, $('sort-order').value));
   visibleDevices = results;
+  const visibleIds = new Set(results.map(row => row.id));
+  for (const id of selected) if (!visibleIds.has(id)) selected.delete(id);
   $('result-count').textContent = results.length;
   $('showing').textContent = `${results.length} of ${current.length} ${currentTab === 'iptv' ? 'channels' : 'devices'}`;
   $('empty').hidden = current.length > 0;

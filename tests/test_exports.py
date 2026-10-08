@@ -143,6 +143,45 @@ class ExportTests(unittest.TestCase):
             self.assertEqual(self.request(base, 'POST', {'ids':[]}, headers={'Content-Type':'application/json', 'Origin':'https://other.example'})[0], 403)
             self.assertEqual(self.request(base, 'POST', headers={'Content-Type':'application/json'})[0], 400)
 
+    def test_tab_reports_include_only_the_requested_inventory_even_when_empty(self):
+        av = self.request('/api/devices', 'POST', dict(name='AV only camera', ip='10.30.0.1'))[1]
+        channel = self.request('/api/devices', 'POST', dict(record_type='iptv', name='IPTV only news', ip='239.30.0.1', port=5000))[1]
+        self.request('/api/equipment', 'POST', dict(brand='Equipment only brand'))
+        for record_type, name, excluded, sheet_name, other_sheet in [
+            ('device', 'AV only camera', 'IPTV only news', 'AV devices', 'IPTV channels'),
+            ('iptv', 'IPTV only news', 'AV only camera', 'IPTV channels', 'AV devices'),
+        ]:
+            for ids in [None, [av['id'], channel['id']], []]:
+                payload = {'record_type':record_type}
+                if ids is not None:
+                    payload['ids'] = ids
+                with self.subTest(record_type=record_type, ids=ids):
+                    status, data = self.request('/api/export', 'POST', payload)
+                    self.assertEqual(status, 200)
+                    self.assertEqual([row['name'] for row in data['devices']], [] if ids == [] else [name])
+                    raw = self.request('/api/export.csv', 'POST', payload)[1]
+                    rows = list(csv.DictReader(io.StringIO(raw.decode('utf-8-sig'))))
+                    self.assertEqual([row['name'] for row in rows], [] if ids == [] else [name])
+                    raw = self.request('/api/export.xlsx', 'POST', payload)[1]
+                    book = load_workbook(io.BytesIO(raw))
+                    self.assertEqual(book.sheetnames, [sheet_name])
+                    self.assertEqual(book.active.max_row, 1 if ids == [] else 2)
+                    raw = self.request('/api/export.pdf', 'POST', payload)[1]
+                    self.assertTrue(raw.startswith(b'%PDF-'))
+                    if shutil.which('pdftotext'):
+                        text = subprocess.run(['pdftotext','-','-'], input=raw, stdout=subprocess.PIPE, check=True).stdout.decode()
+                        self.assertIn(sheet_name, text)
+                        self.assertNotIn(other_sheet, text)
+                        self.assertNotIn(excluded, text)
+                        self.assertNotIn('Equipment only brand', text)
+            exported = self.request('/api/export?record_type='+record_type)[1]['devices']
+            self.assertEqual([row['name'] for row in exported], [name])
+            raw = self.request('/api/export.xlsx?record_type='+record_type)[1]
+            self.assertEqual(load_workbook(io.BytesIO(raw)).sheetnames, [sheet_name])
+        self.assertEqual(self.request('/api/export', 'POST', {'record_type':'equipment'})[0], 400)
+        self.assertEqual(self.request('/api/export?record_type=equipment')[0], 400)
+        self.assertEqual(self.request('/api/export', 'POST', {'record_type':'device', 'ids':None})[0], 400)
+
     def test_pdf_ipv4_links_include_channels_without_linking_blank_or_dhcp(self):
         self.request('/api/devices', 'POST', dict(name='Fixed', ip='10.24.176.99', vlan=1500))
         self.request('/api/devices', 'POST', dict(name='Dynamic', ip='DHCP'))

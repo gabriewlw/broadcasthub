@@ -65,16 +65,19 @@ def workbook(sections):
     return output.getvalue()
 
 
-def network_xlsx(rows):
+def network_xlsx(rows, record_type=None):
     av = [dict(row, confirmation=confirmation(row)) for row in rows if row['record_type'] == 'device']
     channels = [row for row in rows if row['record_type'] == 'iptv']
-    return workbook([
+    sections = [
         ('AV devices', [('Venue','venue',24), ('Device name','name',30), ('IP Address','ip',20),
                         ('VLAN','vlan',10), ('System','discipline',16), ('Notes','notes',55),
                         ('IP confirmation','confirmation',20), ('Category','category',24)], av),
         ('IPTV channels', [('Channel name','name',30), ('IP Address','ip',20), ('Port','port',10),
                            ('Channel source','channel_source',20), ('Notes','notes',55),
-                           ('Category','category',24)], channels)])
+                           ('Category','category',24)], channels)]
+    if record_type:
+        sections = [sections[0 if record_type == 'device' else 1]]
+    return workbook(sections)
 
 
 def equipment_xlsx(rows):
@@ -220,7 +223,7 @@ def pdf_report(title, sections):
     return output.getvalue()
 
 
-def network_pdf(rows):
+def network_pdf(rows, record_type=None):
     av, channels = [], []
     for row in rows:
         name = '\n'.join(filter(None, [row['name'], row['category']]))
@@ -228,9 +231,13 @@ def network_pdf(rows):
             av.append([row['venue'], name, row['ip'], row['vlan'], confirmation(row), row['discipline'], row['notes']])
         else:
             channels.append([name, row['ip'], row['port'], row['channel_source'], row['notes']])
-    return pdf_report('AV devices and IPTV channels', [
+    sections = [
         ('AV devices', ['VENUE','DEVICE','IP','VLAN','CONFIRMATION','SYSTEM','NOTES'], [.14,.16,.15,.07,.12,.11,.25], av),
-        ('IPTV channels', ['CHANNEL','IP','PORT','SOURCE','NOTES'], [.21,.20,.08,.15,.36], channels)])
+        ('IPTV channels', ['CHANNEL','IP','PORT','SOURCE','NOTES'], [.21,.20,.08,.15,.36], channels)]
+    if record_type:
+        sections = [sections[0 if record_type == 'device' else 1]]
+    title = sections[0][0] if record_type else 'AV devices and IPTV channels'
+    return pdf_report(title, sections)
 
 
 def equipment_pdf(rows):

@@ -15,7 +15,7 @@
     check.indeterminate = visibleSelected > 0 && visibleSelected < visibleItems.length;
     $('equipment-rows').querySelectorAll('.row-select').forEach(checkbox => { checkbox.checked = selectedItems.has(Number(checkbox.dataset.recordId)); });
     $('equipment-selection-summary').hidden = !selectedItems.size;
-    $('equipment-selection-count').textContent = `${selectedItems.size} selected${selectedItems.size > visibleSelected ? ` · ${selectedItems.size-visibleSelected} outside current filters` : ''}`;
+    $('equipment-selection-count').textContent = `${selectedItems.size} selected`;
     updateExportScope('equipment-export-scope', visibleItems.length, selectedItems.size, items.length);
   }
   $('select-visible-equipment').onchange = event => {
@@ -44,7 +44,7 @@
     const results = items.filter(item => fields.some(field => String(item[field] ?? '').toLowerCase().includes(query)) &&
       (!$('equipment-location-filter').value || item.location === $('equipment-location-filter').value));
     visibleItems = results;
-    const availableIds = new Set(items.map(item => item.id));
+    const availableIds = new Set(results.map(item => item.id));
     for (const id of selectedItems) if (!availableIds.has(id)) selectedItems.delete(id);
     $('equipment-records').textContent = items.length;
     $('equipment-units').textContent = items.reduce((total,item) => total + (item.quantity ?? 0), 0);
@@ -114,5 +114,5 @@
     finally { $('confirm-equipment-delete').disabled = false; }
   };
   window.equipmentUI = {load:loadEquipment, open:openEquipment,
-    exportIds:scope => (scope === 'selected' ? items.filter(item => selectedItems.has(item.id)) : visibleItems).map(item => item.id)};
+    exportIds:scope => (scope === 'selected' ? visibleItems.filter(item => selectedItems.has(item.id)) : visibleItems).map(item => item.id)};
 })();

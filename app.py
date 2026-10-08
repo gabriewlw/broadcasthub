@@ -8,7 +8,7 @@ import re
 import sqlite3
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 from spreadsheets import preview as spreadsheet_preview
 from exports import network_xlsx, equipment_xlsx, network_pdf, equipment_pdf
 
@@ -484,8 +484,26 @@ class Handler(BaseHTTPRequestHandler):
             payload = self.body() if self.command == 'POST' else None
             generate, read, mime, filename = exports[path]
             rows = read()
+            record_type = None
+            if self.command == 'GET' and path.startswith('/api/export'):
+                query = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
+                if 'record_type' in query:
+                    record_type = query['record_type'][0]
+                    if record_type not in ('device', 'iptv'):
+                        raise ValueError('Choose AV devices or IPTV channels for this export.')
+                    rows = [row for row in rows if row['record_type'] == record_type]
             if self.command == 'POST':
-                rows = selected_export_rows(rows, payload)
+                if path.startswith('/api/export') and isinstance(payload, dict) and 'record_type' in payload:
+                    record_type = payload['record_type']
+                    if record_type not in ('device', 'iptv'):
+                        raise ValueError('Choose AV devices or IPTV channels for this export.')
+                    rows = [row for row in rows if row['record_type'] == record_type]
+                    if 'ids' in payload:
+                        rows = selected_export_rows(rows, payload)
+                else:
+                    rows = selected_export_rows(rows, payload)
+            if record_type and generate in (network_pdf, network_xlsx):
+                return self.send(200, generate(rows, record_type=record_type), mime, filename)
             return self.send(200, generate(rows), mime, filename)
         if self.command == 'GET':
             if path == '/api/equipment':

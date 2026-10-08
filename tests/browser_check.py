@@ -3,6 +3,7 @@ import csv
 import json
 import io
 import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -668,7 +669,7 @@ with tempfile.TemporaryDirectory() as temp:
                 page.locator('#inventory').get_by_role('link', name='XLSX ↓', exact=True).click()
             assert download.value.suggested_filename == 'broadcast-network.xlsx'
             workbook = load_workbook(io.BytesIO(Path(download.value.path()).read_bytes()))
-            assert workbook.sheetnames == ['AV devices','IPTV channels']
+            assert workbook.sheetnames == ['AV devices']
             exported = next(row for row in list(workbook['AV devices'].values)[1:] if row[1] == 'Unassigned camera')
             assert exported[4] == 'Video' and exported[5] == 'Exported immediately after edit'
             open_export_menu('inventory')
@@ -819,7 +820,7 @@ with tempfile.TemporaryDirectory() as temp:
             raw = scoped_download('inventory', 'XLSX ↓', 'filtered')
             book = load_workbook(io.BytesIO(raw))
             assert [row[1] for row in list(book['AV devices'].values)[1:]] == ['Sort Alpha', 'Sort foxtrot']
-            assert book['IPTV channels'].max_row == 1
+            assert book.sheetnames == ['AV devices']
             raw = scoped_download('inventory', 'PDF ↓', 'filtered')
             assert b'http://10.99.0.10' in raw and b'http://200.1.1.1' in raw
             assert b'http://10.99.0.2' not in raw
@@ -828,10 +829,10 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#network-export-scope').input_value() == 'selected'
             page.locator('#clear-filters').click()
             page.locator('#venue-filter').select_option('CONTROL ROOM')
-            assert '1 outside current filters' in page.locator('#network-selection-count').inner_text()
+            assert page.locator('#network-selection-summary').is_hidden()
             page.get_by_role('checkbox', name='Select New review camera', exact=True).check()
             exported = json.loads(scoped_download('inventory', 'JSON ↓', 'selected'))['devices']
-            assert {row['name'] for row in exported} == {'Sort Alpha', 'New review camera'}
+            assert {row['name'] for row in exported} == {'New review camera'}
             page.get_by_role('tab', name='IPTV channels', exact=True).click()
             assert page.locator('#network-selection-summary').is_hidden()
             page.locator('#search').fill('IPTV sort')
@@ -840,7 +841,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert [row['name'] for row in exported] == ['IPTV sort A']
             assert exported[0]['record_type'] == 'iptv'
             page.get_by_role('tab', name='AV devices', exact=True).click()
-            assert page.locator('#network-selection-count').inner_text().startswith('2 selected')
+            assert page.locator('#network-selection-count').inner_text().startswith('1 selected')
             page.locator('#clear-network-selection').click()
             assert page.locator('#network-export-scope').input_value() == 'filtered'
             page.locator('#clear-filters').click()
@@ -851,8 +852,8 @@ with tempfile.TemporaryDirectory() as temp:
             assert page.locator('#network-selection-summary').is_hidden()
             page.locator('#search').fill('No matching record for export')
             assert json.loads(scoped_download('inventory', 'JSON ↓', 'filtered'))['devices'] == []
-            assert len(json.loads(scoped_download('inventory', 'JSON ↓', 'all'))['devices']) == len(app.inventory())
-            # Equipment scope is independent and supports selected rows across locations.
+            assert len(json.loads(scoped_download('inventory', 'JSON ↓', 'all'))['devices']) == sum(row['record_type']=='device' for row in app.inventory())
+            # Equipment selection contains only records visible in its current location filter.
             for brand, location in [('Export camera', 'Export theatre'), ('Export spare', 'Export store')]:
                 response = page.request.post(f'http://127.0.0.1:{server.server_port}/api/equipment', data={'brand':brand, 'location':location})
                 assert response.status == 201
@@ -864,9 +865,9 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#select-visible-equipment').check()
             page.locator('#equipment-location-filter').select_option('Export store')
             page.get_by_role('checkbox', name='Select equipment Export spare', exact=True).check()
-            assert '1 outside current filters' in page.locator('#equipment-selection-count').inner_text()
+            assert page.locator('#equipment-selection-count').inner_text() == '1 selected'
             exported = json.loads(scoped_download('equipment-panel', 'JSON ↓', 'selected'))['equipment']
-            assert {row['brand'] for row in exported} == {'Export camera', 'Export spare'}
+            assert {row['brand'] for row in exported} == {'Export spare'}
             page.locator('#clear-equipment-selection').click()
             assert page.locator('#equipment-export-scope').input_value() == 'filtered'
             for width in [390, 320]:
@@ -876,11 +877,11 @@ with tempfile.TemporaryDirectory() as temp:
                 assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
                 page.keyboard.press('Escape')
                 assert page.get_by_role('checkbox', name='Select equipment Export spare', exact=True).is_visible()
-            # Batch deletion previews hidden selections, supports cancellation, and
+            # Batch deletion previews visible selections, supports cancellation, and
             # removes only the confirmed IDs while keeping other inventories intact.
             page.set_viewport_size({'width':1440,'height':1000})
             assert page.locator('#equipment-rows .row-select').evaluate_all('(nodes) => {const x=document.getElementById("select-visible-equipment").getBoundingClientRect().left; return nodes.every(n=>Math.abs(n.getBoundingClientRect().left-x)<1);}')
-            for name, venue in [('Batch delete A','Batch lounge'), ('Batch delete B','Batch theatre'), ('Batch keep C','Batch theatre')]:
+            for name, venue in [('Batch delete A','Batch theatre'), ('Batch delete B','Batch theatre'), ('Batch keep C','Batch lounge')]:
                 response = page.request.post(f'http://127.0.0.1:{server.server_port}/api/devices', data={'name':name,'venue':venue})
                 assert response.status == 201
             page.get_by_role('tab', name='AV devices', exact=True).click()
@@ -889,14 +890,13 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#clear-filters').click()
             page.locator('#clear-network-selection').click() if page.locator('#network-selection-summary').is_visible() else None
             assert page.locator('.device-row .row-select').evaluate_all('(nodes) => {const x=document.getElementById("select-visible-devices").getBoundingClientRect().left; return nodes.every(n=>Math.abs(n.getBoundingClientRect().left-x)<1);}')
-            page.locator('#venue-filter').select_option('Batch lounge')
-            page.get_by_role('checkbox', name='Select Batch delete A', exact=True).check()
             page.locator('#venue-filter').select_option('Batch theatre')
+            page.get_by_role('checkbox', name='Select Batch delete A', exact=True).check()
             page.get_by_role('checkbox', name='Select Batch delete B', exact=True).check()
             before = app.inventory()
             page.locator('#delete-selected-devices').click()
             assert page.locator('#batch-delete-title').inner_text() == 'Delete 2 devices?'
-            assert '1 selected record is outside' in page.locator('#batch-delete-description').inner_text()
+            assert 'outside the current filters' not in page.locator('#batch-delete-description').inner_text()
             assert page.locator('#batch-delete-list li').count() == 2
             assert 'Batch keep C' not in page.locator('#batch-delete-list').inner_text()
             page.locator('#cancel-batch-delete').click()
@@ -921,6 +921,55 @@ with tempfile.TemporaryDirectory() as temp:
             page.wait_for_function("() => !document.getElementById('confirm-batch-delete').disabled")
             assert not any(row['name'].startswith('IPTV sort') for row in app.inventory())
             assert any(row['name']=='Batch keep C' for row in app.inventory())
+            # Searching for decoder and selecting all exports only visible matches.
+            for name in ['Decoder cabin 1', 'Decoder cabin 2', 'Encoder keep']:
+                response = page.request.post(f'http://127.0.0.1:{server.server_port}/api/devices', data={'name':name})
+                assert response.status == 201
+            page.get_by_role('tab', name='AV devices', exact=True).click()
+            page.locator('#refresh').click()
+            page.wait_for_function("() => !document.getElementById('refresh').disabled")
+            page.locator('#clear-filters').click()
+            page.get_by_role('checkbox', name='Select Encoder keep', exact=True).check()
+            page.locator('#search').fill('decoder')
+            assert page.locator('#network-selection-summary').is_hidden()
+            matching = names()
+            assert {'Decoder cabin 1', 'Decoder cabin 2'} <= set(matching)
+            page.locator('#select-visible-devices').check()
+            assert page.locator('.device-row .row-select:checked').count()==len(matching)
+            assert page.locator('#network-export-scope').input_value()=='selected'
+            rows = json.loads(scoped_download('inventory', 'JSON ↓', 'selected'))['devices']
+            assert [row['name'] for row in rows]==matching
+            book = load_workbook(io.BytesIO(scoped_download('inventory', 'XLSX ↓', 'selected')))
+            assert book.sheetnames==['AV devices']
+            assert [row[1] for row in list(book.active.values)[1:]]==matching
+            raw = scoped_download('inventory', 'CSV ↓', 'selected')
+            assert [row['name'] for row in csv.DictReader(io.StringIO(raw.decode('utf-8-sig')))]==matching
+            raw = scoped_download('inventory', 'PDF ↓', 'selected')
+            if shutil.which('pdftotext'):
+                text = subprocess.run(['pdftotext','-','-'],input=raw,stdout=subprocess.PIPE,check=True).stdout.decode()
+                assert 'Decoder cabin 1' in text and 'Decoder cabin 2' in text
+                assert 'Encoder keep' not in text and 'IPTV channels' not in text
+            # Every format, including All in this tab, stays within the active tab.
+            for tab, record_type, sheet_name, excluded_heading in [
+                ('AV devices','device','AV devices','IPTV channels'),
+                ('IPTV channels','iptv','IPTV channels','AV devices'),
+            ]:
+                page.get_by_role('tab', name=tab, exact=True).click()
+                page.locator('#clear-filters').click()
+                assert page.locator('#inventory .export-links a[download]').evaluate_all('(links) => links.map(link => new URL(link.href).searchParams.get("record_type"))') == [record_type]*4
+                expected = [row for row in app.inventory() if row['record_type']==record_type]
+                assert page.locator('#network-export-scope option[value="all"]').text_content().endswith(str(len(expected))), (record_type, len(expected), page.locator('#network-export-scope option[value="all"]').text_content())
+                rows = json.loads(scoped_download('inventory', 'JSON ↓', 'all'))['devices']
+                assert len(rows)==len(expected) and all(row['record_type']==record_type for row in rows)
+                raw = scoped_download('inventory', 'CSV ↓', 'all')
+                rows = list(csv.DictReader(io.StringIO(raw.decode('utf-8-sig'))))
+                assert len(rows)==len(expected) and all(row['record_type']==record_type for row in rows)
+                book = load_workbook(io.BytesIO(scoped_download('inventory', 'XLSX ↓', 'all')))
+                assert book.sheetnames==[sheet_name] and book.active.max_row==len(expected)+1
+                raw = scoped_download('inventory', 'PDF ↓', 'all')
+                if shutil.which('pdftotext'):
+                    text = subprocess.run(['pdftotext','-','-'],input=raw,stdout=subprocess.PIPE,check=True).stdout.decode()
+                    assert sheet_name in text and excluded_heading not in text
             assert not errors, errors
             browser.close()
             print('PASS: mobile create, all filters, validation, edit, export, delete, import, reload persistence; filtered/selected downloads across inventories; desktop/mobile overflow; no JS errors.')
