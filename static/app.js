@@ -665,6 +665,12 @@ const iptvImportFields = [
   ['port', 'Port', ['mcast port [s]','mcast port','multicast port','port','udp port','stream port','port number']],
   ['notes', 'Notes (optional)', ['notes','note','comments','description']]
 ];
+function channelSourceFromName(name) {
+  const text = name.toLowerCase().replace(/\s+/g, ' ');
+  if (['cltv','carnival','map','crew','scala','casino','safety'].some(keyword => text.includes(keyword))) return 'Onboard';
+  if (['espn','national geographic','nat geo'].some(keyword => text.includes(keyword))) return 'Satellite';
+  return '';
+}
 const importFields = () => currentTab === 'equipment' ? equipmentImportFields : currentTab === 'device'
   ? networkImportFields.filter(([field]) => ['venue','name','ip','vlan','notes'].includes(field))
   : iptvImportFields;
@@ -686,6 +692,7 @@ function mappedRows(applyVenueEdits = true) {
       return [field, value];
     }));
     if (currentTab !== 'equipment') mapped.record_type = currentTab;
+    if (currentTab === 'iptv') mapped.channel_source = channelSourceFromName(mapped.name);
     const field = currentTab === 'equipment' ? 'location' : 'venue';
     if (applyVenueEdits && venueEdits.has(mapped[field])) mapped[field] = venueEdits.get(mapped[field]);
     return mapped;
@@ -810,11 +817,14 @@ function reviewImportRow(entry, index, total, tab, knownAddresses) {
       ? 'There is text in the Multicast IP field. Enter an IPv4 address, leave the field blank, or skip this row.'
       : 'There is text in the IP Address field. Enter an IPv4 address, click DHCP, leave the field blank, or skip this row.';
     const controls = new Map();
-    const fields = importFields();
+    const fields = tab === 'iptv'
+      ? [...iptvImportFields.slice(0,3), ['channel_source', 'Type'], ...iptvImportFields.slice(3)]
+      : importFields();
     $('row-review-fields').style.setProperty('--review-columns', fields.length);
     $('row-review-fields').replaceChildren(...fields.map(([field, label]) => {
       const group = element('label', '', label.replace(' (optional)', ''));
-      const input = element(field === 'notes' ? 'textarea' : 'input'); input.id = `review-${field}`;
+      const input = element(field === 'channel_source' ? 'select' : field === 'notes' ? 'textarea' : 'input'); input.id = `review-${field}`;
+      if (field === 'channel_source') input.append(new Option('Leave blank', ''), new Option('Onboard', 'Onboard'), new Option('Satellite', 'Satellite'));
       if (field === 'notes') input.rows = 1;
       input.value = entry.row[field] ?? ''; input.autocomplete = 'off';
       input.maxLength = field === 'notes' || field === 'description' ? 2000 : 120;
@@ -835,6 +845,14 @@ function reviewImportRow(entry, index, total, tab, knownAddresses) {
       }
       return group;
     }));
+    if (tab === 'iptv') {
+      const source = controls.get('channel_source');
+      let sourceEdited = false;
+      source.onchange = () => { sourceEdited = true; };
+      controls.get('name').addEventListener('input', () => {
+        if (!sourceEdited) source.value = channelSourceFromName(controls.get('name').value);
+      });
+    }
     if (equipment) $('row-review-ip-hint').hidden = true;
     $('accept-review-row').onclick = async () => {
       if (rowReviewSaving) return;
@@ -851,7 +869,7 @@ function reviewImportRow(entry, index, total, tab, knownAddresses) {
       if (!meaningfulImportRow(row)) { endRowReview({skippedRow:true}); return; }
       const addressKey = equipment ? null : importAddressKey(row);
       if (addressKey && knownAddresses.has(addressKey)) { endRowReview(skippedDuplicateImport(entry, row)); return; }
-      const dialogControls = [...$('row-review-dialog').querySelectorAll('button,input,textarea')];
+      const dialogControls = [...$('row-review-dialog').querySelectorAll('button,input,select,textarea')];
       rowReviewSaving = true; dialogControls.forEach(control => { control.disabled = true; });
       $('row-review-error').hidden = true;
       let result;
