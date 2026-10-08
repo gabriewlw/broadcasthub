@@ -362,11 +362,7 @@ button.system-select{display:flex;justify-content:space-between;align-items:cent
 
 .directory-filters{grid-template-columns:minmax(160px,220px) minmax(150px,200px) auto minmax(0,1fr)}
 .directory-filters>.search{grid-column:4;grid-row:1;width:100%;max-width:360px;justify-self:end}
-.directory-toolbar{display:flex;justify-content:flex-end;margin-top:20px;padding:10px 12px;background:#1c2027;border:1px solid var(--border);border-bottom:0;border-radius:8px 8px 0 0}
-.directory-toolbar>label{display:flex;flex-direction:row;align-items:center;gap:10px;font-size:11px;color:var(--muted);white-space:nowrap}
-.directory-toolbar select{width:180px;font-size:12px}
-.directory-toolbar+.device-directory{margin-top:0;border-radius:0 0 8px 8px}
-@media(max-width:600px){.directory-filters{grid-template-columns:1fr 1fr}.directory-filters>.search{grid-column:1/-1;grid-row:1;max-width:none}.directory-filters>#venue-filter-group{grid-column:1}.directory-filters>#category-filter-label{grid-column:2}.directory-filters>#clear-filters{grid-column:1/-1;justify-self:end}.directory-toolbar select{width:175px}}
+@media(max-width:600px){.directory-filters{grid-template-columns:1fr 1fr}.directory-filters>.search{grid-column:1/-1;grid-row:1;max-width:none}.directory-filters>#venue-filter-group{grid-column:1}.directory-filters>#category-filter-label{grid-column:2}.directory-filters>#clear-filters{grid-column:1/-1;justify-self:end}}
 
 /* Keep the transfer toolbar controls aligned and equally sized. */
 .file-actions .import-button,.file-actions .export-toggle{width:148px;height:44px;min-height:44px;flex-shrink:0;justify-content:center;padding:0 10px;font-size:13px;font-weight:600;line-height:1.2}
@@ -409,3 +405,9 @@ button.system-select{display:flex;justify-content:space-between;align-items:cent
 #venue-filter.venue-choice{color:var(--venue-color);border-color:color-mix(in srgb,var(--venue-color) 50%,var(--border))}
 #venue-filter option{color:#eeeee9;background:#0e1115}
 #venue-filter option.venue-choice{color:var(--venue-color)}
+
+.directory-head{align-items:center}
+.notes-sort-header{grid-column:6/8;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px}
+.iptv-directory .notes-sort-header{grid-column:4/6}
+.directory-sort{flex-direction:row;align-items:center;gap:6px;white-space:nowrap;font:500 10px var(--font-ui);letter-spacing:0;color:var(--muted)}
+.directory-sort select{width:120px;min-height:32px;height:32px;padding:5px 22px 5px 8px;font-size:10px;line-height:1.2}
