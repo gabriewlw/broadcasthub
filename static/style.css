@@ -367,8 +367,8 @@ button.system-select{display:flex;justify-content:space-between;align-items:cent
 
 .device-ip,.network-ip,.vlan-cell{font-variant-numeric:tabular-nums}
 
-.brand-logo{display:flex;align-items:center;font:700 14px/20px var(--font-display);letter-spacing:.22em;color:oklch(93% .01 90)}
-@media(max-width:639.98px){.brand-logo{font-size:12px;line-height:16px;letter-spacing:.14em}}
+.brand-logo{display:flex;align-items:center;height:42px;font:700 40px/1 var(--font-display);letter-spacing:-2px;color:oklch(93% .01 90)}
+@media(max-width:639.98px){.brand-logo{height:38px;font-size:36px;letter-spacing:-1.8px}}
 
 .network-card-top img{width:32px;height:32px;padding:6px;border:1px solid #4a2830;border-radius:8px;background:#21171b}
 .network-card-top>span{display:inline-flex;align-items:center;gap:7px}
