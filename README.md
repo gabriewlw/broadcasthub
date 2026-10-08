@@ -1,21 +1,23 @@
-# avtrack
+# broadcasthub
 
-A responsive broadcasting workspace for equipment inventory, AV network addresses, and IPTV channel lineups. The site matches broadcastgab.com: **Space Grotesk** for headings, **DM Sans** for body text, and **JetBrains Mono** for navigation, labels, and network values. Fonts are bundled locally so they load without internet access, with system fonts as fallbacks. Font sources and SIL Open Font Licenses are documented in `static/fonts/README.md`. The lowercase **avtrack** wordmark appears at the top left, in PDF reports, and in the footer. Page titles, home-screen labels, import messages, and download filenames use the same name. Use the same web app in iPhone Safari and on a computer; all connected browsers share one SQLite database. No offline mode or App Store installation is required.
+The compatibility version keeps the visible avtrack identity, layout, fonts, and report branding. Repository and project paths, downloaded reports, and documentation artifact filenames use `broadcasthub`. The GitHub repository remains `gabriewlw/broadcasthub`. The original recovered IPTV feature commit is preserved on `recovery/iptv-udp-44f349a`.
+
+A responsive broadcasting workspace for equipment inventory, AV network addresses, and IPTV channel lineups. The site matches broadcastgab.com: **Space Grotesk** for headings, **DM Sans** for body text, and **JetBrains Mono** for navigation, labels, and network values. Fonts are bundled locally so they load without internet access, with system fonts as fallbacks. Font sources and SIL Open Font Licenses are documented in `static/fonts/README.md`. The lowercase **avtrack** wordmark appears at the top left, in PDF reports, and in the footer. Page titles, home-screen labels, and import messages use avtrack. Technical project names and download filenames use broadcasthub for compatibility. Use the same web app in iPhone Safari and on a computer; all connected browsers share one SQLite database. No offline mode or App Store installation is required.
 
 ## Run
 
 Requires Python 3.12 or newer. Install the pinned Excel and PDF dependencies once; no frontend build is needed.
 
 ```sh
-cd /path/to/avtrack
+cd /path/to/broadcasthub
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 .venv/bin/python app.py
 ```
 
-On Windows, open a terminal in the extracted project folder and run `py -m pip install -r requirements.txt`, then `py app.py`. On Mac/Linux, replace `/path/to/avtrack` above with the actual downloaded folder path. In the cloud workspace it is `/workspace/broadcasthub`.
+On Windows, open a terminal in the extracted project folder and run `py -m pip install -r requirements.txt`, then `py app.py`. On Mac/Linux, replace `/path/to/broadcasthub` above with the actual downloaded folder path. In the cloud workspace it is `/workspace/broadcasthub`.
 
-You can rename an existing extracted project folder to `avtrack`. GitHub downloads still use the repository folder name `broadcasthub-main`. Stop the server first, keep the complete `data` folder inside the project, then reopen PowerShell in the renamed folder and run `py app.py`. The folder name does not affect the page or database.
+Keep the extracted project folder named `broadcasthub` for the compatibility test. GitHub downloads still use the repository folder name `broadcasthub-main`. Stop the server first, keep the complete `data` folder inside the project, then reopen PowerShell in the renamed folder and run `py app.py`. The folder name does not affect the page or database.
 
 The default bind address is `127.0.0.1`, port `8000`. For a computer or private server reachable by your iPhone on the same network:
 
@@ -91,13 +93,13 @@ To update an existing Windows installation, replace `app.py`, add `exports.py`, 
 
 **CSV ↓** exports the chosen content for spreadsheet use and can also be imported through column mapping. Formula-like text is escaped for spreadsheet safety. Choose **All in this tab** to include every record from the active tab, regardless of filters. JSON and CSV include `record_type` (`device` or `iptv`) , `channel_source` (`Onboard` or `Satellite` for IPTV), and `port` (IPTV only). Old JSON exports default to AV devices. AV spreadsheet imports always create AV device records. The **IPTV channels** spreadsheet importer shows **Channel Name**, **Multicast IP**, **Port**, and **Notes**. Existing **MCAST IP [S]** and **MCAST PORT [S]** spreadsheet headers remain supported and take priority over broader aliases such as IP Address and Port. CSV and Excel imports use the same one-by-one review as AV devices: edit the values, choose **Yes** to save the channel immediately, or **SKIP** to move on without saving it. The IPTV tab supplies the channel inventory type; spreadsheet category, source, inventory type, venue, VLAN, and system are ignored. Missing values remain blank. Choose Onboard/Satellite using the **Type** dropdown during each import review or through Edit afterward. Channel names containing CLTV, Carnival, Map, Crew, Scala, Casino, or Safety automatically suggest Onboard; ESPN, National Geographic, and Nat Geo suggest Satellite. Matching ignores case, and Onboard wins if both sets match. Unrecognized names stay blank. You can override or clear any suggestion before saving; later name edits preserve your manual choice. Notes can be edited during or after import. IPTV imports append **H.264** for port **2000**, and **H.265** for port **1234** when the same IP has a port-2000 stream elsewhere in the spreadsheet or saved IPTV inventory. Pair detection does not depend on row order. Existing notes are kept, codec labels are not repeated, and the suggestions can be edited or cleared in row review. Each IPTV table row includes a read-only **UDP** field and a copy button, formatted as `udp://@IP:PORT`. Incomplete endpoints leave it blank. IPTV has no manual IP confirmation button; supplied addresses and ports still receive format/range checks. JSON transfers continue to restore every exported field in both inventories. Legacy IPTV exports with missing ports can be imported and completed later. Imports skip existing AV IP addresses and IPTV IP/port endpoints. Identical IP addresses can exist in separate inventories. Blank AV IPs, DHCP assignments, incomplete IPTV endpoints, and equipment without a known identity are kept separately rather than treated as duplicates; repeatedly importing these incomplete records may add another copy. JSON and CSV exports preserve all blank fields.
 
-The database defaults to `data/inventory.sqlite3`, excluded from Git. Set `AVTRACK_DB` to a persistent database location when hosting. Existing `BROADCASTHUB_DB` and `IPTRACKING_DB` settings remain supported as compatibility fallbacks, in that order; `AVTRACK_DB` takes priority. Rebranding keeps the same default SQLite file and accepts existing version-1 JSON exports. Do not use temporary container storage for your only copy. For a consistent live backup, use SQLite's backup API rather than copying an active WAL database:
+The database defaults to `data/inventory.sqlite3`, excluded from Git. Set `BROADCASTHUB_DB` to a persistent database location when hosting. Existing `AVTRACK_DB` and `IPTRACKING_DB` settings remain supported as compatibility fallbacks, in that order; `BROADCASTHUB_DB` takes priority. Rebranding keeps the same default SQLite file and accepts existing version-1 JSON exports. Do not use temporary container storage for your only copy. For a consistent live backup, use SQLite's backup API rather than copying an active WAL database:
 
 ```sh
 python3 - <<'PY'
 import sqlite3
 from app import connect
-with connect() as source, sqlite3.connect('/tmp/avtrack-backup.sqlite3') as backup:
+with connect() as source, sqlite3.connect('/tmp/broadcasthub-backup.sqlite3') as backup:
     source.backup(backup)
 PY
 ```

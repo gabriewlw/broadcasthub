@@ -683,7 +683,7 @@ with tempfile.TemporaryDirectory() as temp:
             open_export_menu('inventory')
             with page.expect_download() as download:
                 page.locator('#inventory').get_by_role('link', name='XLSX ↓', exact=True).click()
-            assert download.value.suggested_filename == 'avtrack-av-devices.xlsx'
+            assert download.value.suggested_filename == 'broadcasthub-av-devices.xlsx'
             workbook = load_workbook(io.BytesIO(Path(download.value.path()).read_bytes()))
             assert workbook.sheetnames == ['AV devices']
             exported = next(row for row in list(workbook['AV devices'].values)[1:] if row[1] == 'Unassigned camera')
@@ -691,14 +691,14 @@ with tempfile.TemporaryDirectory() as temp:
             open_export_menu('inventory')
             with page.expect_download() as download:
                 page.locator('#inventory').get_by_role('link', name='PDF ↓', exact=True).click()
-            assert download.value.suggested_filename == 'avtrack-av-devices.pdf'
+            assert download.value.suggested_filename == 'broadcasthub-av-devices.pdf'
             assert Path(download.value.path()).read_bytes().startswith(b'%PDF-')
             page.get_by_role('tab', name='Equipment inventory', exact=True).click()
             for extension, label in [('xlsx','XLSX ↓'), ('pdf','PDF ↓')]:
                 open_export_menu('equipment-panel')
                 with page.expect_download() as download:
                     page.locator('#equipment-panel').get_by_role('link', name=label, exact=True).click()
-                assert download.value.suggested_filename == f'avtrack-equipment.{extension}'
+                assert download.value.suggested_filename == f'broadcasthub-equipment.{extension}'
                 data = Path(download.value.path()).read_bytes()
                 assert data.startswith(b'PK') if extension == 'xlsx' else data.startswith(b'%PDF-')
             # Numeric address ordering, missing values, system groups, and per-tab order.
@@ -829,7 +829,7 @@ with tempfile.TemporaryDirectory() as temp:
                     page.locator('#'+panel).get_by_role('link', name=label, exact=True).click()
                 extension = {'JSON ↓':'json','CSV ↓':'csv','XLSX ↓':'xlsx','PDF ↓':'pdf'}[label]
                 prefix = 'equipment' if panel == 'equipment-panel' else ('iptv-channels' if page.locator('#iptv-tab').get_attribute('aria-selected') == 'true' else 'av-devices')
-                assert download.value.suggested_filename == f'avtrack-{prefix}.{extension}'
+                assert download.value.suggested_filename == f'broadcasthub-{prefix}.{extension}'
                 return Path(download.value.path()).read_bytes()
 
             raw = scoped_download('inventory', 'JSON ↓', 'filtered')
@@ -1018,6 +1018,10 @@ with tempfile.TemporaryDirectory() as temp:
                 if index == 6:
                     page.locator('#review-port').fill('1234')
                     assert page.locator('#review-notes').input_value() == 'Edited note'
+                    page.locator('#review-ip').fill('239.220.1.4')
+                    assert page.locator('#review-notes').input_value() == 'Edited note · H.265'
+                    page.locator('#review-ip').fill('239.220.1.6')
+                    assert page.locator('#review-notes').input_value() == 'Edited note'
                     page.locator('#review-port').fill('2000')
                     assert page.locator('#review-notes').input_value() == 'Edited note · H.264'
                 page.locator('#accept-review-row').click()
@@ -1028,12 +1032,57 @@ with tempfile.TemporaryDirectory() as temp:
             by_name = {row['name']:row for row in app.inventory()}
             for name, expected_note in zip(['Paired HEVC','Paired AVC','Existing codec note','Unpaired stream','Saved pair','Manual codec note','Edited port'], expected_notes):
                 assert by_name[name]['notes'] == ('Custom codec notes' if name == 'Manual codec note' else expected_note)
+            app.save_device(dict(name='AV record is not a codec pair', ip='10.220.2.2'))
+            page.locator('#refresh').click()
+            page.wait_for_function("() => !document.getElementById('refresh').disabled")
+            path.write_text('Channel Name,MCAST IP [S],MCAST PORT [S],Notes\n'
+                            'AVC first,239.220.2.1,2000,\n'
+                            'HEVC second,239.220.2.1,1234,\n'
+                            'AV-only pair,10.220.2.2,1234,\n')
+            page.locator('#import-file').set_input_files(str(path))
+            page.wait_for_function("() => !document.getElementById('confirm-import').disabled")
+            page.locator('#confirm-import').click()
+            for name, note in [('AVC first','H.264'), ('HEVC second','H.265'), ('AV-only pair','')]:
+                page.locator('#row-review-dialog').wait_for(state='visible')
+                assert page.locator('#review-notes').input_value() == note
+                if name == 'HEVC second':
+                    page.locator('#review-notes').fill('')
+                    page.locator('#review-port').fill('2001')
+                    page.locator('#review-port').fill('1234')
+                    assert page.locator('#review-notes').input_value() == ''
+                page.locator('#accept-review-row').click()
+                if name != 'AV-only pair':
+                    page.wait_for_function("name => document.getElementById('review-name').value !== name", arg=name)
+                else:
+                    page.locator('#spreadsheet-dialog').wait_for(state='hidden')
+            assert next(row for row in app.inventory() if row['name'] == 'HEVC second')['notes'] == ''
             hevc_row = page.locator('.device-row').filter(has=page.locator('.device-name').filter(has_text='Paired HEVC'))
             assert hevc_row.locator('.udp-address').input_value() == 'udp://@239.220.1.1:1234'
             context.grant_permissions(['clipboard-read','clipboard-write'])
             hevc_row.get_by_role('button', name='Copy UDP address for Paired HEVC', exact=True).click()
             page.wait_for_function("() => document.getElementById('toast').textContent === 'UDP address copied.'")
             assert page.evaluate('navigator.clipboard.readText()') == 'udp://@239.220.1.1:1234'
+            # Clipboard failures use browser copying, then select for manual copy.
+            page.evaluate("""() => {
+                window.originalWriteText = navigator.clipboard.writeText;
+                window.originalExecCommand = document.execCommand;
+                navigator.clipboard.writeText = async () => { throw new Error('Denied'); };
+                document.execCommand = command => command === 'copy';
+            }""")
+            hevc_row.locator('.udp-copy').click()
+            page.wait_for_function("() => document.getElementById('toast').textContent === 'UDP address copied.'")
+            page.evaluate("document.execCommand = () => false")
+            hevc_row.locator('.udp-copy').click()
+            page.wait_for_function("() => document.getElementById('toast').textContent.includes('using your browser')")
+            assert hevc_row.locator('.udp-address').evaluate('(node) => node.selectionStart === 0 && node.selectionEnd === node.value.length')
+            page.evaluate("() => { navigator.clipboard.writeText = window.originalWriteText; document.execCommand = window.originalExecCommand; }")
+            assert page.locator('#device-directory').evaluate('(node) => node.scrollWidth <= node.clientWidth')
+            for width in [390, 320]:
+                page.set_viewport_size({'width':width,'height':844})
+                assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+                hevc_row.locator('.udp-address').click()
+                page.wait_for_function("() => { const node = document.activeElement; return node.classList.contains('udp-address') && node.selectionStart === 0 && node.selectionEnd === node.value.length; }")
+            page.set_viewport_size({'width':1440,'height':1000})
             app.save_device(dict(record_type='iptv', name='Incomplete UDP channel', ip='239.220.1.7'))
             page.locator('#refresh').click()
             incomplete = page.locator('.device-row').filter(has=page.locator('.device-name').filter(has_text='Incomplete UDP channel'))
