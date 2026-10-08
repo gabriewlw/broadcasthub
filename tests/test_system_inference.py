@@ -22,9 +22,10 @@ class SystemInferenceTests(unittest.TestCase):
                  ('Pixera','Video'), ('TV','Video'), ('Video','Video'), ('Light','Lighting'),
                  ('CAM','Video'), ('Camera','Video'), ('Cam','Video'), ('BGM','Audio'),
                  ('Decoder','Video'), ('Encoder','Video'), ('Multiview','Video'), ('Scala','Video'),
+                 ('Blackmagic','Video'), ('Castus','Video'),
                  ('Switch','Network'), ('Dante','Audio'), ('CCTV','Video'), ('IEM','Audio')]
         rows = [dict(name=f'Rack {keyword} {index}', ip='DHCP') for index, (keyword, _) in enumerate(rules)]
-        self.assertEqual(self.import_rows(rows)[1], dict(added=20, skipped=0, warnings=[]))
+        self.assertEqual(self.import_rows(rows)[1], dict(added=len(rules), skipped=0, warnings=[]))
         stored = {row['name']:row['discipline'] for row in app.inventory()}
         for row, (_, expected) in zip(rows, rules):
             self.assertEqual(stored[row['name']], expected)
@@ -34,7 +35,9 @@ class SystemInferenceTests(unittest.TestCase):
     def test_case_insensitive_contains_and_first_rule_priority(self):
         names = {'rACK-aUdIo-04':'Audio', 'Audio Video Switcher':'Audio',
                  'AMX DSP controller':'Control', 'Pixera Switch':'Video',
-                 'Dante Switch':'Network', 'LIGHTING console':'Lighting'}
+                 'Dante Switch':'Network', 'LIGHTING console':'Lighting',
+                 'Rack bLaCkMaGiC Design':'Video', 'Rack cAsTuS server':'Video',
+                 'Blackmagic Switcher':'Video', 'Castus Switch':'Video'}
         self.assertEqual(self.import_rows([dict(name=name) for name in names])[0], 200)
         self.assertEqual({row['name']:row['discipline'] for row in app.inventory()}, names)
 

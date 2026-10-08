@@ -22,6 +22,7 @@ SYSTEM_NAME_RULES = (
     ('video', 'Video'), ('light', 'Lighting'), ('cam', 'Video'),
     ('camera', 'Video'), ('bgm', 'Audio'), ('decoder', 'Video'),
     ('encoder', 'Video'), ('multiview', 'Video'), ('scala', 'Video'),
+    ('blackmagic', 'Video'), ('castus', 'Video'),
     ('switch', 'Network'), ('dante', 'Audio'), ('cctv', 'Video'), ('iem', 'Audio'),
 )
 FIELDS = ('name', 'category', 'venue', 'discipline', 'ip', 'vlan', 'notes')
