@@ -48,9 +48,10 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent-text); o
 .header-inner { max-width: 1140px; margin: auto; padding: 0 28px; min-height: 76px; display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: #eeeee9; font-size: 12px; font-weight: 700; letter-spacing: 2.5px; white-space: nowrap; }
 .status-dot, .eyebrow::before { width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px #ef444480; }
-nav { display: flex; align-items: center; gap: 8px; }
-nav a { text-decoration: none; color: var(--muted); padding: 14px 12px; font: 10px var(--font-ui); letter-spacing: 1.3px; text-transform: uppercase; border-radius: 5px; min-height: 44px; display: flex; align-items: center; }
-nav a:hover, nav .nav-active { color: var(--accent-text); background: #202329; }
+nav { display: flex; align-items: center; gap: 4px; }
+nav a { text-decoration: none; color: oklch(62% .015 260); padding: 0 12px; font: 400 12px/18px var(--mono); letter-spacing: .1em; text-transform: uppercase; border-radius: 6px; height: 32px; min-height: 32px; display: flex; align-items: center; transition-property: color, background-color, border-color, outline-color, text-decoration-color, fill, stroke, --tw-gradient-from, --tw-gradient-via, --tw-gradient-to; transition-duration: 150ms; transition-timing-function: cubic-bezier(.4, 0, .2, 1); }
+nav .nav-active { color: oklch(63% .24 25); background: oklch(27% .014 260); }
+nav a:hover { color: oklch(93% .01 90); }
 main { max-width: 1140px; margin: auto; padding: 58px 28px 48px; }
 .heading { display: grid; grid-template-columns: 1.45fr 1fr; gap: 72px; align-items: start; margin-bottom: 42px; }
 .eyebrow { display: inline-flex; align-items: center; gap: 8px; padding: 7px 11px; border: 1px solid var(--border); border-radius: 20px; background: var(--panel); color: var(--muted); font: 9px var(--font-ui); letter-spacing: 2px; margin: 0 0 20px; }
@@ -169,7 +170,6 @@ textarea { resize: vertical; }
   .header-inner { padding: 18px 16px 12px; display: block; }
   .brand { font-size: 11px; }
   nav { margin-top: 12px; gap: 4px; }
-  nav a { font-size: 9px; padding: 12px 10px; }
   main { padding: 30px 16px; }
   .heading { grid-template-columns: 1fr; gap: 28px; margin-bottom: 28px; }
   h1, h2, h3, h4 { font-family: var(--font-display); }
@@ -412,7 +412,6 @@ button.system-select{display:flex;justify-content:space-between;align-items:cent
   .nav-toggle{display:flex}
   #main-navigation{display:none;position:absolute;top:calc(100% - 4px);left:16px;right:16px;z-index:20;margin:0;padding:8px;flex-direction:column;align-items:stretch;gap:4px;border:1px solid var(--border);border-radius:10px;background:#14171b;box-shadow:0 12px 28px #0006}
   .menu-open #main-navigation{display:flex}
-  #main-navigation a{font-size:11px;padding:12px;min-height:44px}
 }
 
 #venue-filter.venue-choice{color:var(--venue-color);border-color:color-mix(in srgb,var(--venue-color) 50%,var(--border))}
