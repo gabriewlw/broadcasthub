@@ -112,13 +112,15 @@ def pdf_report(title, sections):
     logo_bounds = logo_bounds or (0, 0, logo_width, logo_height)
     output = io.BytesIO()
     document = SimpleDocTemplate(output, pagesize=landscape(A4), leftMargin=26, rightMargin=26,
-                                 topMargin=30, bottomMargin=64, title=f'Broadcast Hub - {title}',
+                                 topMargin=18, bottomMargin=64, title=f'Broadcast Hub - {title}',
                                  author='Broadcast Hub')
     body = ParagraphStyle('HubBody', fontName='HubText', fontSize=8, leading=11, wordWrap='CJK', textColor=colors.HexColor('#EEEEE9'))
-    header = ParagraphStyle('HubHeader', parent=body, fontName='HubBold', textColor=colors.HexColor('#C4C7CF'))
+    header = ParagraphStyle('HubHeader', parent=body, fontName='HubBold', fontSize=7, leading=9,
+                            textColor=colors.HexColor('#C4C7CF'))
+    report_info = ParagraphStyle('HubInfo', parent=body, fontSize=7, leading=9)
     heading = ParagraphStyle('HubHeading', fontName='HubBold', fontSize=18, leading=24,
                              textColor=colors.HexColor('#EEEEE9'))
-    section_style = ParagraphStyle('HubSection', parent=heading, fontSize=12, leading=17, spaceBefore=14, spaceAfter=8, textColor=colors.HexColor('#FF7278'))
+    section_style = ParagraphStyle('HubSection', parent=heading, fontSize=9, leading=12, spaceBefore=6, spaceAfter=4, textColor=colors.HexColor('#FF7278'))
 
     def paragraph(value, style=body):
         return Paragraph(escape(clean_text(value if value is not None else '')).replace('\n', '<br/>'), style)
@@ -147,7 +149,7 @@ def pdf_report(title, sections):
     class BrandHeading(Flowable):
         def __init__(self):
             super().__init__()
-            self.width, self.height = 210, 36
+            self.width, self.height = 140, 22
 
         def draw(self):
             canvas = self.canv
@@ -155,13 +157,13 @@ def pdf_report(title, sections):
             scale = self.width / (right - left)
             canvas.saveState()
             clip = canvas.beginPath()
-            clip.rect(0, 6, self.width, (bottom - top) * scale)
+            clip.rect(0, 4, self.width, (bottom - top) * scale)
             canvas.clipPath(clip, stroke=0, fill=0)
-            canvas.drawImage(logo, -left * scale, 6 - (logo_height - bottom) * scale,
+            canvas.drawImage(logo, -left * scale, 4 - (logo_height - bottom) * scale,
                              width=logo_width * scale, height=logo_height * scale, mask='auto')
             canvas.restoreState()
 
-    story = [BrandHeading(), paragraph(title), Spacer(1, 8)]
+    story = [BrandHeading(), paragraph(title, report_info), Spacer(1, 3)]
     for name, labels, widths, records in sections:
         story.append(paragraph(f'{name} · {len(records)} records', section_style))
         table_rows = [[paragraph(label, header) for label in labels]]
@@ -176,7 +178,8 @@ def pdf_report(title, sections):
             ('GRID', (0,0), (-1,-1), .35, colors.HexColor('#373B44')),
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('LEFTPADDING', (0,0), (-1,-1), 7), ('RIGHTPADDING', (0,0), (-1,-1), 7),
-            ('TOPPADDING', (0,0), (-1,-1), 7), ('BOTTOMPADDING', (0,0), (-1,-1), 7)]))
+            ('TOPPADDING', (0,0), (-1,-1), 7), ('BOTTOMPADDING', (0,0), (-1,-1), 7),
+            ('TOPPADDING', (0,0), (-1,0), 4), ('BOTTOMPADDING', (0,0), (-1,0), 4)]))
         if 'SYSTEM' in labels:
             column = labels.index('SYSTEM')
             for index, record in enumerate(records, 1):
