@@ -661,8 +661,8 @@ const equipmentImportFields = [
 ];
 const iptvImportFields = [
   ['name', 'Channel Name', ['channel name','channel','name']],
-  ['ip', 'MCAST IP [S]', ['mcast ip [s]','mcast ip','multicast ip','ip address','ip adress','ip','ipv4']],
-  ['port', 'MCAST PORT [S]', ['mcast port [s]','mcast port','multicast port','port','udp port','stream port','port number']],
+  ['ip', 'Multicast IP', ['mcast ip [s]','mcast ip','multicast ip','ip address','ip adress','ip','ipv4']],
+  ['port', 'Port', ['mcast port [s]','mcast port','multicast port','port','udp port','stream port','port number']],
   ['notes', 'Notes (optional)', ['notes','note','comments','description']]
 ];
 const importFields = () => currentTab === 'equipment' ? equipmentImportFields : currentTab === 'device'

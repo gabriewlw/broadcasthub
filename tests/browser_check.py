@@ -254,7 +254,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#confirm-import').click()
             page.locator('#row-review-dialog').wait_for(state='visible')
             assert page.locator('#row-review-fields input').evaluate_all('(nodes) => nodes.map(n => n.id)') == ['review-name','review-ip','review-port']
-            assert page.locator('#row-review-fields > label').evaluate_all('(nodes) => nodes.map(n => n.childNodes[0].textContent)') == ['Channel Name','MCAST IP [S]','MCAST PORT [S]','Notes']
+            assert page.locator('#row-review-fields > label').evaluate_all('(nodes) => nodes.map(n => n.childNodes[0].textContent)') == ['Channel Name','Multicast IP','Port','Notes']
             assert page.locator('#review-ip').input_value() == '239.1.1.12'
             assert page.locator('#review-port').input_value() == '5000'
             assert page.locator('#review-notes').input_value() == 'Imported channel note'
