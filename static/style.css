@@ -388,7 +388,7 @@ button.system-select{display:flex;justify-content:space-between;align-items:cent
 
 .hero-copy{display:flex;flex-direction:column;align-items:flex-start}
 
-.workspace-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px;border-bottom:1px solid var(--border)}
+.workspace-bar{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:24px}
 .workspace-bar .inventory-tabs{flex:1;min-width:0;margin:0;border:0;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
 .workspace-bar .inventory-tabs::-webkit-scrollbar{display:none}
 .workspace-bar .inventory-tabs button{flex-shrink:0;white-space:nowrap}
