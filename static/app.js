@@ -3,7 +3,7 @@ const $ = id => document.getElementById(id);
 const navToggle = $('nav-toggle');
 const mainNavigation = $('main-navigation');
 const header = navToggle.closest('.header-inner');
-const mobileNavigation = window.matchMedia('(max-width: 600px)');
+const mobileNavigation = window.matchMedia('(max-width: 639.98px)');
 function setNavigationOpen(open, restoreFocus = false) {
   header.classList.toggle('menu-open', open);
   navToggle.setAttribute('aria-expanded', String(open));
