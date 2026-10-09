@@ -548,6 +548,33 @@ function udpCell(device) {
   };
   field.append(input, copy); cell.append(field); return cell;
 }
+function ipCopyButton(device, addressText) {
+  const button = element('button', 'ip-copy'); button.type = 'button';
+  button.title = 'Copy IP address';
+  button.setAttribute('aria-label', `Copy IP address for ${deviceLabel(device)}`);
+  button.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0 2 2h2"/></svg>';
+  button.onclick = async () => {
+    let copied = false;
+    try { await navigator.clipboard.writeText(device.ip); copied = true; } catch {}
+    if (!copied) {
+      const buffer = element('textarea', 'clipboard-copy-buffer');
+      buffer.value = device.ip; buffer.readOnly = true;
+      const previousFocus = document.activeElement;
+      document.body.append(buffer);
+      try {
+        buffer.focus({preventScroll:true}); buffer.select();
+        copied = document.execCommand('copy');
+      } catch {} finally { buffer.remove(); previousFocus?.focus({preventScroll:true}); }
+    }
+    if (copied) toast('IP address copied.');
+    else {
+      const range = document.createRange(); range.selectNodeContents(addressText);
+      const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+      toast('IP address selected. Use your browser’s Copy option.');
+    }
+  };
+  return button;
+}
 function render() {
   if (currentTab === 'equipment') return;
   closeSystemMenu();
@@ -634,7 +661,11 @@ function render() {
     const iptv = device.record_type === 'iptv';
     if (iptv) row.classList.add('iptv-row');
     const ipLine = element('div', 'ip-info-line');
-    ipLine.append(element('div', 'device-ip', device.ip));
+    const address = element('div', 'ip-address-value');
+    const addressText = element('div', 'device-ip', device.ip);
+    address.append(addressText);
+    if (device.ip && !isDHCP(device.ip)) address.append(ipCopyButton(device, addressText));
+    ipLine.append(address);
     ip.append(ipLine, element('span', 'cell-caption', iptv ? (device.port ? `Port ${device.port}` : '') : ''));
     const confirmation = element('button', `ip-confirm ${device.ip_confirmed ? 'confirmed' : 'pending'}`, device.ip_confirmed ? '✓ IP confirmed' : '● Confirm IP');
     confirmation.type = 'button';
