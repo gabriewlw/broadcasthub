@@ -462,3 +462,19 @@ nav a,.eyebrow,.network-card-top,.stats span,.filters label>span,.button-filter 
 .page-summary>span{font:9px var(--mono);letter-spacing:1px;text-transform:uppercase;color:var(--muted);overflow-wrap:anywhere}
 .page-summary>p{font:600 clamp(17px,2vw,22px)/1.5 var(--font-display);margin:6px 0 0;overflow-wrap:anywhere}
 @media(max-width:600px){.workspace-bar{align-items:flex-start;flex-wrap:wrap}.page-summary{flex-basis:100%}.workspace-bar>#add-device{margin-left:auto}}
+
+.homepage-overview{margin:0 0 36px}
+.overview-heading{display:flex;align-items:end;justify-content:space-between;gap:24px;margin-bottom:20px}
+.overview-heading .eyebrow{margin-bottom:12px}
+.overview-heading>p{max-width:260px;margin:0;font-size:12px;line-height:1.7;color:var(--muted)}
+.overview-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.overview-card{display:flex;flex-direction:column;min-width:0;padding:24px;border:1px solid var(--border);border-radius:10px;background:linear-gradient(135deg,#1b1e24,var(--panel));color:#eeeee9;text-decoration:none;transition:border-color 150ms,background-color 150ms}
+.overview-card:hover{border-color:var(--accent-text);background:#1d1e25}
+.overview-card-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:24px;color:var(--muted);font:11px var(--mono);text-transform:uppercase;letter-spacing:1px}
+.overview-card-heading svg{width:24px;height:24px;fill:none;stroke:var(--accent-text);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.overview-card>strong{font:600 clamp(36px,4vw,48px)/1 var(--font-display);letter-spacing:-1.5px;color:var(--accent-text)}
+.overview-card>p{font-size:13px;line-height:1.6;margin:10px 0 24px}
+.overview-card-footer{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px;margin-top:auto;padding-top:16px;border-top:1px solid var(--border);font-size:11px;color:var(--muted)}
+.overview-card-footer>span:last-child{color:#eeeee9}
+@media(max-width:900px){.overview-card{padding:20px}.overview-card-footer{flex-direction:column;align-items:flex-start}}
+@media(max-width:600px){.overview-heading{display:block}.overview-heading>p{max-width:none;margin-top:12px}.overview-grid{grid-template-columns:1fr;gap:12px}.overview-card{padding:20px}.overview-card-heading{margin-bottom:16px}.overview-card>p{margin-bottom:18px}.overview-card-footer{flex-direction:row;align-items:center}}

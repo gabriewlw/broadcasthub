@@ -124,3 +124,24 @@ class EquipmentInventoryTests(unittest.TestCase):
         tvs = self.create('TVs')
         self.assertEqual(self.request('/api/equipment', 'POST', dict(ITEM, serial_number='SER-42', inventory_id=tvs))[0], 201)
         self.assertEqual(len(app.equipment_inventory()), 1)
+
+    def test_overview_counts_all_inventories_and_only_confirmed_fixed_av_ips(self):
+        self.assertEqual(self.request('/api/overview')[1], {
+            'av_total':0, 'av_validated':0, 'iptv_total':0, 'iptv_onboard':0,
+            'iptv_satellite':0, 'inventory_total':0, 'inventory_locations':0, 'inventory_count':1})
+        av = self.request('/api/devices', 'POST', dict(name='Confirmed TV', ip='10.20.0.1'))[1]
+        self.request(f"/api/devices/{av['id']}/confirm", 'POST', dict(ip=av['ip'], vlan=av['vlan']))
+        self.request('/api/devices', 'POST', dict(name='DHCP display', ip='DHCP'))
+        self.request('/api/devices', 'POST', dict(name='Unassigned display'))
+        for source in ['Onboard', 'Satellite', '']:
+            self.request('/api/devices', 'POST', dict(name=source or 'Incomplete channel', record_type='iptv', channel_source=source))
+        tvs, spare = self.create('TVs'), self.create('Spare parts')
+        self.request('/api/equipment', 'POST', dict(description='TV', location='Lounge', inventory_id=tvs))
+        self.request('/api/equipment', 'POST', dict(description='Cable', location='Lounge', inventory_id=spare))
+        self.request('/api/equipment', 'POST', dict(description='Spare', location='Store', inventory_id=spare))
+        self.request('/api/equipment', 'POST', dict(description='Unknown location', inventory_id=spare))
+        self.assertEqual(self.request('/api/overview')[1], {
+            'av_total':3, 'av_validated':1, 'iptv_total':3, 'iptv_onboard':1,
+            'iptv_satellite':1, 'inventory_total':4, 'inventory_locations':2, 'inventory_count':3})
+        self.request(f"/api/devices/{av['id']}", 'PUT', dict(name='Moved TV', ip='10.20.0.2'))
+        self.assertEqual(self.request('/api/overview')[1]['av_validated'], 0)

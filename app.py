@@ -388,6 +388,21 @@ def equipment_inventories():
         return [dict(row) for row in con.execute('SELECT * FROM equipment_inventories ORDER BY name COLLATE NOCASE')]
 
 
+def workspace_overview():
+    with connect() as con:
+        # One query keeps all three cards on the same database snapshot.
+        row = con.execute("""SELECT
+            (SELECT COUNT(*) FROM devices WHERE record_type='device') AS av_total,
+            (SELECT COUNT(*) FROM devices WHERE record_type='device' AND ip_confirmed=1 AND ip NOT IN ('','DHCP')) AS av_validated,
+            (SELECT COUNT(*) FROM devices WHERE record_type='iptv') AS iptv_total,
+            (SELECT COUNT(*) FROM devices WHERE record_type='iptv' AND channel_source='Onboard') AS iptv_onboard,
+            (SELECT COUNT(*) FROM devices WHERE record_type='iptv' AND channel_source='Satellite') AS iptv_satellite,
+            (SELECT COUNT(*) FROM equipment) AS inventory_total,
+            (SELECT COUNT(DISTINCT NULLIF(location,'')) FROM equipment) AS inventory_locations,
+            (SELECT COUNT(*) FROM equipment_inventories) AS inventory_count""").fetchone()
+        return dict(row)
+
+
 def save_equipment_inventory(value, inventory_id=None):
     name = value.get('name') if isinstance(value, dict) else None
     if not isinstance(name, str) or not name.strip() or len(name.strip()) > 120:
@@ -615,6 +630,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send(200, {'version':1, 'inventory_name':named_inventory['name'], 'equipment':rows}, mime, filename)
             return self.send(200, generate(rows), mime, filename)
         if self.command == 'GET':
+            if path == '/api/overview':
+                return self.send(200, workspace_overview())
             if path == '/satellite-channels.json':
                 return self.send(200, json.loads((ROOT / 'static' / 'satellite-channels.json').read_text()))
             if re.fullmatch(r'/channel-logos/[A-Za-z0-9_-]+\.[a-z]{2}\.png', path):

@@ -67,6 +67,7 @@
       options('equipment-location-filter', items.map(i => i.location));
       $('equipment-location-options').replaceChildren(...[...new Set(items.map(i => i.location))].map(v => new Option(v,v)));
       renderEquipment();
+      await loadOverview();
       return true;
     } catch(error) {
       if (version !== loadVersion) return false;

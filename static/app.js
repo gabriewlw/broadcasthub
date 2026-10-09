@@ -30,6 +30,29 @@ mobileNavigation.addEventListener('change', () => setNavigationOpen(false, mainN
 let devices = [], editing = null, deleting = null, timer, currentTab = 'device';
 let equipmentPageSummary = null;
 let networkLoaded = false;
+let overviewVersion = 0;
+async function loadOverview() {
+  const version = ++overviewVersion;
+  try {
+    const totals = await api('/api/overview');
+    if (version !== overviewVersion) return;
+    $('overview-av-validated').textContent = totals.av_validated;
+    $('overview-av-caption').textContent = totals.av_validated === 1 ? 'IP validated' : 'IPs validated';
+    $('overview-av-total').textContent = `${totals.av_validated} of ${totals.av_total} ${totals.av_total === 1 ? 'device' : 'devices'}`;
+    $('overview-iptv-total').textContent = totals.iptv_total;
+    $('overview-iptv-caption').textContent = totals.iptv_total === 1 ? 'channel running' : 'channels running';
+    $('overview-iptv-sources').textContent = `${totals.iptv_onboard} onboard · ${totals.iptv_satellite} satellite`;
+    $('overview-inventory-total').textContent = totals.inventory_total;
+    $('overview-inventory-locations').textContent = `${totals.inventory_total === 1 ? 'item' : 'items'} across ${totals.inventory_locations} ${totals.inventory_locations === 1 ? 'location' : 'locations'}`;
+    $('overview-inventory-count').textContent = `${totals.inventory_count} ${totals.inventory_count === 1 ? 'inventory' : 'inventories'}`;
+    $('overview-error').hidden = true;
+  } catch (error) {
+    if (version !== overviewVersion) return;
+    for (const id of ['overview-av-validated','overview-iptv-total','overview-inventory-total']) $(id).textContent = '—';
+    $('overview-error').textContent = 'Could not refresh the workspace overview. Use Refresh to try again.';
+    $('overview-error').hidden = false;
+  }
+}
 function updatePageSummary(equipmentItems, inventoryName) {
   if (equipmentItems) equipmentPageSummary = {count:equipmentItems.length, locations:new Set(equipmentItems.map(item => item.location).filter(Boolean)).size, name:inventoryName};
   $('workspace-page-title').textContent = currentTab === 'equipment' ? `Inventory${equipmentPageSummary ? ' · ' + equipmentPageSummary.name : ''}` : currentTab === 'iptv' ? 'IPTV' : 'AV';
@@ -232,6 +255,7 @@ function switchTab(type) {
   closeSystemMenu();
   closeExportMenus();
   currentTab = type;
+  $('homepage-overview').hidden = Boolean(location.hash);
   updatePageSummary();
   const equipment = type === 'equipment';
   $('example-media').hidden = type === 'iptv';
@@ -296,11 +320,18 @@ function navigatePage(type) {
   switchTab(type);
 }
 function restorePage() {
+  $('homepage-overview').hidden = Boolean(location.hash);
   const page = inventoryTabs.find(([id]) => $(id).hash === location.hash) || (!location.hash ? inventoryTabs[0] : null);
   if (page && page[1] !== currentTab) switchTab(page[1]);
 }
 window.addEventListener('hashchange', restorePage);
 window.addEventListener('DOMContentLoaded', restorePage);
+document.querySelectorAll('.overview-card').forEach(link => {
+  link.onclick = event => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault(); navigatePage(link.dataset.page);
+  };
+});
 for (const [id, type] of inventoryTabs) {
   $(id).onclick = event => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -482,6 +513,7 @@ async function load() {
     updateFilterOptions();
     $('venues').replaceChildren(...savedVenues().map(v => new Option(v, v)));
     render();
+    await loadOverview();
     return true;
   } catch (error) {
     $('load-error').textContent = 'Could not refresh inventory. ' + error.message;
@@ -614,7 +646,7 @@ function render() {
       try {
         const updated = await api(`/api/devices/${device.id}/confirm`, 'POST', {ip:device.ip, vlan:device.vlan});
         devices = devices.map(row => row.id === updated.id ? {...row,ip_confirmed:updated.ip_confirmed} : row);
-        render(); toast('IP assignment confirmed.');
+        render(); toast('IP assignment confirmed.'); await loadOverview();
       } catch(error) { confirmation.disabled = false; toast('Confirmation failed: ' + error.message); }
     };
     if (!iptv && device.ip && !isDHCP(device.ip)) ipLine.append(confirmation);
