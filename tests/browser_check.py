@@ -68,7 +68,7 @@ with tempfile.TemporaryDirectory() as temp:
             assert navigation.is_visible()
             assert navigation.get_by_role('link', name='Inventory', exact=True).is_visible()
             nav_toggle.press('Tab')
-            assert navigation.get_by_role('link', name='AV IPs', exact=True).evaluate('(node) => node === document.activeElement')
+            assert navigation.get_by_role('link', name='AV Devices', exact=True).evaluate('(node) => node === document.activeElement')
             page.keyboard.press('Escape')
             assert navigation.is_hidden()
             assert nav_toggle.evaluate('(node) => node === document.activeElement')
@@ -76,7 +76,7 @@ with tempfile.TemporaryDirectory() as temp:
             page.locator('#hero-intro').click()
             assert navigation.is_hidden()
             nav_toggle.click()
-            navigation.get_by_role('link', name='AV IPs', exact=True).click()
+            navigation.get_by_role('link', name='AV Devices', exact=True).click()
             assert navigation.is_hidden() and nav_toggle.get_attribute('aria-expanded') == 'false'
             nav_toggle.click()
             page.set_viewport_size({'width':1440,'height':1000})

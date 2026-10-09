@@ -55,7 +55,7 @@ async function loadOverview() {
 }
 function updatePageSummary(equipmentItems, inventoryName) {
   if (equipmentItems) equipmentPageSummary = {count:equipmentItems.length, locations:new Set(equipmentItems.map(item => item.location).filter(Boolean)).size, name:inventoryName};
-  $('workspace-page-title').textContent = currentTab === 'equipment' ? `Inventory${equipmentPageSummary ? ' · ' + equipmentPageSummary.name : ''}` : currentTab === 'iptv' ? 'IPTV' : 'AV IPs';
+  $('workspace-page-title').textContent = currentTab === 'equipment' ? `Inventory${equipmentPageSummary ? ' · ' + equipmentPageSummary.name : ''}` : currentTab === 'iptv' ? 'IPTV' : 'AV Devices';
   if (currentTab === 'equipment') {
     $('workspace-page-summary').textContent = equipmentPageSummary
       ? `${equipmentPageSummary.count} ${equipmentPageSummary.count === 1 ? 'item' : 'items'} across ${equipmentPageSummary.locations} ${equipmentPageSummary.locations === 1 ? 'location' : 'locations'}`
@@ -301,7 +301,7 @@ function switchTab(type) {
   $('use-example').hidden = iptv;
   $('total-label').textContent = iptv ? 'Total channels' : 'Total devices';
   $('system-count-label').textContent = iptv ? 'Onboard / Satellite' : 'Video / Audio / Lighting';
-  $('list-title').textContent = iptv ? 'IPTV channels' : 'AV IP Addresses';
+  $('list-title').textContent = iptv ? 'IPTV channels' : 'AV Devices';
   $('search-label').textContent = iptv ? 'Search channels' : 'Search devices';
   $('clear-filters').hidden = iptv;
   $('network-filters').classList.toggle('iptv-filters', iptv);
