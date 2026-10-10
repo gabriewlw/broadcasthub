@@ -986,6 +986,8 @@ async function loadSpreadsheet() {
     $('sheet-choice').replaceChildren(...data.sheets.map(sheet => new Option(sheet, sheet)));
     $('sheet-choice').value = data.sheet;
     if(currentTab==='equipment')$('spreadsheet-title').textContent='Step 2: match file columns to your inventory';else $('spreadsheet-title').textContent='Match your columns';
+    $('import-complete-options').hidden=currentTab!=='equipment';
+    $('spreadsheet-review-help').textContent=currentTab==='equipment' ? 'Match each inventory field to a file column. Complete matched rows can be added automatically. Review remaining rows together, grouped by location; edit their cells and import or skip selected rows. Scala uses its ID and does not require a serial number. Orientation is optional.' : 'Match each field to a column, or choose Leave blank. Missing columns and empty cells stay blank. Click Review rows, then choose Yes or Skip for each row.';
     $('spreadsheet-summary').textContent = `${spreadsheetFile.filename} · ${data.rows.length} records${spreadsheetInventory ? ' · Inventory: ' + spreadsheetInventory.name : ''}`;
     if (data.ignored_columns?.length) $('spreadsheet-summary').textContent += ` · Ignored columns: ${data.ignored_columns.join(', ')}`;
     $('column-mappings').replaceChildren(...importFields().map(([field, label, aliases]) => {
@@ -1002,7 +1004,7 @@ async function loadSpreadsheet() {
       return group;
     }));
     showVenueEditors(); showSpreadsheetPreview();
-    $('confirm-import').textContent = `Review ${data.rows.length} rows`;
+    $('confirm-import').textContent = currentTab==='equipment' ? `Import & review ${data.rows.length} rows` : `Review ${data.rows.length} rows`;
     $('confirm-import').disabled = false;
   } catch (error) {
     $('spreadsheet-error').textContent = error.message;
@@ -1160,19 +1162,46 @@ $('spreadsheet-form').onsubmit = async event => {
     let added = 0, existing = 0, skipped = 0, stopped = false;
     const equipmentImportReport = [];
     if (tab === 'device') importWarnings = [];
-    for (let index = 0; index < entries.length; index++) {
-      if (stopSpreadsheetReview) { stopped = true; break; }
-      const addressKey = tab === 'equipment' ? null : importAddressKey(entries[index].row);
-      const result = addressKey && knownAddresses.has(addressKey)
-        ? skippedDuplicateImport(entries[index])
-        : await reviewImportRow(entries[index], index, entries.length, tab, knownAddresses, spreadsheetInventory);
-      if (result === null) { stopped = true; break; }
-      if (tab === 'equipment' && (entries[index].issues?.length || result.skipped || result.skippedRow)) equipmentImportReport.push(`Row ${entries[index].number} · ${entries[index].row.location || 'Unassigned'} · ${entries[index].row.serial_number || entries[index].row.model || entries[index].row.description || 'Unnamed item'}: ${result.skipped ? 'Already exists; not imported. Compare this row with the saved record. ' : result.skippedRow ? 'Skipped by user. ' : 'Imported for follow-up. '}${entries[index].issues.join(' · ')}`);
-      if (result.skippedRow) skipped++;
-      else {
-        added += result.added; existing += result.skipped;
-        if (tab === 'device') importWarnings.push(...(result.warnings || []));
-        if (result.added) await load();
+    if (tab === 'equipment') {
+      const profile=spreadsheetInventory.layout || defaultInventoryLayout;
+      const collect=({entry,result})=>{
+        if(entry.issues.length||result.skipped||result.skippedRow) equipmentImportReport.push(`Row ${entry.number} · ${entry.row.location || 'Unassigned'} · ${inventoryValue(entry.row,profile.primary_search) || entry.row.serial_number || entry.row.model || entry.row.description || 'Unnamed item'}: ${result.skipped ? 'Already exists; not imported. ' : result.skippedRow ? 'Skipped by user. ' : 'Imported for follow-up. '}${entry.issues.join(' · ')}`);
+        if(result.skippedRow)skipped++;else {added+=result.added;existing+=result.skipped;}
+      };
+      for(let index=0;index<entries.length;) {
+        if(stopSpreadsheetReview){stopped=true;break;}
+        const location=entries[index].row.location;
+        let end=index;
+        while(end<entries.length&&end<index+8&&entries[end].row.location===location)end++;
+        const batch=entries.slice(index,end),remaining=[];
+        for(const entry of batch) {
+          const complete=$('import-complete-rows').checked && !entry.issues.length && profile.columns.filter(column=>column.key!=='orientation').every(column=>$('map-'+column.key).value!==''&&String(inventoryValue(entry.row,column.key)).trim()!=='');
+          if(!complete){remaining.push(entry);continue;}
+          try {
+            collect({entry,result:await api('/api/equipment/import','POST',{version:1,inventory_id:spreadsheetInventory.id,equipment:[entry.row]})});
+          } catch(error) {entry.issues.push(error.message);remaining.push(entry);}
+        }
+        if(remaining.length) {
+          const review=await reviewEquipmentBatch(remaining,index,entries.length,spreadsheetInventory,importFields(),spreadsheetFile.filename);
+          review.outcomes.forEach(collect);
+          if(review.stopped){stopped=true;break;}
+        }
+        await load();index=end;
+      }
+    } else {
+      for (let index = 0; index < entries.length; index++) {
+        if (stopSpreadsheetReview) { stopped = true; break; }
+        const addressKey = tab === 'equipment' ? null : importAddressKey(entries[index].row);
+        const result = addressKey && knownAddresses.has(addressKey)
+          ? skippedDuplicateImport(entries[index])
+          : await reviewImportRow(entries[index], index, entries.length, tab, knownAddresses, spreadsheetInventory);
+        if (result === null) { stopped = true; break; }
+        if (result.skippedRow) skipped++;
+        else {
+          added += result.added; existing += result.skipped;
+          if (tab === 'device') importWarnings.push(...(result.warnings || []));
+          if (result.added) await load();
+        }
       }
     }
     if (tab === 'equipment') window.equipmentUI.importReport(spreadsheetInventory.id, equipmentImportReport);

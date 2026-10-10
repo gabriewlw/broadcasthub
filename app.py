@@ -791,6 +791,7 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200, {'devices': inventory()})
             assets = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css'), '/equipment.js': ('equipment.js', 'text/javascript'), '/icon.svg': ('icon.svg', 'image/svg+xml'), '/favicon.svg': ('favicon.svg', 'image/svg+xml'), '/example-switcher.png': ('example-switcher.png', 'image/png'), '/fonts/Poppins-Regular.woff2': ('fonts/Poppins-Regular.woff2', 'font/woff2'), '/fonts/Poppins-Medium.woff2': ('fonts/Poppins-Medium.woff2', 'font/woff2'), '/fonts/Poppins-SemiBold.woff2': ('fonts/Poppins-SemiBold.woff2', 'font/woff2'), '/fonts/Poppins-Bold.woff2': ('fonts/Poppins-Bold.woff2', 'font/woff2')}
             assets['/inventory-columns.js'] = ('inventory-columns.js', 'text/javascript')
+            assets['/import-review.js'] = ('import-review.js', 'text/javascript')
             assets['/inventory'] = ('index.html', 'text/html')
             assets['/service-worker.js'] = ('service-worker.js', 'text/javascript')
             assets['/broadcastgab-offline'] = ('broadcastgab/index.html', 'text/html')
