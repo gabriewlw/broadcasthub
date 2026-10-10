@@ -471,6 +471,47 @@ def equipment_import_confirmation(value):
         return int(status.strip().lower() in ('1', 'true', 'located', 'found'))
     raise ValueError('Located status must be Located or Not located.')
 
+def manage_equipment_location(payload):
+    if not isinstance(payload, dict):
+        raise ValueError('Choose a location action.')
+    inventory_id = equipment_inventory_id(payload.get('inventory_id', 1))
+    action = payload.get('action')
+    source = payload.get('source')
+    target = payload.get('target', '')
+    if action not in ('delete', 'merge') or not isinstance(source, str) or not source.strip():
+        raise ValueError('Choose a location and Delete or Merge.')
+    if not isinstance(target, str) or len(target) > 120:
+        raise ValueError('Choose a valid destination location.')
+    if action == 'delete':
+        target = ''
+    elif not target.strip() or target == source:
+        raise ValueError('Choose a different destination location.')
+    with connect() as con:
+        equipment_inventory_details(con, inventory_id)
+        if not con.execute('SELECT 1 FROM equipment WHERE inventory_id=? AND location=?', (inventory_id, source)).fetchone():
+            raise LookupError('Location no longer exists. Refresh and try again.')
+        if action == 'merge' and not con.execute('SELECT 1 FROM equipment WHERE inventory_id=? AND location=?', (inventory_id, target)).fetchone():
+            raise LookupError('Destination location no longer exists.')
+        sources = [dict(row) for row in con.execute('SELECT * FROM equipment WHERE inventory_id=? AND location=?', (inventory_id, source))]
+        count = len(sources)
+        for row in sources:
+            row['location'] = target
+            identity = equipment_identity(row)
+            matching = None
+            if action == 'merge' and identity is not None and identity[0] == 'stock':
+                matching = con.execute("SELECT * FROM equipment WHERE inventory_id=? AND id!=? AND serial_number='' AND brand=? COLLATE NOCASE AND model=? COLLATE NOCASE AND description=? AND location=? COLLATE NOCASE", (inventory_id, row['id'], row['brand'], row['model'], row['description'], target)).fetchone()
+            if matching:
+                # Unknown quantities remain unknown rather than implying a complete count.
+                quantity = None if row['quantity'] is None or matching['quantity'] is None else row['quantity'] + matching['quantity']
+                if quantity is not None and quantity > 1000000:
+                    raise ValueError('Combined stock quantity exceeds 1,000,000. Nothing was changed.')
+                notes = '\n'.join(dict.fromkeys(note for note in (matching['notes'], row['notes']) if note))
+                con.execute('DELETE FROM equipment WHERE id=?', (row['id'],))
+                con.execute('UPDATE equipment SET item_confirmed=0, location=?, quantity=?, notes=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', (target, quantity, notes, matching['id']))
+            else:
+                con.execute('UPDATE equipment SET item_confirmed=0, location=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', (target, row['id']))
+    return {'updated': count}
+
 
 def equipment_identity(row):
     if row['serial_number']:
@@ -657,6 +698,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, save_equipment_inventory(self.body(), inventory_id))
         elif self.command == 'POST' and path == '/api/equipment':
             return self.send(201, save_equipment(self.body()))
+        elif self.command == 'POST' and path == '/api/equipment/locations':
+            return self.send(200, manage_equipment_location(self.body()))
         elif self.command == 'POST' and path == '/api/equipment/import':
             return self.send(200, import_equipment(self.body()))
         elif self.command == 'POST' and path.startswith('/api/equipment/') and path.endswith('/confirm'):

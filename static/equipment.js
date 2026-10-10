@@ -86,6 +86,8 @@
   }
   function renderEquipment() {
     updatePageSummary(items, inventories.find(inventory => inventory.id === inventoryId)?.name || 'Equipment inventory');
+
+    renderLocationButtons();
     const query = $('equipment-search').value.trim().toLowerCase();
     const results = items.filter(item => fields.some(field => String(item[field] ?? '').toLowerCase().includes(query)) &&
       (!$('equipment-location-filter').value || item.location === $('equipment-location-filter').value) &&
@@ -149,6 +151,55 @@
     }));
     updateEquipmentSelection();
   }
+  const locations = () => [...new Set(items.map(i => i.location).filter(Boolean))].sort(nameCollator.compare);
+  function renderLocationButtons() {
+    const selected = $('equipment-location-filter').value;
+    $('equipment-manage-locations').disabled = !inventoryReady || !locations().length;
+    $('equipment-location-buttons').replaceChildren(...['', ...locations()].map(location => {
+      const button = element('button', 'choice-button', location || 'All locations');
+      button.type = 'button'; button.setAttribute('aria-pressed', String(selected === location));
+      if (location) colorVenueButton(button, location);
+      button.onclick = () => { $('equipment-location-filter').value = location; renderEquipment(); };
+      return button;
+    }));
+  }
+  function updateLocationAction() {
+    const source = $('equipment-location-source').value;
+    const previous = $('equipment-location-target').value;
+    $('equipment-location-target').replaceChildren(...locations().filter(value => value !== source).map(value => new Option(value, value)));
+    if (locations().includes(previous) && previous !== source) $('equipment-location-target').value = previous;
+    const merging = $('equipment-location-action').value === 'merge';
+    $('equipment-location-target-label').hidden = !merging;
+    $('equipment-location-target').required = merging;
+    const count = items.filter(item => item.location === source).length;
+    $('equipment-location-impact').textContent = `${count} equipment record${count === 1 ? '' : 's'} will ${merging ? 'move to the destination location' : 'have their location cleared'}.`;
+    $('save-equipment-locations').textContent = merging ? 'Merge location' : 'Delete location label';
+    $('save-equipment-locations').disabled = !source || (merging && !$('equipment-location-target').value);
+    $('equipment-location-error').hidden = true;
+  }
+  $('equipment-manage-locations').onclick = () => {
+    currentInventory();
+    $('equipment-location-source').replaceChildren(...locations().map(value => new Option(value, value)));
+    if ($('equipment-location-filter').value) $('equipment-location-source').value = $('equipment-location-filter').value;
+    $('equipment-location-action').value = locations().length > 1 ? 'merge' : 'delete';
+    updateLocationAction(); $('equipment-location-dialog').showModal();
+  };
+  for (const id of ['equipment-location-source', 'equipment-location-action']) $(id).onchange = updateLocationAction;
+  for (const id of ['close-equipment-locations', 'cancel-equipment-locations']) $(id).onclick = () => $('equipment-location-dialog').close();
+  $('equipment-location-form').onsubmit = async event => {
+    event.preventDefault(); $('save-equipment-locations').disabled = true;
+    try {
+      await inventoryLoad;
+      const result = await api('/api/equipment/locations', 'POST', {
+        inventory_id: currentInventory().id,
+        source: $('equipment-location-source').value, action: $('equipment-location-action').value,
+        target: $('equipment-location-target').value
+      });
+      $('equipment-location-filter').value = '';
+      $('equipment-location-dialog').close(); toast(`Updated ${result.updated} equipment records.`); await loadEquipment();
+    } catch(error) { $('equipment-location-error').textContent = error.message; $('equipment-location-error').hidden = false; }
+    finally { $('save-equipment-locations').disabled = false; }
+  };
   function openEquipment(item = null) {
     if (!inventoryReady) { toast('Wait for the inventory to finish loading.'); return; }
     formInventoryId = item?.inventory_id ?? inventoryId;

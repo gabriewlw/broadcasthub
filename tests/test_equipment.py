@@ -103,3 +103,48 @@ class EquipmentTests(unittest.TestCase):
             con.execute("INSERT INTO equipment VALUES (42,'Sony','Camera','Studio camera','SER-42',3,'Store','Keep note','2025-01-01')")
         row = app.equipment_inventory()[0]
         self.assertEqual((row['id'], row['quantity'], row['notes'], row['updated_at'], row['item_confirmed']), (42,3,'Keep note','2025-01-01',0))
+
+    def test_location_merge_and_delete_preserve_equipment(self):
+        self.request('/api/equipment', 'POST', ITEM)
+        self.request('/api/equipment', 'POST', dict(ITEM, serial_number='other', location='Store'))
+        self.assertEqual(self.request('/api/equipment/locations', 'POST', dict(action='merge', source='Broadcast center', target='Store')), (200, {'updated': 1}))
+        records = app.equipment_inventory()
+        self.assertEqual([r['location'] for r in records], ['Store', 'Store'])
+        self.assertEqual(sum(r['quantity'] for r in records), 2)
+        self.assertEqual(self.request('/api/equipment/locations', 'POST', dict(action='delete', source='Store')), (200, {'updated': 2}))
+        self.assertEqual([r['location'] for r in app.equipment_inventory()], ['', ''])
+        self.assertEqual(self.request('/api/equipment/locations', 'POST', dict(action='delete', source='Store'))[0], 404)
+
+    def test_location_merge_combines_stock_and_validates(self):
+        for location, serial in [('Source', ''), ('Source', 'unique'), ('Target', '')]:
+            self.request('/api/equipment', 'POST', dict(ITEM, location=location, serial_number=serial))
+        self.assertEqual(self.request('/api/equipment/locations', 'POST', dict(action='merge', source='Source', target='Target'))[0], 200)
+        records = app.equipment_inventory()
+        self.assertEqual(len(records), 2)
+        self.assertEqual(sum(r['quantity'] for r in records), 3)
+        self.assertTrue(all(r['location'] == 'Target' for r in records))
+        for payload in [[], dict(action='merge', source='Source', target='Source'), dict(action='erase', source='Source'), dict(action='delete', source='')]:
+            self.assertEqual(self.request('/api/equipment/locations', 'POST', payload)[0], 400)
+        self.assertEqual(self.request('/api/equipment/locations', 'POST', dict(action='merge', source='Target', target='Missing'))[0], 404)
+
+    def test_location_stock_merge_preserves_notes_unknowns_and_rolls_back(self):
+        self.request('/api/equipment', 'POST', dict(ITEM, serial_number='', location='A', quantity=2, notes='Source note'))
+        self.request('/api/equipment', 'POST', dict(ITEM, serial_number='', location='B', quantity=None, notes='Target note'))
+        self.assertEqual(self.request('/api/equipment/locations', 'POST', dict(action='merge', source='A', target='B'))[0], 200)
+        row = app.equipment_inventory()[0]
+        self.assertIsNone(row['quantity'])
+        self.assertEqual(row['notes'], 'Target note\nSource note')
+        self.request('/api/equipment', 'POST', dict(ITEM, serial_number='', location='A', quantity=1000000))
+        self.request(f"/api/equipment/{row['id']}", 'PUT', dict(ITEM, serial_number='', location='B', quantity=1))
+        before = app.equipment_inventory()
+        self.assertEqual(self.request('/api/equipment/locations', 'POST', dict(action='merge', source='A', target='B'))[0], 400)
+        self.assertEqual(app.equipment_inventory(), before)
+
+    def test_location_changes_are_scoped_to_current_inventory(self):
+        other = app.save_equipment_inventory({'name': 'Other inventory'})['id']
+        for inventory in (1, other):
+            for location, serial in [('A','a'), ('B','b')]:
+                app.save_equipment(dict(ITEM, inventory_id=inventory, location=location, serial_number=serial))
+        self.assertEqual(self.request('/api/equipment/locations', 'POST', dict(inventory_id=other, action='merge', source='A', target='B'))[0], 200)
+        self.assertEqual([r['location'] for r in app.equipment_inventory()], ['A','B'])
+        self.assertEqual([r['location'] for r in app.equipment_inventory(other)], ['B','B'])
