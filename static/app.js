@@ -1062,7 +1062,7 @@ function reviewImportRow(entry, index, total, tab, knownAddresses, inventory = n
     $('row-review-fields').replaceChildren(...fields.map(([field, label]) => {
       const group = element('label', '', label.replace(' (optional)', ''));
       const column=equipment?(inventory?.layout || window.equipmentUI.profile()).columns.find(col=>col.key===field):null;
-      if(column && !inventoryBaseFields.has(field)){const {wrapper,control}=inventoryInput(column,inventoryValue(entry.row,field));control.id=`review-${field}`;group.append(wrapper);controls.set(field,control);return group;}
+      if(column && !inventoryBaseFields.has(field)){const {wrapper,control}=inventoryInput(column,inventoryValue(entry.row,field),{allowClear:field!=='orientation'});control.id=`review-${field}`;group.append(wrapper);controls.set(field,control);return group;}
       const input = element(field === 'channel_source' ? 'select' : field === 'notes' ? 'textarea' : 'input'); input.id = `review-${field}`;
       if (field === 'channel_source') input.append(new Option('Leave blank', ''), new Option('Onboard', 'Onboard'), new Option('Satellite', 'Satellite'));
       if (field === 'notes') input.rows = 1;
