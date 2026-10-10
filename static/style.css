@@ -484,3 +484,23 @@ nav a,.eyebrow,.network-card-top,.stats span,.filters label>span,.button-filter 
 .ip-copy:hover{color:#eeeee9;border-color:var(--border);background:#252930}
 .ip-copy svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .clipboard-copy-buffer{position:fixed;left:-9999px;top:0;width:1px;height:1px;padding:0}
+
+/* Inventory follows the compact AV directory on every screen. */
+.equipment-table-wrap{overflow:auto;max-height:70vh;border:1px solid var(--border);border-radius:8px}
+#equipment-table{display:table;min-width:1450px;width:100%;table-layout:fixed;margin:0}
+#equipment-table thead{display:table-header-group;position:sticky;top:0;z-index:2}
+#equipment-table tbody{display:table-row-group}
+#equipment-table tr{display:table-row;margin:0;padding:0;border:0;background:var(--panel)}
+#equipment-table th,#equipment-table td{display:table-cell;margin:0;padding:8px 10px;border:0;border-bottom:1px solid var(--border);border-right:1px solid var(--border);border-radius:0;vertical-align:top;background:var(--panel);font-size:12px;line-height:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#equipment-table th{padding:12px 10px;background:#1c2027;font-size:11px;letter-spacing:1px}
+#equipment-table td::before{display:none}
+#equipment-table th:nth-child(1){width:16%}#equipment-table th:nth-child(2){width:8%}#equipment-table th:nth-child(3){width:12%}#equipment-table th:nth-child(4){width:14%}#equipment-table th:nth-child(5){width:5%}#equipment-table th:nth-child(6){width:11%}#equipment-table th:nth-child(7){width:10%}#equipment-table th:nth-child(8){width:10%}#equipment-table th:nth-child(9){width:8%}#equipment-table th:nth-child(10){width:6%}
+#equipment-table td.equipment-actions{display:table-cell;padding:8px 0;white-space:nowrap}
+#equipment-table .equipment-brand-value>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#equipment-table button,#equipment-table .equipment-confirm-label{height:30px;min-height:30px;line-height:18px;padding:4px 7px;margin:0;font-size:10px;white-space:nowrap}
+#equipment-table .equipment-confirm-label{box-sizing:border-box}
+.inventory-flags{color:#e5c587;font-size:12px;line-height:1.5}.record-checked{color:#9ed3b8}.equipment-review-filter{max-width:240px;margin-top:12px}
+#equipment-table thead{width:auto;height:auto;overflow:visible;clip:auto}
+#equipment-table .equipment-actions button{display:inline-block}
+
+.cross-check-location{margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:6px}.cross-check-location summary{cursor:pointer}.cross-check-location li{padding:8px 0;overflow-wrap:anywhere}.cross-check-location p{margin:5px 0}

@@ -797,14 +797,39 @@ const networkImportFields = [
   ['channel_source', 'Channel source (IPTV)', ['channel source','source','onboard or satellite']],
   ['port', 'Port (IPTV)', ['port','udp port','stream port','port number']]
 ];
+const equipmentCheckFields = ['description','brand','model','serial_number','quantity','location'];
+function equipmentIssues(row) {
+  const issues = equipmentCheckFields.filter(field => row[field] == null || String(row[field]).trim() === '').map(field => `Missing ${field === 'description' ? 'item' : field.replaceAll('_', ' ')}`);
+  if (/[|;,\n]/.test(row.serial_number || '')) issues.push('Multiple serial numbers in one record');
+  if (/separate inventory|not an itemized|reference to/i.test(row.notes || '')) issues.push('Inventory reference: check itemized source');
+  return issues;
+}
+function orderEquipmentReview(entries) {
+  const serialCounts = new Map();
+  entries.forEach(({row}) => { const key = (row.serial_number || '').trim().toLowerCase(); if (key) serialCounts.set(key, (serialCounts.get(key) || 0) + 1); });
+  const groups = new Map();
+  entries.forEach(entry => {
+    entry.issues = equipmentIssues(entry.row);
+    if (serialCounts.get((entry.row.serial_number || '').trim().toLowerCase()) > 1) entry.issues.push('Repeated serial number in this file');
+    const location = entry.row.location || '';
+    if (!groups.has(location)) groups.set(location, []);
+    groups.get(location).push(entry);
+  });
+  const ordered = [];
+  [...groups].filter(([location]) => location).concat([...groups].filter(([location]) => !location)).forEach(([location, rows], groupIndex) => {
+    rows.sort((a,b) => Boolean(a.issues.length) - Boolean(b.issues.length));
+    rows.forEach((entry,index) => { entry.locationProgress = `${location || 'Unassigned location'} · Location ${groupIndex + 1} of ${groups.size} · Item ${index + 1} of ${rows.length} · ${entry.issues.length ? 'Flagged rows' : 'Complete rows'}`; ordered.push(entry); });
+  });
+  return ordered;
+}
 const equipmentImportFields = [
   ['description','Item',['item','description','equipment','item name','item description']],
   ['brand','Brand',['brand','manufacturer','make']],
   ['model','Model',['model','model number','part number']],
   ['serial_number','Serial number (optional)',['serial number','serial','serial no','s/n','sn']],
-  ['quantity','Quantity',['quantity','qty','count','stock']],
+  ['quantity','Quantity',['quantity','qty','count','stock','quantity in stock']],
   ['location','Location',['location','venue','room','storage','storage location']],
-  ['item_confirmed','Located (optional)',['item confirmed','located','found','confirmed','confirmation']],
+  ['item_confirmed','Status (optional)',['item confirmed','located','found','confirmed','confirmation']],
   ['notes','Notes (optional)',['notes','note','comments']]
 ];
 const iptvImportFields = [
@@ -862,6 +887,14 @@ function mappedRows(applyVenueEdits = true) {
       }
       return [field, value];
     }));
+    if (currentTab === 'equipment') {
+      const extras = ['name','storage_position','condition','unit','quantity_original','source_sheet','source_row'];
+      const read = name => { const index = spreadsheetData.headers.findIndex(header => header.trim().toLowerCase() === name); return index < 0 ? '' : String(row[index] ?? '').trim(); };
+      if (!mapped.description) mapped.description = read('name');
+      const details = extras.filter(name => name !== 'name' && read(name)).map(name => `${name.replaceAll('_',' ')}: ${read(name)}`);
+      mapped.notes = [mapped.notes, ...details].filter(Boolean).join(' · ');
+      mapped.item_confirmed = ''; // Old files do not establish a new physical location check.
+    }
     if (currentTab !== 'equipment') mapped.record_type = currentTab;
     if (currentTab === 'iptv') mapped.channel_source = channelSourceFromName(mapped.name);
     const field = currentTab === 'equipment' ? 'location' : 'venue';
@@ -897,6 +930,11 @@ function showVenueEditors() {
   }));
 }
 function showSpreadsheetPreview() {
+  $('equipment-import-audit').hidden = currentTab !== 'equipment';
+  if (currentTab === 'equipment') {
+    const entries = orderEquipmentReview(mappedRows().map((row,index) => ({row,number:spreadsheetData.row_numbers[index]})).filter(({row}) => meaningfulImportRow(row)));
+    $('equipment-import-audit').textContent = `${new Set(entries.map(entry => entry.row.location)).size} locations · ${entries.filter(entry => entry.issues.length).length} flagged rows. For each location, complete rows come first, then flagged rows. Storage position, condition, unit and source details are kept in Notes. This import starts with locations unconfirmed.`;
+  }
   const rows = mappedRows();
   if (currentTab === 'iptv') {
     const codecIPs = channelCodecIPs([...devices, ...rows]);
@@ -992,13 +1030,16 @@ function reviewImportRow(entry, index, total, tab, knownAddresses, inventory = n
     $('row-review-title').textContent = equipment ? 'Import this equipment?' : tab === 'iptv' ? 'Import this channel?' : 'Import this device?';
     $('row-review-progress').textContent = `Row ${entry.number} · ${index + 1} of ${total} · ${spreadsheetFile.filename}${inventory ? ' · Inventory: ' + inventory.name : ''}`;
     $('row-review-error').hidden = true;
+    $('row-review-flags').hidden = !equipment || !entry.issues?.length;
+    $('row-review-flags').textContent = equipment && entry.issues?.length ? 'Check: ' + entry.issues.join(' · ') + '. Blank values may remain for follow-up.' : '';
+    if (equipment) $('row-review-progress').textContent += ' · ' + entry.locationProgress;
     $('row-review-ip-hint').textContent = tab === 'iptv'
       ? 'There is text in the Multicast IP field. Enter an IPv4 address, leave the field blank, or skip this row.'
       : 'There is text in the IP Address field. Enter an IPv4 address, click DHCP, leave the field blank, or skip this row.';
     const controls = new Map();
     const fields = tab === 'iptv'
       ? [...iptvImportFields.slice(0,3), ['channel_source', 'Type'], ...iptvImportFields.slice(3)]
-      : importFields();
+      : equipment ? equipmentImportFields.filter(([field]) => field !== 'item_confirmed') : importFields();
     $('row-review-fields').style.setProperty('--review-columns', fields.length);
     $('row-review-fields').replaceChildren(...fields.map(([field, label]) => {
       const group = element('label', '', label.replace(' (optional)', ''));
@@ -1089,10 +1130,12 @@ $('spreadsheet-form').onsubmit = async event => {
   spreadsheetReviewing = true; stopSpreadsheetReview = false;
   try {
     const tab = currentTab;
-    const entries = mappedRows().map((row,index) => ({row,number:spreadsheetData.row_numbers[index]})).filter(({row}) => meaningfulImportRow(row));
+    let entries = mappedRows().map((row,index) => ({row,number:spreadsheetData.row_numbers[index]})).filter(({row}) => meaningfulImportRow(row));
+    if (tab === 'equipment') entries = orderEquipmentReview(entries);
     const saved = tab === 'equipment' ? [] : (await api('/api/devices')).devices;
     const knownAddresses = new Set(saved.map(importAddressKey).filter(Boolean));
     let added = 0, existing = 0, skipped = 0, stopped = false;
+    const equipmentImportReport = [];
     if (tab === 'device') importWarnings = [];
     for (let index = 0; index < entries.length; index++) {
       if (stopSpreadsheetReview) { stopped = true; break; }
@@ -1101,6 +1144,7 @@ $('spreadsheet-form').onsubmit = async event => {
         ? skippedDuplicateImport(entries[index])
         : await reviewImportRow(entries[index], index, entries.length, tab, knownAddresses, spreadsheetInventory);
       if (result === null) { stopped = true; break; }
+      if (tab === 'equipment' && (entries[index].issues?.length || result.skipped || result.skippedRow)) equipmentImportReport.push(`Row ${entries[index].number} · ${entries[index].row.location || 'Unassigned'} · ${entries[index].row.serial_number || entries[index].row.model || entries[index].row.description || 'Unnamed item'}: ${result.skipped ? 'Already exists; not imported. Compare this row with the saved record. ' : result.skippedRow ? 'Skipped by user. ' : 'Imported for follow-up. '}${entries[index].issues.join(' · ')}`);
       if (result.skippedRow) skipped++;
       else {
         added += result.added; existing += result.skipped;
@@ -1108,6 +1152,7 @@ $('spreadsheet-form').onsubmit = async event => {
         if (result.added) await load();
       }
     }
+    if (tab === 'equipment') window.equipmentUI.importReport(spreadsheetInventory.id, equipmentImportReport);
     spreadsheetReviewing = false; closeSpreadsheet();
     toast(`${stopped ? 'Review stopped. ' : ''}Imported ${added} records. Skipped ${skipped} rows and ${existing} existing assignments.`);
     await load();
@@ -1146,3 +1191,15 @@ $('import-file').onchange = async event => {
   finally { event.target.value = ''; $('import').disabled = false; }
 };
 load();
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/service-worker.js').then(() => navigator.serviceWorker.ready).then(() => {
+    $('broadcastgab-offline-link').title = 'Saved BroadcastGab copy · available offline';
+    $('broadcastgab-cache-status').textContent = 'Available offline';
+  }).catch(() => {
+    $('broadcastgab-offline-link').title = 'Saved copy · offline storage unavailable in this browser';
+    $('broadcastgab-cache-status').textContent = 'Offline storage unavailable';
+  });
+} else {
+  $('broadcastgab-cache-status').textContent = 'Offline storage requires HTTPS and a supported browser';
+}

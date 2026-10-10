@@ -148,3 +148,14 @@ class EquipmentTests(unittest.TestCase):
         self.assertEqual(self.request('/api/equipment/locations', 'POST', dict(inventory_id=other, action='merge', source='A', target='B'))[0], 200)
         self.assertEqual([r['location'] for r in app.equipment_inventory()], ['A','B'])
         self.assertEqual([r['location'] for r in app.equipment_inventory(other)], ['B','B'])
+
+    def test_record_review_is_separate_from_physical_confirmation(self):
+        item = self.request('/api/equipment', 'POST', ITEM)[1]
+        path = f"/api/equipment/{item['id']}"
+        checked = self.request(path+'/review', 'POST', dict(item, data_checked=True))[1]
+        self.assertEqual((checked['data_checked'], checked['item_confirmed']), (1, 0))
+        self.assertEqual(app.equipment_inventory()[0]['data_checked'], 1)
+        self.assertEqual(self.request(path+'/review', 'POST', dict(data_checked=True))[0], 400)
+        self.request(path, 'PUT', dict(ITEM, notes='Corrected old record'))
+        self.assertEqual(app.equipment_inventory()[0]['data_checked'], 0)
+        self.assertEqual(self.request(path+'/review', 'POST', dict(item, data_checked=True))[0], 400)

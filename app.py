@@ -10,6 +10,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 from spreadsheets import preview as spreadsheet_preview
+from reconciliation import reconcile
 from exports import network_xlsx, equipment_xlsx, network_pdf, equipment_pdf
 
 ROOT = Path(__file__).resolve().parent
@@ -43,7 +44,7 @@ EQUIPMENT_SCHEMA = """CREATE TABLE {table} (
     id INTEGER PRIMARY KEY, brand TEXT NOT NULL, model TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '', serial_number TEXT NOT NULL DEFAULT '',
     quantity INTEGER, location TEXT NOT NULL, notes TEXT NOT NULL DEFAULT '',
-    item_confirmed INTEGER NOT NULL DEFAULT 0,
+    item_confirmed INTEGER NOT NULL DEFAULT 0, data_checked INTEGER NOT NULL DEFAULT 0,
     inventory_id INTEGER NOT NULL DEFAULT 1 REFERENCES equipment_inventories(id),
     updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"""
 
@@ -103,6 +104,8 @@ def connect():
     equipment_columns = {row['name']: row for row in con.execute('PRAGMA table_info(equipment)')}
     if 'item_confirmed' not in equipment_columns:
         con.execute('ALTER TABLE equipment ADD COLUMN item_confirmed INTEGER NOT NULL DEFAULT 0')
+    if 'data_checked' not in equipment_columns:
+        con.execute('ALTER TABLE equipment ADD COLUMN data_checked INTEGER NOT NULL DEFAULT 0')
     if 'inventory_id' not in equipment_columns:
         con.execute('ALTER TABLE equipment ADD COLUMN inventory_id INTEGER NOT NULL DEFAULT 1 REFERENCES equipment_inventories(id)')
     if next(row for row in con.execute('PRAGMA table_info(equipment)') if row['name'] == 'quantity')['notnull']:
@@ -110,7 +113,7 @@ def connect():
         con.execute('BEGIN IMMEDIATE')
         try:
             con.execute(EQUIPMENT_SCHEMA.format(table='equipment_upgrade'))
-            names = 'id,' + ','.join(EQUIPMENT_FIELDS) + ',item_confirmed,inventory_id,updated_at'
+            names = 'id,' + ','.join(EQUIPMENT_FIELDS) + ',item_confirmed,data_checked,inventory_id,updated_at'
             con.execute(f'INSERT INTO equipment_upgrade ({names}) SELECT {names} FROM equipment')
             con.execute('DROP TABLE equipment')
             con.execute('ALTER TABLE equipment_upgrade RENAME TO equipment')
@@ -432,10 +435,11 @@ def save_equipment(value, item_id=None):
             item_id = cursor.lastrowid
         else:
             unchanged = ' AND '.join(f'{field} IS ?' for field in EQUIPMENT_CONFIRM_FIELDS)
-            cursor = con.execute('UPDATE equipment SET item_confirmed=CASE WHEN ' + unchanged +
+            cursor = con.execute('UPDATE equipment SET data_checked=CASE WHEN ' + unchanged +
+                ' AND notes IS ? THEN data_checked ELSE 0 END, item_confirmed=CASE WHEN ' + unchanged +
                 ' THEN item_confirmed ELSE 0 END, ' + ','.join(f+'=?' for f in EQUIPMENT_FIELDS) +
                 ', updated_at=CURRENT_TIMESTAMP WHERE id=? AND inventory_id=?',
-                [row[f] for f in EQUIPMENT_CONFIRM_FIELDS] + [row[f] for f in EQUIPMENT_FIELDS] + [item_id, inventory_id])
+                [row[f] for f in EQUIPMENT_CONFIRM_FIELDS] + [row['notes']] + [row[f] for f in EQUIPMENT_CONFIRM_FIELDS] + [row[f] for f in EQUIPMENT_FIELDS] + [item_id, inventory_id])
             if not cursor.rowcount:
                 raise LookupError('Inventory item not found.')
         return dict(con.execute('SELECT * FROM equipment WHERE id=?', (item_id,)).fetchone())
@@ -458,6 +462,26 @@ def set_equipment_confirmation(item_id, value):
             [int(value['item_confirmed']), item_id] + [row[f] for f in EQUIPMENT_CONFIRM_FIELDS])
         if not cursor.rowcount:
             raise ValueError('This item changed. Refresh the inventory before confirming it.')
+        return dict(con.execute('SELECT * FROM equipment WHERE id=?', (item_id,)).fetchone())
+
+
+def set_equipment_review(item_id, value):
+    if not isinstance(value, dict) or type(value.get('data_checked')) is not bool:
+        raise ValueError('Choose whether this item has been reviewed.')
+    if any(field not in value for field in (*EQUIPMENT_CONFIRM_FIELDS, 'notes')):
+        raise ValueError('Provide the current item details being confirmed.')
+    row = validate_equipment(value)
+    inventory_id = equipment_inventory_id(value.get('inventory_id', 1))
+    with connect() as con:
+        equipment_inventory_details(con, inventory_id)
+        current = con.execute('SELECT * FROM equipment WHERE id=? AND inventory_id=?', (item_id, inventory_id)).fetchone()
+        if current is None:
+            raise LookupError('Inventory item not found.')
+        matches = ' AND '.join(f'{field} IS ?' for field in (*EQUIPMENT_CONFIRM_FIELDS, 'notes'))
+        cursor = con.execute('UPDATE equipment SET data_checked=?, updated_at=CURRENT_TIMESTAMP WHERE id=? AND ' + matches,
+            [int(value['data_checked']), item_id] + [row[f] for f in (*EQUIPMENT_CONFIRM_FIELDS, 'notes')])
+        if not cursor.rowcount:
+            raise ValueError('This item changed. Refresh the inventory before reviewing it.')
         return dict(con.execute('SELECT * FROM equipment WHERE id=?', (item_id,)).fetchone())
 
 
@@ -507,9 +531,9 @@ def manage_equipment_location(payload):
                     raise ValueError('Combined stock quantity exceeds 1,000,000. Nothing was changed.')
                 notes = '\n'.join(dict.fromkeys(note for note in (matching['notes'], row['notes']) if note))
                 con.execute('DELETE FROM equipment WHERE id=?', (row['id'],))
-                con.execute('UPDATE equipment SET item_confirmed=0, location=?, quantity=?, notes=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', (target, quantity, notes, matching['id']))
+                con.execute('UPDATE equipment SET data_checked=0, item_confirmed=0, location=?, quantity=?, notes=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', (target, quantity, notes, matching['id']))
             else:
-                con.execute('UPDATE equipment SET item_confirmed=0, location=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', (target, row['id']))
+                con.execute('UPDATE equipment SET data_checked=0, item_confirmed=0, location=?, updated_at=CURRENT_TIMESTAMP WHERE id=?', (target, row['id']))
     return {'updated': count}
 
 
@@ -686,6 +710,11 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/devices':
                 return self.send(200, {'devices': inventory()})
             assets = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css'), '/equipment.js': ('equipment.js', 'text/javascript'), '/icon.svg': ('icon.svg', 'image/svg+xml'), '/favicon.svg': ('favicon.svg', 'image/svg+xml'), '/example-switcher.png': ('example-switcher.png', 'image/png'), '/fonts/Poppins-Regular.woff2': ('fonts/Poppins-Regular.woff2', 'font/woff2'), '/fonts/Poppins-Medium.woff2': ('fonts/Poppins-Medium.woff2', 'font/woff2'), '/fonts/Poppins-SemiBold.woff2': ('fonts/Poppins-SemiBold.woff2', 'font/woff2'), '/fonts/Poppins-Bold.woff2': ('fonts/Poppins-Bold.woff2', 'font/woff2')}
+            assets['/service-worker.js'] = ('service-worker.js', 'text/javascript')
+            assets['/broadcastgab-offline'] = ('broadcastgab/index.html', 'text/html')
+            assets.update({f'/broadcastgab-assets/{file.name}': (f'broadcastgab/{file.name}',
+                           'text/css' if file.suffix == '.css' else 'image/png' if file.suffix == '.png' else 'image/jpeg')
+                           for file in (ROOT / 'static' / 'broadcastgab').iterdir() if file.name != 'index.html'})
             assets.update({f'/fonts/{family}-Variable.woff2': (f'fonts/{family}-Variable.woff2', 'font/woff2')
                            for family in ('SpaceGrotesk', 'DMSans', 'JetBrainsMono')})
             if path in assets:
@@ -698,10 +727,22 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(200, save_equipment_inventory(self.body(), inventory_id))
         elif self.command == 'POST' and path == '/api/equipment':
             return self.send(201, save_equipment(self.body()))
+        elif self.command == 'POST' and path == '/api/equipment/reconcile':
+            payload = self.body()
+            if not isinstance(payload, dict):
+                raise ValueError('Choose an original inventory file.')
+            inventory_id = equipment_inventory_id(payload.get('inventory_id', 1))
+            return self.send(200, reconcile(payload, equipment_inventory(inventory_id)))
         elif self.command == 'POST' and path == '/api/equipment/locations':
             return self.send(200, manage_equipment_location(self.body()))
         elif self.command == 'POST' and path == '/api/equipment/import':
             return self.send(200, import_equipment(self.body()))
+        elif self.command == 'POST' and path.startswith('/api/equipment/') and path.endswith('/review'):
+            try:
+                item_id = int(path.removeprefix('/api/equipment/').removesuffix('/review'))
+            except ValueError:
+                raise LookupError('Inventory item not found.') from None
+            return self.send(200, set_equipment_review(item_id, self.body()))
         elif self.command == 'POST' and path.startswith('/api/equipment/') and path.endswith('/confirm'):
             try:
                 item_id = int(path.removeprefix('/api/equipment/').removesuffix('/confirm'))

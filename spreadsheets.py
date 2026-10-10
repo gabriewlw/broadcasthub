@@ -41,6 +41,8 @@ def preview(payload):
                     raise ValueError('This workbook is too large when expanded. Export a smaller sheet as CSV.')
             book = load_workbook(io.BytesIO(raw), read_only=True, data_only=True, keep_links=False)
             sheets = book.sheetnames
+            if payload.get('sheets_only'):
+                return {'sheets': sheets}
             sheet = payload.get('sheet') or sheets[0]
             if sheet not in sheets:
                 raise ValueError('Choose a worksheet from this workbook.')
@@ -81,6 +83,13 @@ def preview(payload):
             if characters > 2_000_000:
                 raise ValueError('Spreadsheet text is too large. Split the file into smaller imports.')
             if column_count is None:
+                if payload.get('auto_header'):
+                    recognized = {'brand','manufacturer','make','model','model number','description','item','serial number','serial','s/n','quantity','qty','quantity in stock','location','notes'}
+                    count = sum(re.sub(r'[_-]+', ' ', v.lower()).strip() in recognized for v in values)
+                    if count < 3:
+                        if number >= 50:
+                            raise ValueError('Could not identify an inventory header within the first 50 rows.')
+                        continue
                 if not values:
                     continue
                 column_count = len(values)
@@ -99,6 +108,8 @@ def preview(payload):
                     raise ValueError('Import supports up to 10,000 devices per file.')
                 rows.append(values)
                 row_numbers.append(number)
+        if payload.get('auto_header') and not headers:
+            raise ValueError('Could not identify an inventory header within the first 50 rows.')
         return {'headers': headers, 'rows': rows, 'row_numbers': row_numbers, 'sheets': sheets, 'sheet': sheet, 'ignored_columns': ignored_columns}
     except (BadZipFile, InvalidFileException, ParseError, DefusedXmlException, KeyError, csv.Error, OSError):
         raise ValueError('Could not read this spreadsheet. Save a fresh .xlsx or CSV UTF-8 copy in Excel.') from None

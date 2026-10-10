@@ -2,6 +2,8 @@
 (() => {
   let items = [], editingId = null, deletingItem = null;
   let visibleItems = [];
+  const importReports = new Map();
+  const crossChecks = new Map();
   const selectedItems = new Set();
   const pendingConfirmations = new Map();
   let inventoryId = 1, inventories = [], inventoryReady = false, loadVersion = 0;
@@ -17,7 +19,7 @@
       selectedItems.clear();
       $('equipment-export-scope').value = 'filtered';
     }
-    ['equipment-search','equipment-location-filter','equipment-status-filter'].forEach(id => { $(id).value = ''; });
+    ['equipment-search','equipment-location-filter','equipment-status-filter','equipment-review-filter'].forEach(id => { $(id).value = ''; });
     $('equipment-status-buttons').querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.value === '')));
   }
   const equipmentForm = $('equipment-form');
@@ -89,9 +91,16 @@
 
     renderLocationButtons();
     const query = $('equipment-search').value.trim().toLowerCase();
+    const reviewFilter = $('equipment-review-filter').value;
+    $('equipment-review-summary').textContent = `${items.filter(i => !i.data_checked).length} records not checked · ${items.filter(i => !i.data_checked && equipmentIssues(i).length).length} flagged · ${items.filter(i => !i.item_confirmed).length} locations not confirmed`;
     const results = items.filter(item => fields.some(field => String(item[field] ?? '').toLowerCase().includes(query)) &&
       (!$('equipment-location-filter').value || item.location === $('equipment-location-filter').value) &&
-      (!$('equipment-status-filter').value || Boolean(item.item_confirmed) === ($('equipment-status-filter').value === 'found')));
+      (!$('equipment-status-filter').value || Boolean(item.item_confirmed) === ($('equipment-status-filter').value === 'found')) &&
+      (!reviewFilter || (reviewFilter === 'checked' ? item.data_checked : reviewFilter === 'pending' ? !item.data_checked : !item.data_checked && equipmentIssues(item).length)));
+    if (query) results.sort((a,b) => {
+      const rank = item => item.serial_number.toLowerCase() === query ? 0 : item.serial_number.toLowerCase().includes(query) ? 1 : item.model.toLowerCase().includes(query) ? 2 : 3;
+      return rank(a) - rank(b);
+    });
     visibleItems = results;
     const availableIds = new Set(results.map(item => item.id));
     for (const id of selectedItems) if (!availableIds.has(id)) selectedItems.delete(id);
@@ -118,9 +127,32 @@
           }), element('span', '', item[field] ?? ''));
           cell.replaceChildren(value);
         }
+        cell.title = String(item[field] ?? '');
         cell.dataset.label = label(field); row.append(cell);
         if (field === 'location') {
-          const status = element('td', 'equipment-status'); status.dataset.label = 'Located';
+          const review = element('td', 'equipment-review'); review.dataset.label = 'Record check';
+          const issues = equipmentIssues(item);
+          const button = element('button', item.data_checked ? 'quiet record-checked' : 'quiet', item.data_checked ? 'Record checked' : issues.length ? 'Check flagged record' : 'Check record');
+          button.type = 'button'; button.disabled = pendingConfirmations.has(item.id);
+          button.title = issues.join(' · ') || 'Verify against the old inventory file';
+          button.setAttribute('aria-label', `Review record ${displayName(item)}`);
+          button.onclick = async () => {
+            $('equipment-record-review-details').textContent = `${item.serial_number || 'No serial'} · ${displayName(item)} · ${item.location || 'No location'} · Quantity ${item.quantity ?? 'unknown'}`;
+            $('equipment-record-review-issues').textContent = issues.length ? issues.join(' · ') + '. Use Edit to correct the record, or acknowledge these blanks after checking the source.' : 'Check these details against the old inventory file.';
+            $('equipment-record-review-error').hidden = true;
+            $('edit-equipment-record-review').onclick = () => { $('equipment-record-review-dialog').close(); openEquipment(item); };
+            $('save-equipment-record-review').onclick = async () => {
+              const control = $('save-equipment-record-review'); control.disabled = true;
+              const write = api(`/api/equipment/${item.id}/review`, 'POST', {...item, data_checked:true}); pendingConfirmations.set(item.id, write);
+              try { const updated = await write; items = items.map(i => i.id === updated.id ? updated : i); $('equipment-record-review-dialog').close(); }
+              catch(error) { $('equipment-record-review-error').textContent = error.message; $('equipment-record-review-error').hidden = false; }
+              finally { pendingConfirmations.delete(item.id); control.disabled = false; renderEquipment(); }
+            };
+            $('equipment-record-review-dialog').showModal();
+          };
+          review.append(button); row.append(review);
+
+          const status = element('td', 'equipment-status'); status.dataset.label = 'Status';
           const control = element('label', `equipment-confirm-label${item.item_confirmed ? ' confirmed' : ''}`);
           const check = element('input', 'equipment-confirm'); check.type = 'checkbox';
           check.checked = Boolean(item.item_confirmed); check.disabled = pendingConfirmations.has(item.id);
@@ -149,6 +181,9 @@
       };
       actions.append(edit,remove); row.append(actions); return row;
     }));
+    $('equipment-import-report').hidden = !importReports.get(inventoryId)?.length;
+    $('equipment-import-report-list').replaceChildren(...(importReports.get(inventoryId) || []).map(text => element('li', '', text)));
+    renderCrossCheck();
     updateEquipmentSelection();
   }
   const locations = () => [...new Set(items.map(i => i.location).filter(Boolean))].sort(nameCollator.compare);
@@ -248,7 +283,7 @@
     finally { $('save-equipment-inventory').disabled = false; }
   };
   $('equipment-import').onclick = () => $('import-file').click();
-  for (const id of ['equipment-search','equipment-location-filter']) $(id).addEventListener(id.endsWith('search') ? 'input' : 'change', renderEquipment);
+  for (const id of ['equipment-search','equipment-location-filter','equipment-review-filter']) $(id).addEventListener(id.endsWith('search') ? 'input' : 'change', renderEquipment);
   for (const [value, text] of [['','All items'], ['pending','Not located'], ['found','Located']]) {
     const button = element('button', 'choice-button', text); button.type = 'button';
     button.dataset.value = value; button.setAttribute('aria-pressed', String(value === ''));
@@ -270,7 +305,60 @@
     catch(error) { $('equipment-delete-error').textContent = error.message; $('equipment-delete-error').hidden = false; }
     finally { $('confirm-equipment-delete').disabled = false; }
   };
-  window.equipmentUI = {load:loadEquipment, open:openEquipment,
+  function renderCrossCheck() {
+    const report = crossChecks.get(inventoryId);
+    $('equipment-reconciliation').hidden = !report;
+    if (!report) return;
+    const names = {matched:'Matched', needs_review:'Needs review', different:'Differences', missing:'Missing', ambiguous:'Ambiguous'};
+    $('equipment-reconciliation-summary').textContent = `${report.filename} · ${report.source_rows} source rows · ${report.saved_rows} saved records · ` + Object.entries(names).map(([key,label]) => `${label}: ${report.summary[key]}`).join(' · ') + ` · ${report.extra_records.length} saved records without a unique source match`;
+    const nodes = report.sheet_errors.map(error => element('p', 'error', `${error.sheet}: ${error.error}`));
+    const groups = new Map();
+    report.rows.forEach(row => { const key = row.record.location || row.sheet || 'Unassigned'; if (!groups.has(key)) groups.set(key, []); groups.get(key).push(row); });
+    for (const [location, rows] of groups) {
+      const group = element('details', 'cross-check-location');
+      group.append(element('summary', '', `${location} · ${rows.length} source rows · ${rows.filter(row => row.status !== 'matched').length} to review`));
+      const list = element('ul');
+      rows.forEach(row => {
+        const item = element('li');
+        const title = `${names[row.status]} · ${row.sheet || 'CSV'} row ${row.row_number} · ${row.record.serial_number || row.record.model || row.record.description || row.record.brand || 'Unnamed'}`;
+        item.append(element('strong', '', title));
+        const detail = [...row.issues, ...row.differences.map(d => `${d.field}: original “${d.original}”; saved “${d.saved ?? 'blank'}”`)];
+        if (detail.length) item.append(element('p', 'inventory-flags', detail.join(' · ')));
+        if (row.saved_id) {
+          const edit = element('button', 'quiet', 'Open saved item'); edit.type = 'button';
+          edit.onclick = () => { const found = items.find(item => item.id === row.saved_id); if (found) openEquipment(found); else toast('Refresh and run the cross-check again.'); };
+          item.append(edit);
+        }
+        list.append(item);
+      });
+      group.append(list); nodes.push(group);
+    }
+    if (report.extra_records.length) {
+      const extra = element('details', 'cross-check-location'); extra.append(element('summary', '', 'Saved records without a unique source match'));
+      const list = element('ul'); report.extra_records.forEach(item => list.append(element('li', '', `ID ${item.id} · ${item.serial_number || item.model || item.description || item.brand} · ${item.location}`))); extra.append(list); nodes.push(extra);
+    }
+    $('equipment-reconciliation-rows').replaceChildren(...nodes);
+  }
+  $('equipment-cross-check').onclick = () => $('equipment-original-file').click();
+  $('equipment-original-file').onchange = async event => {
+    const file = event.target.files[0]; if (!file) return;
+    $('equipment-cross-check').disabled = true;
+    try {
+      await inventoryLoad; const inventory = currentInventory();
+      if (file.size > 5000000) throw new Error('Choose a file smaller than 5 MB.');
+      const content = await new Promise((resolve,reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.onerror = () => reject(new Error('Could not read file.')); reader.readAsDataURL(file); });
+      const report = await api('/api/equipment/reconcile', 'POST', {filename:file.name, content, inventory_id:inventory.id});
+      crossChecks.set(inventory.id, report); renderCrossCheck(); toast('Original file cross-check complete.');
+    } catch(error) { toast('Cross-check failed: ' + error.message); }
+    finally { event.target.value = ''; $('equipment-cross-check').disabled = false; }
+  };
+  $('equipment-reconciliation-download').onclick = () => {
+    const report = crossChecks.get(inventoryId); if (!report) return;
+    const url = URL.createObjectURL(new Blob([JSON.stringify(report,null,2)], {type:'application/json'}));
+    const link = element('a'); link.href=url; link.download='inventory-cross-check.json'; link.click(); setTimeout(() => URL.revokeObjectURL(url),1000);
+  };
+  $('cancel-equipment-record-review').onclick = () => $('equipment-record-review-dialog').close();
+  window.equipmentUI = {importReport:(id, report) => { importReports.set(id, report); renderEquipment(); },load:loadEquipment, open:openEquipment,
     currentInventory,
     waitUntilReady:async () => { await inventoryLoad; return currentInventory(); },
     flush:() => Promise.all([...pendingConfirmations.values()]),
