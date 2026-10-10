@@ -85,16 +85,18 @@ def preview(payload):
             if column_count is None:
                 if payload.get('auto_header'):
                     recognized = {'brand','manufacturer','make','model','model number','description','item','serial number','serial','s/n','quantity','qty','quantity in stock','location','notes'}
+                    recognized.update(payload.get('header_aliases', []))
                     count = sum(re.sub(r'[_-]+', ' ', v.lower()).strip() in recognized for v in values)
-                    if count < 3:
+                    if count < payload.get('minimum_headers',3):
                         if number >= 50:
                             raise ValueError('Could not identify an inventory header within the first 50 rows.')
                         continue
                 if not values:
                     continue
                 column_count = len(values)
-                kept_columns = [i for i, value in enumerate(values) if not ignored_header(value)]
-                ignored_columns = [value for value in values if ignored_header(value)]
+                keep = {re.sub(r'[_-]+', ' ', h.lower()).strip() for h in payload.get('keep_headers', []) if isinstance(h,str)}
+                kept_columns = [i for i, value in enumerate(values) if not ignored_header(value) or re.sub(r'[_-]+',' ',value.lower()).strip() in keep]
+                ignored_columns = [value for i,value in enumerate(values) if i not in kept_columns]
                 headers = [values[i] or f'Column {i + 1}' for i in kept_columns]
             else:
                 if len(values) > column_count:

@@ -123,3 +123,60 @@ def reconcile(payload, inventory):
             'summary':summary, 'rows':results, 'sheet_errors':sheet_errors,
             'extra_records':[item for item in inventory if item['id'] not in used],
             'complete':bool(sources) and not sheet_errors and all(row['status']=='matched' for row in results)}
+
+
+def reconcile_profile(payload, inventory, profile):
+    """Compare user-defined columns using their names and selected identifier."""
+    from inventory_profiles import column_value, custom_values, BASE_FIELDS
+    known=[norm(col['label']) for col in profile['columns']]
+    sheets=preview(dict(payload,sheets_only=True))['sheets'] if payload['filename'].lower().endswith('.xlsx') else ['']
+    entries,errors=[],[]
+    for sheet in sheets:
+        try:
+            data=preview(dict(payload,sheet=sheet,auto_header=True,header_aliases=known,keep_headers=known,minimum_headers=min(3,len(known))))
+        except ValueError as exc:
+            errors.append({'sheet':sheet,'error':str(exc)});continue
+        headers=[re.sub(r'[_-]+',' ',h.lower()).strip() for h in data['headers']]
+        mapping={}
+        for col in profile['columns']:
+            aliases=[norm(col['label']),col['key'].replace('_',' '),*ALIASES.get(col['key'],())]
+            index=next((headers.index(alias) for alias in aliases if alias in headers),None)
+            if col['key']=='location' and headers.count('location')>1:index=len(headers)-1-headers[::-1].index('location')
+            mapping[col['key']]=index
+        for raw,number in zip(data['rows'],data['row_numbers']):
+            values={key:raw[index] if index is not None else '' for key,index in mapping.items()}
+            if not any(meaningful(value) for value in values.values()):continue
+            row={field:'' for field in BASE_FIELDS};row['quantity']=None;row['custom_values']={}
+            issues=[]
+            for col in profile['columns']:
+                value=values[col['key']]
+                if col['important'] and not meaningful(value):issues.append('Missing '+col['label'])
+                if col['key']=='quantity':value=int(value) if re.fullmatch(r'\d+',value or '') else None
+                if col['key'] in BASE_FIELDS:row[col['key']]=value
+                else:row['custom_values'][col['key']]=value
+            try:row['custom_values']=custom_values(row['custom_values'],profile)
+            except ValueError as exc:issues.append(str(exc))
+            entries.append({'sheet':sheet,'row_number':number,'record':row,'issues':issues,'details':{}})
+            if len(entries)>10000:raise ValueError('Cross-check supports up to 10,000 source rows.')
+    key=profile.get('identifier') or profile['primary_search']
+    counts=Counter(norm(column_value(entry['record'],key)) for entry in entries if column_value(entry['record'],key))
+    used,results=set(),[]
+    lookup={}
+    for item in inventory:lookup.setdefault(norm(column_value(item,key)),[]).append(item)
+    for entry in entries:
+        source=entry['record'];identity=norm(column_value(source,key))
+        candidates=lookup.get(identity,[]) if identity else []
+        match=None;differences=[];status='missing'
+        if not identity:
+            status='ambiguous';entry['issues'].append('Missing primary identifier; match manually')
+        elif counts[identity]>1 or len(candidates)>1 or (candidates and candidates[0]['id'] in used):
+            status='ambiguous';entry['issues'].append('Identifier does not uniquely match one source row to one saved item')
+        elif candidates:
+            match=candidates[0];used.add(match['id'])
+            for col in profile['columns']:
+                original=column_value(source,col['key']);saved=column_value(match,col['key'])
+                if original not in ('',None) and norm(original)!=norm(saved):differences.append({'field':col['label'],'original':original,'saved':saved})
+            status='different' if differences else 'needs_review' if entry['issues'] else 'matched'
+        results.append(dict(entry,status=status,basis=next(col['label'] for col in profile['columns'] if col['key']==key),saved_id=match['id'] if match else None,candidate_ids=[item['id'] for item in candidates],differences=differences))
+    summary={status:sum(row['status']==status for row in results) for status in ('matched','needs_review','different','missing','ambiguous')}
+    return dict(filename=payload['filename'],source_rows=len(entries),saved_rows=len(inventory),summary=summary,rows=results,sheet_errors=errors,extra_records=[row for row in inventory if row['id'] not in used],complete=bool(entries) and not errors and all(row['status']=='matched' for row in results))

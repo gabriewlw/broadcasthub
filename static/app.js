@@ -802,17 +802,24 @@ const networkImportFields = [
 ];
 const equipmentCheckFields = ['description','brand','model','serial_number','quantity','location'];
 function equipmentIssues(row) {
-  const issues = equipmentCheckFields.filter(field => row[field] == null || String(row[field]).trim() === '').map(field => `Missing ${field === 'description' ? 'item' : field.replaceAll('_', ' ')}`);
+  const profile=window.equipmentUI?.profile() || defaultInventoryLayout;
+  const important=profile.columns.filter(col=>col.important);
+  const issues=important.filter(col=>String(inventoryValue(row,col.key)).trim()==='').map(col=>`Missing ${col.label}`);
+
+  profile.columns.filter(col=>['select','buttons'].includes(col.type)).forEach(col=>{const value=String(inventoryValue(row,col.key));if(value&&!col.options.some(option=>option.toLowerCase()===value.toLowerCase()))issues.push(`Check ${col.label}: ${value}`);});
   if (/[|;,\n]/.test(row.serial_number || '')) issues.push('Multiple serial numbers in one record');
   if (/separate inventory|not an itemized|reference to/i.test(row.notes || '')) issues.push('Inventory reference: check itemized source');
   return issues;
 }
 function orderEquipmentReview(entries) {
   const serialCounts = new Map();
+  const profile=window.equipmentUI?.profile()||defaultInventoryLayout;const identifierCounts=new Map();
   entries.forEach(({row}) => { const key = (row.serial_number || '').trim().toLowerCase(); if (key) serialCounts.set(key, (serialCounts.get(key) || 0) + 1); });
+  if(profile.identifier)entries.forEach(({row})=>{const value=String(inventoryValue(row,profile.identifier)).trim().toLowerCase();if(value)identifierCounts.set(value,(identifierCounts.get(value)||0)+1);});
   const groups = new Map();
   entries.forEach(entry => {
     entry.issues = equipmentIssues(entry.row);
+    if(profile.identifier&&identifierCounts.get(String(inventoryValue(entry.row,profile.identifier)).trim().toLowerCase())>1)entry.issues.push('Repeated item identifier in this file');
     if (serialCounts.get((entry.row.serial_number || '').trim().toLowerCase()) > 1) entry.issues.push('Repeated serial number in this file');
     const location = entry.row.location || '';
     if (!groups.has(location)) groups.set(location, []);
@@ -870,7 +877,8 @@ function channelNotesWithCodec(row, codecIPs) {
   if (!codec || new RegExp(`\\b${codec.replace('.', '\\.')}\\b`, 'i').test(notes)) return notes;
   return notes ? `${notes} · ${codec}` : codec;
 }
-const importFields = () => currentTab === 'equipment' ? equipmentImportFields : currentTab === 'device'
+const customImportFields=()=> (spreadsheetInventory?.layout || window.equipmentUI?.profile() || defaultInventoryLayout).columns.map(col=>{const existing=equipmentImportFields.find(([key])=>key===col.key);return [col.key,col.label,[normalizedHeader(col.label),col.key.replaceAll('_',' '),...(existing?.[2] || [])]];});
+const importFields = () => currentTab === 'equipment' ? customImportFields() : currentTab === 'device'
   ? networkImportFields.filter(([field]) => ['venue','name','ip','vlan','notes'].includes(field))
   : iptvImportFields;
 const normalizedHeader = value => value.toLowerCase().replace(/[_-]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -891,10 +899,15 @@ function mappedRows(applyVenueEdits = true) {
       return [field, value];
     }));
     if (currentTab === 'equipment') {
+      const values={};
+      Object.keys(mapped).forEach(key=>{if(!inventoryBaseFields.has(key)){values[key]=mapped[key];delete mapped[key];}});
+      mapped.custom_values=values;
+      inventoryBaseFields.forEach(key=>{if(mapped[key]==null)mapped[key]='';});
       const extras = ['name','storage_position','condition','unit','quantity_original','source_sheet','source_row'];
       const read = name => { const index = spreadsheetData.headers.findIndex(header => header.trim().toLowerCase() === name); return index < 0 ? '' : String(row[index] ?? '').trim(); };
-      if (!mapped.description) mapped.description = read('name');
-      const details = extras.filter(name => name !== 'name' && read(name)).map(name => `${name.replaceAll('_',' ')}: ${read(name)}`);
+      if (!mapped.description && importFields().some(([key])=>key==='description') && $('map-description').value!=='') mapped.description = read('name');
+      const hasMapped=Object.entries(mapped).some(([key,value])=>key==='custom_values'?Object.values(value).some(v=>String(v).trim()):String(value??'').trim());
+      const details = extras.filter(name => hasMapped && name !== 'name' && read(name)).map(name => `${name.replaceAll('_',' ')}: ${read(name)}`);
       mapped.notes = [mapped.notes, ...details].filter(Boolean).join(' · ');
       mapped.item_confirmed = ''; // Old files do not establish a new physical location check.
     }
@@ -907,6 +920,7 @@ function mappedRows(applyVenueEdits = true) {
 }
 function showVenueEditors() {
   const equipment = currentTab === 'equipment', field = equipment ? 'location' : 'venue';
+  if(equipment && !(spreadsheetInventory?.layout || window.equipmentUI.profile()).columns.some(col=>col.key==='location'&&col.filter==='buttons')){$('import-venue-editor').hidden=true;return;}
   const venues = [...new Set(mappedRows(false).filter(row => equipment || row.record_type !== 'iptv').map(row => row[field]).filter(Boolean))];
   $('import-venue-editor').hidden = !venues.length;
   $('import-venue-title').textContent = equipment ? 'Location buttons' : 'Venue buttons';
@@ -946,9 +960,9 @@ function showSpreadsheetPreview() {
   $('spreadsheet-preview').replaceChildren(...rows.slice(0,3).map((row, index) => {
     const card = element('div', 'spreadsheet-preview-row');
     if (currentTab === 'equipment') {
-      card.append(element('strong','', `Row ${spreadsheetData.row_numbers[index]} · ${[row.brand, row.model].filter(Boolean).join(' ')}`));
-      card.append(element('p','', [row.quantity ? `Quantity ${row.quantity}` : '', row.location, row.serial_number ? `Serial ${row.serial_number}` : ''].filter(Boolean).join(' · ')));
-      card.append(element('p','', row.description)); return card;
+      card.append(element('strong','',`Row ${spreadsheetData.row_numbers[index]}`));
+      const profile=spreadsheetInventory?.layout || window.equipmentUI.profile();
+      card.append(element('p','',profile.columns.map(col=>`${col.label}: ${inventoryValue(row,col.key) || 'Blank'}`).join(' · ')));return card;
     }
     card.append(element('strong', '', `Row ${spreadsheetData.row_numbers[index]} · ${row.name}`));
     card.append(element('p', '', (row.record_type === 'iptv' ? [row.ip, row.port ? `Port ${row.port}` : '', row.channel_source] : [row.ip, row.vlan ? `VLAN ${row.vlan}` : '', row.venue]).filter(Boolean).join(' · ')));
@@ -965,12 +979,13 @@ async function loadSpreadsheet() {
       await satelliteCatalogReady;
       if (satelliteCatalogError) throw new Error('Could not load the satellite channel reference. Refresh the page and try again.');
     }
-    const data = await api('/api/spreadsheet-preview', 'POST', {...spreadsheetFile, sheet: $('sheet-choice').value, header_row: Number($('header-row').value)});
+    const data = await api('/api/spreadsheet-preview', 'POST', {...spreadsheetFile, sheet: $('sheet-choice').value, header_row: Number($('header-row').value),keep_headers:currentTab==='equipment'?customImportFields().flatMap(([key,label,aliases])=>[label,...aliases]):[]});
     spreadsheetData = data;
     venueEdits = new Map();
     $('sheet-label').hidden = !data.sheets.length;
     $('sheet-choice').replaceChildren(...data.sheets.map(sheet => new Option(sheet, sheet)));
     $('sheet-choice').value = data.sheet;
+    if(currentTab==='equipment')$('spreadsheet-title').textContent='Step 2: match file columns to your inventory';else $('spreadsheet-title').textContent='Match your columns';
     $('spreadsheet-summary').textContent = `${spreadsheetFile.filename} · ${data.rows.length} records${spreadsheetInventory ? ' · Inventory: ' + spreadsheetInventory.name : ''}`;
     if (data.ignored_columns?.length) $('spreadsheet-summary').textContent += ` · Ignored columns: ${data.ignored_columns.join(', ')}`;
     $('column-mappings').replaceChildren(...importFields().map(([field, label, aliases]) => {
@@ -1006,7 +1021,7 @@ $('spreadsheet-dialog').addEventListener('cancel', event => {
 $('reload-sheet').onclick = loadSpreadsheet;
 // Sheet/header changes must be loaded before an import can be confirmed.
 $('sheet-choice').onchange = $('header-row').oninput = () => { $('confirm-import').disabled = true; };
-const meaningfulImportRow = row => Object.entries(row).some(([field,value]) => field !== 'record_type' && value !== '');
+const meaningfulImportRow = row => Object.entries(row).some(([field,value]) => field==='custom_values'?Object.values(value).some(value=>String(value??'').trim()!==''):field !== 'record_type' && value !== '' && value!=null);
 function importAddressKey(row) {
   const ip = (row.ip || '').trim();
   if (!/^(?:0|[1-9]\d{0,2})(?:\.(?:0|[1-9]\d{0,2})){3}$/.test(ip) || ip.split('.').some(part => Number(part) > 255)) return null;
@@ -1042,10 +1057,12 @@ function reviewImportRow(entry, index, total, tab, knownAddresses, inventory = n
     const controls = new Map();
     const fields = tab === 'iptv'
       ? [...iptvImportFields.slice(0,3), ['channel_source', 'Type'], ...iptvImportFields.slice(3)]
-      : equipment ? equipmentImportFields.filter(([field]) => field !== 'item_confirmed') : importFields();
+      : importFields();
     $('row-review-fields').style.setProperty('--review-columns', fields.length);
     $('row-review-fields').replaceChildren(...fields.map(([field, label]) => {
       const group = element('label', '', label.replace(' (optional)', ''));
+      const column=equipment?(inventory?.layout || window.equipmentUI.profile()).columns.find(col=>col.key===field):null;
+      if(column && !inventoryBaseFields.has(field)){const {wrapper,control}=inventoryInput(column,inventoryValue(entry.row,field));control.id=`review-${field}`;group.append(wrapper);controls.set(field,control);return group;}
       const input = element(field === 'channel_source' ? 'select' : field === 'notes' ? 'textarea' : 'input'); input.id = `review-${field}`;
       if (field === 'channel_source') input.append(new Option('Leave blank', ''), new Option('Onboard', 'Onboard'), new Option('Satellite', 'Satellite'));
       if (field === 'notes') input.rows = 1;
@@ -1093,7 +1110,9 @@ function reviewImportRow(entry, index, total, tab, knownAddresses, inventory = n
     $('accept-review-row').onclick = async () => {
       if (rowReviewSaving) return;
       const row = {...entry.row};
-      controls.forEach((input, field) => { row[field] = input.value.trim(); });
+      row.custom_values=equipment?{...entry.row.custom_values}:entry.row.custom_values;
+      controls.forEach((input, field) => { if(equipment&&!inventoryBaseFields.has(field))row.custom_values[field]=input.value.trim();else row[field] = input.value.trim(); });
+      if(!equipment)delete row.custom_values;
       if (!equipment) {
         if (isDHCP(row.ip)) row.ip = 'DHCP';
         if (tab === 'device') {
