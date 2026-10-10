@@ -640,6 +640,12 @@ class Handler(BaseHTTPRequestHandler):
     def dispatch(self):
         path = urlsplit(self.path).path
         query = parse_qs(urlsplit(self.path).query, keep_blank_values=True)
+        if self.command == 'GET' and path in ('/equipment', '/inventory/'):
+            self.send_response(308)
+            self.send_header('Location', '/inventory')
+            self.send_header('Content-Length', '0')
+            self.end_headers()
+            return
         exports = {
             '/api/export': (lambda rows: {'version':1, 'devices':rows}, inventory, 'application/json; charset=utf-8', 'broadcasthub-network.json'),
             '/api/export.csv': (network_csv, inventory, 'text/csv; charset=utf-8', 'broadcasthub-network.csv'),
@@ -710,6 +716,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/devices':
                 return self.send(200, {'devices': inventory()})
             assets = {'/': ('index.html', 'text/html'), '/app.js': ('app.js', 'text/javascript'), '/style.css': ('style.css', 'text/css'), '/equipment.js': ('equipment.js', 'text/javascript'), '/icon.svg': ('icon.svg', 'image/svg+xml'), '/favicon.svg': ('favicon.svg', 'image/svg+xml'), '/example-switcher.png': ('example-switcher.png', 'image/png'), '/fonts/Poppins-Regular.woff2': ('fonts/Poppins-Regular.woff2', 'font/woff2'), '/fonts/Poppins-Medium.woff2': ('fonts/Poppins-Medium.woff2', 'font/woff2'), '/fonts/Poppins-SemiBold.woff2': ('fonts/Poppins-SemiBold.woff2', 'font/woff2'), '/fonts/Poppins-Bold.woff2': ('fonts/Poppins-Bold.woff2', 'font/woff2')}
+            assets['/inventory'] = ('index.html', 'text/html')
             assets['/service-worker.js'] = ('service-worker.js', 'text/javascript')
             assets['/broadcastgab-offline'] = ('broadcastgab/index.html', 'text/html')
             assets.update({f'/broadcastgab-assets/{file.name}': (f'broadcastgab/{file.name}',

@@ -295,7 +295,8 @@
     $('equipment-status-buttons').append(button);
   }
   $('equipment-clear').onclick = () => {
-    resetEquipmentFilters();
+    $('equipment-search').value = '';
+    $('equipment-search').focus();
     renderEquipment();
   };
   $('cancel-equipment-delete').onclick = () => $('equipment-delete-dialog').close();

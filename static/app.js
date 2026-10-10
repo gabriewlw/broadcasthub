@@ -255,7 +255,7 @@ function switchTab(type) {
   closeSystemMenu();
   closeExportMenus();
   currentTab = type;
-  $('homepage-overview').hidden = Boolean(location.hash);
+  $('homepage-overview').hidden = location.pathname === '/inventory' || Boolean(location.hash);
   updatePageSummary();
   const equipment = type === 'equipment';
   $('example-media').hidden = type === 'iptv';
@@ -316,15 +316,18 @@ function switchTab(type) {
 const inventoryTabs = [['device-tab','device'],['iptv-tab','iptv'],['equipment-tab','equipment']];
 function navigatePage(type) {
   const link = $(inventoryTabs.find(([,page]) => page === type)[0]);
-  if (location.hash !== link.hash) history.pushState(null, '', link.hash);
+  const destination = link.pathname + link.hash;
+  if (location.pathname + location.hash !== destination) history.pushState(null, '', destination);
   switchTab(type);
 }
 function restorePage() {
-  $('homepage-overview').hidden = Boolean(location.hash);
-  const page = inventoryTabs.find(([id]) => $(id).hash === location.hash) || (!location.hash ? inventoryTabs[0] : null);
+  $('homepage-overview').hidden = location.pathname === '/inventory' || Boolean(location.hash);
+  if (location.hash === '#equipment' || location.hash === '#inventory') history.replaceState(null, '', '/inventory');
+  const page = location.pathname === '/inventory' ? inventoryTabs[2] : inventoryTabs.find(([id]) => $(id).hash && $(id).hash === location.hash) || (!location.hash ? inventoryTabs[0] : null);
   if (page && page[1] !== currentTab) switchTab(page[1]);
 }
 window.addEventListener('hashchange', restorePage);
+window.addEventListener('popstate', restorePage);
 window.addEventListener('DOMContentLoaded', restorePage);
 document.querySelectorAll('.overview-card').forEach(link => {
   link.onclick = event => {

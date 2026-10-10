@@ -504,3 +504,19 @@ nav a,.eyebrow,.network-card-top,.stats span,.filters label>span,.button-filter 
 #equipment-table .equipment-actions button{display:inline-block}
 
 .cross-check-location{margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:6px}.cross-check-location summary{cursor:pointer}.cross-check-location li{padding:8px 0;overflow-wrap:anywhere}.cross-check-location p{margin:5px 0}
+
+/* Inventory toolbar: location first, status second, search at the right. */
+.equipment-filters{grid-template-columns:minmax(220px,1.2fr) minmax(210px,1fr) minmax(260px,1.5fr);align-items:start}
+.equipment-filters>.equipment-location-group{grid-column:1;grid-row:1;min-width:0}
+.equipment-filters>.equipment-status-group{grid-column:2;grid-row:1;min-width:0}
+.equipment-filters>.equipment-search-group{grid-column:3;grid-row:1;min-width:0}
+.equipment-location-group select{margin-bottom:8px}
+.equipment-location-group .choice-buttons{max-height:100px;overflow-y:auto}
+.equipment-search-field{position:relative}
+.equipment-search-field input{padding-right:65px;width:100%}
+.equipment-search-field input::-webkit-search-cancel-button{display:none}
+.equipment-search-field #equipment-clear{position:absolute;right:5px;top:50%;transform:translateY(-50%);padding:4px 8px;min-height:30px;height:30px;border:0;background:transparent;font-size:11px}
+.equipment-toolbar-actions{display:flex;align-items:end;gap:12px;flex-wrap:wrap;margin-top:12px}
+.equipment-toolbar-actions .equipment-review-filter{margin:0;min-width:180px}
+@media(max-width:900px){.equipment-filters{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.equipment-filters>.equipment-search-group{grid-column:1/-1;grid-row:2}}
+@media(max-width:600px){.equipment-filters{padding:12px;gap:12px}.equipment-filters>.equipment-location-group{grid-column:1}.equipment-filters>.equipment-status-group{grid-column:2}.equipment-search-field input{font-size:12px}.equipment-toolbar-actions{align-items:center}.equipment-toolbar-actions .equipment-review-filter{width:100%;max-width:none}}
