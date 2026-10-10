@@ -136,12 +136,15 @@ Optional browser check (requires Python Playwright and Chromium):
 
 ```sh
 .venv/bin/python tests/browser_check.py
+.venv/bin/python tests/layout_browser_check.py
 .venv/bin/python tests/browser_equipment_check.py
 .venv/bin/python tests/browser_equipment_inventories_check.py
 .venv/bin/python tests/browser_ip_copy_check.py
 ```
 
 Install Playwright in the virtual environment (`.venv/bin/python -m pip install playwright`) and use system Chromium or install it through Playwright.
+
+The desktop layout check covers the home, AV, IPTV and inventory views at 1024, 1280, 1440 and 1920 pixels. It checks column boundaries, shared header and row heights, filter alignment, inventory form fields and column setup cards. Standard inventory columns fit together at desktop widths; additional custom columns can scroll within the table.
 
 The browser check verifies filtered/selected downloads, selection limited to visible filter results, independent tab selections, empty exports, and export-menu sizing at 320/390px. It uses an isolated temporary database and exercises the example device, every filter, validation errors, edit/delete, JSON download/upload, reload persistence, mobile/desktop layouts, Excel worksheet selection, manual column mapping, blank fields, editing incomplete imports, per-row CSV/Excel confirmation, immediate saves, skipped rows, text-IP correction and clearing, stopping a review, DHCP grouping and persistence, invalid row correction, venue-first CSV matching, RD prefix removal, first-appearance venue buttons, duplicate IP reports, ignored text VLANs, editable venue/location names before import, consistent venue colors across views and reloads, simplified AV mappings, three-field IPTV matching with MCAST headers, IPTV row review and skipping, absence of channel confirmation buttons, successful blank submissions, saved system dropdown changes, saved/cleared notes, directory column order and fixed headers, colored system options, confirmation beside the address, title animation timing, PDF/XLSX downloads in both inventories, exports immediately after note edits, and JavaScript errors. It uses system Chromium when available. Its mobile viewport check is not a physical iPhone/Safari test.
 

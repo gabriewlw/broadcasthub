@@ -506,7 +506,7 @@ nav a,.eyebrow,.network-card-top,.stats span,.filters label>span,.button-filter 
 .cross-check-location{margin:12px 0;padding:12px;border:1px solid var(--border);border-radius:6px}.cross-check-location summary{cursor:pointer}.cross-check-location li{padding:8px 0;overflow-wrap:anywhere}.cross-check-location p{margin:5px 0}
 
 /* Inventory toolbar: location first, status second, search at the right. */
-.equipment-filters{grid-template-columns:minmax(220px,1.2fr) minmax(210px,1fr) minmax(260px,1.5fr);align-items:start}
+.equipment-filters{grid-template-columns:minmax(220px,1.2fr) minmax(270px,1fr) minmax(260px,1.5fr);align-items:start}
 .equipment-filters>.equipment-location-group{grid-column:1;grid-row:1;min-width:0}
 .equipment-filters>.equipment-status-group{grid-column:2;grid-row:1;min-width:0}
 .equipment-filters>.equipment-search-group{grid-column:3;grid-row:1;min-width:0}
@@ -551,3 +551,65 @@ nav a,.eyebrow,.network-card-top,.stats span,.filters label>span,.button-filter 
 .inventory-cell-controls{flex-wrap:nowrap;min-height:30px;max-width:100%;overflow-x:auto}.inventory-cell-controls .choice-buttons{flex-wrap:nowrap}.inventory-cell-controls .inventory-checkbox-control{font-size:11px}.inventory-cell-controls>select{height:30px;min-height:30px;padding:4px 7px;font-size:11px}
 
 #inventory-columns-dialog .dialog-actions{position:sticky;bottom:-24px;z-index:3;padding:14px 0;background:#15191f;border-top:1px solid var(--border)}.inventory-column-actions button:not(:disabled){color:#b9c2cd}
+
+/* Shared workspace measurements; the top navigation keeps its own sizing. */
+main, dialog {
+  --control-height: 44px;
+  --directory-control-height: 30px;
+  --directory-header-height: 48px;
+}
+.filters label { min-width: 0; gap: 7px; }
+.filters label > span, .filters .button-filter legend {
+  font: 400 9px/14px var(--mono);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.filters .button-filter { margin: 0; }
+.filters .button-filter legend { padding: 0; margin-bottom: 7px; }
+.equipment-search-group { display: grid; gap: 7px; }
+.filters input:not([type=hidden]), .filters select,
+.filters .choice-button, .equipment-inventory-bar select {
+  height: var(--control-height);
+  min-height: var(--control-height);
+}
+.filters .choice-button { display: flex; align-items: center; }
+.equipment-custom-filters { align-items: start; }
+.equipment-custom-filters > fieldset { min-width: min(160px,100%); }
+.directory-head { min-height: var(--directory-header-height); }
+.directory-head .notes-sort-header { padding: 7px 10px; }
+.directory-head > span { border-right: 1px solid var(--border); }
+.directory-head > .selection-heading { height: 100%; border-right: 1px solid var(--border); }
+.device-directory .device-row { min-height: 47px; align-items: stretch; }
+.device-directory .device-row > div { display: flex; align-items: center; }
+.device-directory .device-row > .ip-cell { flex-direction: column; align-items: stretch; justify-content: center; }
+.device-directory .device-row > .row-actions { align-items: center; }
+.device-directory .ip-info-line { min-height: var(--directory-control-height); }
+/* IPTV's UDP column already includes the port. Keep the repeated caption for assistive technology. */
+.iptv-directory .ip-cell > .cell-caption { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); }
+.device-directory .device-name { font-size: 12px; line-height: 18px; }
+#equipment-table th {
+  height: var(--directory-header-height);
+  vertical-align: middle;
+  font: 600 11px/18px var(--mono);
+  color: #c4c7cf;
+}
+#equipment-table td { height: 47px; vertical-align: middle; }
+#equipment-table th:last-child, #equipment-table td:last-child { border-right: 0; }
+#equipment-table tbody tr:last-child td { border-bottom: 0; }
+#equipment-table .equipment-brand-value { gap: 8px; }
+.review-line { align-items: start; }
+.review-line input, .review-line select, .review-line textarea { margin-top: 0; }
+.review-line label { gap: 7px; }
+.review-line input, .review-line select { height: var(--control-height); }
+.dialog-heading { gap: 16px; }
+.dialog-heading .icon-button { flex-shrink: 0; }
+.dialog-actions { flex-wrap: wrap; }
+.inventory-column-editor { align-items: start; }
+.inventory-column-editor > label { min-width: 0; }
+.panel-footer > span { min-width: 0; }
+@media (min-width: 900px) {
+  #equipment-form .form-grid { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 18px 14px; }
+  #equipment-form .form-grid > label { padding: 0; border: 0; background: transparent; gap: 7px; }
+  .mapping-row { grid-template-columns: repeat(2,minmax(0,1fr)); align-items: start; }
+}

@@ -212,10 +212,18 @@
   function renderInventoryColumns() {
     const heading=$('select-visible-equipment').closest('label');
     heading.querySelector('span').textContent=displayColumns()[0].label;
-    const columns=displayColumns().map((col,index)=>{const th=element('th','',index===0?'':col.label);th.scope='col';if(index===0)th.append(heading);th.style.width=`${100/(displayColumns().length+3)}%`;return th;});
-    ['Record check','Status','Actions'].forEach(text=>{const th=element('th','',text);th.scope='col';th.style.width=`${100/(displayColumns().length+3)}%`;columns.push(th);});
+    const baseWidths={description:140,brand:80,model:100,serial_number:120,quantity:65,location:110,notes:120};
+    const widths=displayColumns().map((col,index)=>{
+      const labelWidth=Math.min(220,col.label.length*8+20+(index===0?30:0));
+      const controlWidth=col.type==='buttons' ? (col.options || []).reduce((width,value)=>width+value.length*6+24,0) : col.type==='checkbox' ? 100 : 0;
+      return Math.max(baseWidths[col.key] || 120,labelWidth,controlWidth);
+    });
+    widths.push(115,110,96);
+    const totalWidth=widths.reduce((total,width)=>total+width,0);
+    const columns=displayColumns().map((col,index)=>{const th=element('th','',index===0?'':col.label);th.scope='col';if(index===0)th.append(heading);th.style.width=`${widths[index]/totalWidth*100}%`;return th;});
+    ['Record check','Status','Actions'].forEach((text,index)=>{const th=element('th','',text);th.scope='col';th.style.width=`${widths[displayColumns().length+index]/totalWidth*100}%`;columns.push(th);});
     $('equipment-table').querySelector('thead tr').replaceChildren(...columns);
-    $('equipment-table').style.minWidth=`${Math.max(850,(displayColumns().length+3)*145)}px`;
+    $('equipment-table').style.minWidth=`${Math.max(850,totalWidth)}px`;
     $('equipment-search').placeholder=`${displayColumns().find(col=>col.key===layout().primary_search)?.label || 'Item'} first, then other details…`;
     const location=displayColumns().find(col=>col.key==='location');
     $('equipment-location-filter-label').hidden=!location || location.filter==='none';
