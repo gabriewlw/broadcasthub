@@ -975,6 +975,17 @@ async function loadSpreadsheet() {
   $('confirm-import').disabled = true; $('reload-sheet').disabled = true;
   $('spreadsheet-error').hidden = true;
   try {
+    const workbook=/\.xlsx$/i.test(spreadsheetFile.filename);
+    $('sheet-label').hidden=!workbook;
+    $('worksheet-note').hidden=workbook;
+    if(workbook && ![...$('sheet-choice').options].some(option=>option.value)) {
+      $('sheet-choice').disabled=true;
+      $('sheet-choice').replaceChildren(new Option('Loading worksheets…',''));
+      const catalog=await api('/api/spreadsheet-preview','POST',{...spreadsheetFile,sheets_only:true});
+      if(!catalog.sheets?.length)throw new Error('This workbook has no worksheets.');
+      $('sheet-choice').replaceChildren(...catalog.sheets.map(sheet=>new Option(sheet,sheet)));
+      $('sheet-choice').disabled=false;
+    }
     if (currentTab === 'iptv') {
       await satelliteCatalogReady;
       if (satelliteCatalogError) throw new Error('Could not load the satellite channel reference. Refresh the page and try again.');
@@ -1007,6 +1018,10 @@ async function loadSpreadsheet() {
     $('confirm-import').textContent = currentTab==='equipment' ? `Import & review ${data.rows.length} rows` : `Review ${data.rows.length} rows`;
     $('confirm-import').disabled = false;
   } catch (error) {
+    if(![...$('sheet-choice').options].some(option=>option.value) && /\.xlsx$/i.test(spreadsheetFile.filename)) {
+      $('sheet-choice').replaceChildren(new Option('Could not load worksheets',''));
+      $('sheet-choice').disabled=true;
+    }
     $('spreadsheet-error').textContent = error.message;
     $('spreadsheet-error').hidden = false;
   } finally { $('reload-sheet').disabled = false; }
@@ -1226,7 +1241,7 @@ $('import-file').onchange = async event => {
       spreadsheetFile = {filename:file.name, content};
       spreadsheetInventory = importInventory;
       spreadsheetData = null; venueEdits = new Map(); $('import-venue-editor').hidden = true;
-      $('import-venue-list').replaceChildren(); $('header-row').value = '1'; $('sheet-choice').replaceChildren();
+      $('import-venue-list').replaceChildren(); $('header-row').value = '1'; $('sheet-choice').replaceChildren();$('sheet-choice').disabled=/\.csv$/i.test(file.name);
       $('column-mappings').replaceChildren(); $('spreadsheet-preview').replaceChildren();
       $('spreadsheet-summary').textContent = 'Reading ' + file.name + '…';
       $('spreadsheet-dialog').showModal();

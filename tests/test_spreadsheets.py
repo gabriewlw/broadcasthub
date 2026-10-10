@@ -26,6 +26,10 @@ def workbook_bytes():
 
 
 class SpreadsheetParserTests(unittest.TestCase):
+    def test_worksheet_catalog_does_not_depend_on_header_row(self):
+        result = preview(encoded(workbook_bytes(), sheets_only=True, header_row=50))
+        self.assertEqual(result, {'sheets':['Cover','Devices']})
+
     def test_xlsx_sheet_header_and_numeric_cells(self):
         result = preview(encoded(workbook_bytes(), sheet='Devices', header_row=2))
         self.assertEqual(result['sheets'], ['Cover', 'Devices'])

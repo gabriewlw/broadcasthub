@@ -139,12 +139,15 @@ Optional browser check (requires Python Playwright and Chromium):
 .venv/bin/python tests/layout_browser_check.py
 .venv/bin/python tests/browser_inventory_controls_check.py
 .venv/bin/python tests/browser_import_batch_check.py
+.venv/bin/python tests/browser_worksheet_check.py
 .venv/bin/python tests/browser_equipment_check.py
 .venv/bin/python tests/browser_equipment_inventories_check.py
 .venv/bin/python tests/browser_ip_copy_check.py
 ```
 
 Install Playwright in the virtual environment (`.venv/bin/python -m pip install playwright`) and use system Chromium or install it through Playwright.
+
+Excel worksheet names load before row preview, so a cover sheet or wrong header row cannot leave the worksheet selector empty. Select the correct worksheet and the row containing column names, then reload the preview. CSV imports explain that they have no worksheets. The worksheet browser check verifies this recovery flow and a successful import.
 
 The desktop layout check covers the home, AV, IPTV and inventory views at 1024, 1280, 1440 and 1920 pixels. It checks column boundaries, shared header and row heights, filter alignment, inventory form fields and column setup cards. Standard inventory columns fit together at desktop widths; additional custom columns can scroll within the table.
 
