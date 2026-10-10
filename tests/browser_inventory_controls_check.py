@@ -52,6 +52,11 @@ with tempfile.TemporaryDirectory() as temporary:
             page.wait_for_function("() => !document.getElementById('equipment-inventory-select').disabled && document.getElementById('equipment-inventory-title').textContent === 'Equipment inventory'")
             assert page.locator('#equipment-rows').inner_text().find('Keep this camera')>=0
             page.reload();page.locator('#equipment-rows tr').wait_for()
+            page.locator('#equipment-search').fill('no match')
+            page.locator('#equipment-review-summary a').click()
+            assert page.locator('#equipment-review-filter').input_value()=='flagged'
+            assert page.locator('#equipment-search').input_value()==''
+            assert page.locator('#equipment-rows tr').count()==1
             assert page.locator('#equipment-inventory-select option').count()==1
             page.locator('#delete-equipment-inventory').click()
             assert page.locator('#delete-inventory-last').is_visible()

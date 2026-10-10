@@ -8,7 +8,7 @@ SCALA_PROFILE = {'columns':[
     {'key':'asset_id','label':'ID','type':'text','important':True,'filter':'none','options':[]},
     {'key':'location','label':'Location','type':'text','important':True,'filter':'none','options':[]},
     {'key':'monitor_model','label':'Monitor model','type':'text','important':True,'filter':'dropdown','options':[]},
-    {'key':'orientation','label':'Orientation','type':'select','important':True,'filter':'dropdown','options':['Vertical','Horizontal']},
+    {'key':'orientation','label':'Orientation','type':'buttons','important':False,'filter':'dropdown','options':['Vertical','Horizontal']},
     {'key':'notes','label':'Notes','type':'text','important':False,'filter':'none','options':[]}], 'primary_search':'asset_id', 'identifier':'asset_id'}
 
 

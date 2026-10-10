@@ -100,7 +100,13 @@
     renderCustomFilters();
     const query = $('equipment-search').value.trim().toLowerCase();
     const reviewFilter = $('equipment-review-filter').value;
-    $('equipment-review-summary').textContent = `${items.filter(i => !i.data_checked).length} records not checked · ${items.filter(i => !i.data_checked && equipmentIssues(i).length).length} flagged · ${items.filter(i => !i.item_confirmed).length} locations not confirmed`;
+    const flaggedCount=items.filter(i => !i.data_checked && equipmentIssues(i).length).length;
+    const flaggedLink=element('a','',`${flaggedCount} flagged`);
+    flaggedLink.href='#equipment-table';flaggedLink.onclick=showFlaggedEquipment;
+    $('equipment-review-summary').replaceChildren(
+      document.createTextNode(`${items.filter(i => !i.data_checked).length} records not checked · `),
+      flaggedCount ? flaggedLink : document.createTextNode('0 flagged'),
+      document.createTextNode(` · ${items.filter(i => !i.item_confirmed).length} locations not confirmed`));
     const results = items.filter(item => [...fields.map(field=>item[field]),...Object.values(item.custom_values || {}),
       item.item_confirmed ? 'Located' : 'Not located',
       item.data_checked ? 'Record checked' : equipmentIssues(item).length ? 'Check flagged record' : 'Check record'
@@ -140,7 +146,7 @@
           }), element('span', '', inventoryValue(item,field)));
           cell.replaceChildren(value);
         }
-        if(!inventoryBaseFields.has(field)&&['checkbox','buttons','select'].includes(column.type)){
+        if(!inventoryBaseFields.has(field)&&(field==='orientation'||['checkbox','buttons','select'].includes(column.type))){
           const {wrapper,control}=inventoryInput(column,inventoryValue(item,field));wrapper.classList.add('inventory-cell-controls');
           control.onchange=async()=>{
             if(pendingConfirmations.has(item.id))return;
@@ -218,7 +224,7 @@
     const baseWidths={description:140,brand:80,model:100,serial_number:120,quantity:65,location:110,notes:120};
     const widths=displayColumns().map((col,index)=>{
       const labelWidth=Math.min(220,col.label.length*8+20+(index===0?30:0));
-      const controlWidth=col.type==='buttons' ? (col.options || []).reduce((width,value)=>width+value.length*6+24,0) : col.type==='checkbox' ? 100 : 0;
+      const controlWidth=col.key==='orientation' ? Math.max(164,(col.options || []).reduce((width,value)=>width+value.length*6+24,8)) : col.type==='buttons' ? (col.options || []).reduce((width,value)=>width+value.length*6+24,0) : col.type==='checkbox' ? 100 : 0;
       return Math.max(baseWidths[col.key] || 120,labelWidth,controlWidth);
     });
     widths.push(115,110,96);
@@ -280,7 +286,7 @@
     const aliases={'item':'description','brand':'brand','model':'model','serial number':'serial_number','quantity':'quantity','location':'location','notes':'notes','id':'asset_id','monitor model':'monitor_model','orientation':'orientation'};
     let key=aliases[name.toLowerCase()]||'custom_'+name.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,32);if(key==='custom_')key='custom_column';
     if(layoutDraft.columns.some(col=>col.key===key)){toast('This column is already in the inventory.');return;}
-    layoutDraft.columns.push({key,label:name,type:'text',important:true,filter:'none',options:[]});$('inventory-new-column-name').value='';renderColumnEditor();
+    layoutDraft.columns.push({key,label:name,type:key==='orientation'?'buttons':'text',important:key!=='orientation',filter:'none',options:key==='orientation'?['Vertical','Horizontal']:[]});$('inventory-new-column-name').value='';renderColumnEditor();
   };
   $('inventory-new-column-name').onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();$('inventory-add-column').click();}};
   $('inventory-column-preset').onchange=()=>{
@@ -297,6 +303,18 @@
     finally{$('save-inventory-columns').disabled=false;}
   };
   $('equipment-configure-columns').onclick=()=>openColumns();
+  function showFlaggedEquipment(event) {
+    event?.preventDefault();
+    customFilterValues.clear();
+    resetEquipmentFilters();
+    $('equipment-review-filter').value='flagged';
+    renderEquipment();
+    const destination=visibleItems.length ? $('equipment-table') : $('equipment-no-results');
+    destination.scrollIntoView({block:'center',behavior:'smooth'});
+    const firstReview=$('equipment-rows').querySelector('.equipment-review button');
+    (firstReview || $('equipment-review-filter')).focus({preventScroll:true});
+  }
+  $('equipment-import-flagged-link').onclick=showFlaggedEquipment;
   const locations = () => [...new Set(items.map(i => i.location).filter(Boolean))].sort(nameCollator.compare);
   function renderLocationButtons() {
     const selected = $('equipment-location-filter').value;

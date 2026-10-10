@@ -803,7 +803,7 @@ const networkImportFields = [
 const equipmentCheckFields = ['description','brand','model','serial_number','quantity','location'];
 function equipmentIssues(row) {
   const profile=window.equipmentUI?.profile() || defaultInventoryLayout;
-  const important=profile.columns.filter(col=>col.important);
+  const important=profile.columns.filter(col=>col.important&&col.key!=='orientation');
   const issues=important.filter(col=>String(inventoryValue(row,col.key)).trim()==='').map(col=>`Missing ${col.label}`);
 
   profile.columns.filter(col=>['select','buttons'].includes(col.type)).forEach(col=>{const value=String(inventoryValue(row,col.key));if(value&&!col.options.some(option=>option.toLowerCase()===value.toLowerCase()))issues.push(`Check ${col.label}: ${value}`);});
@@ -1062,6 +1062,7 @@ function reviewImportRow(entry, index, total, tab, knownAddresses, inventory = n
     $('row-review-fields').replaceChildren(...fields.map(([field, label]) => {
       const group = element('label', '', label.replace(' (optional)', ''));
       const column=equipment?(inventory?.layout || window.equipmentUI.profile()).columns.find(col=>col.key===field):null;
+      if (column?.key==='orientation') group.firstChild.textContent += ' (optional)';
       if(column && !inventoryBaseFields.has(field)){const {wrapper,control}=inventoryInput(column,inventoryValue(entry.row,field),{allowClear:field!=='orientation'});control.id=`review-${field}`;group.append(wrapper);controls.set(field,control);return group;}
       const input = element(field === 'channel_source' ? 'select' : field === 'notes' ? 'textarea' : 'input'); input.id = `review-${field}`;
       if (field === 'channel_source') input.append(new Option('Leave blank', ''), new Option('Onboard', 'Onboard'), new Option('Satellite', 'Satellite'));
