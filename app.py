@@ -11,7 +11,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 from spreadsheets import preview as spreadsheet_preview
 from reconciliation import reconcile, reconcile_profile
-from inventory_profiles import DEFAULT_PROFILE, validate_profile, custom_values, profile_identifier, column_value
+from inventory_profiles import DEFAULT_PROFILE, SCALA_PROFILE, validate_profile, custom_values, profile_identifier, column_value
 from exports import network_xlsx, equipment_xlsx, network_pdf, equipment_pdf
 
 ROOT = Path(__file__).resolve().parent
@@ -394,6 +394,19 @@ def equipment_inventory_details(con, inventory_id):
         raise LookupError('Inventory not found.')
     record = dict(record)
     layout = json.loads(record.pop('layout'))
+    # Apply Scala's display rules to existing inventories as well as new presets.
+    keys = {column['key'] for column in layout.get('columns', [])}
+    if 'scala' in record['name'].casefold() or {'monitor_model','orientation'}.issubset(keys):
+        layout = dict(layout or DEFAULT_PROFILE)
+        layout['columns'] = [column for column in layout['columns'] if column['key'] != 'serial_number']
+        if not layout['columns']:
+            layout['columns'] = [dict(SCALA_PROFILE['columns'][0])]
+        keys = {column['key'] for column in layout['columns']}
+        if layout.get('primary_search') not in keys:
+            layout['primary_search'] = 'asset_id' if 'asset_id' in keys else layout['columns'][0]['key']
+        if layout.get('identifier') and layout['identifier'] not in keys:
+            layout['identifier'] = 'asset_id' if 'asset_id' in keys else ''
+        layout['show_status'] = False
     if layout: record['layout'] = layout
     return record
 
@@ -648,9 +661,9 @@ def equipment_csv(rows=None, layout=None):
     if layout:
         columns = [(col['label'],col['key']) for col in layout['columns']]
         writer=csv.writer(output)
-        writer.writerow([label for label,key in columns]+['Status'])
+        writer.writerow([label for label,key in columns]+(['Status'] if layout.get('show_status',True) else []))
         for row in equipment_inventory() if rows is None else rows:
-            values=[column_value(row,key) for label,key in columns]+['Located' if row.get('item_confirmed') else 'Not located']
+            values=[column_value(row,key) for label,key in columns]+(['Located' if row.get('item_confirmed') else 'Not located'] if layout.get('show_status',True) else [])
             writer.writerow(["'"+str(v) if str(v).startswith(('=', '+', '-', '@', '\t', '\r', '\n')) else v for v in values])
         return output.getvalue().encode('utf-8-sig')
     writer = csv.DictWriter(output, fieldnames=fields, extrasaction='ignore')

@@ -43,10 +43,12 @@ class InventoryProfileTests(unittest.TestCase):
         self.assertEqual(report['layout'],SCALA_PROFILE)
         self.assertEqual(report['equipment'][0]['custom_values']['asset_id'],'SC-1')
         csv=self.request(f'/api/equipment/export.csv?inventory_id={inventory}')[1].decode('utf-8-sig')
-        self.assertIn('ID,Location,Monitor model,Orientation,Notes,Status',csv)
+        self.assertIn('ID,Location,Monitor model,Orientation,Notes',csv)
+        self.assertNotIn('Status',csv.splitlines()[0])
         raw=self.request(f'/api/equipment/export.xlsx?inventory_id={inventory}')[1]
         sheet=load_workbook(io.BytesIO(raw)).active
         self.assertEqual(sheet.cell(1,1).value,'ID');self.assertEqual(sheet.cell(2,1).value,'SC-1')
+        self.assertNotIn('Status',[cell.value for cell in sheet[1]])
         self.assertEqual(self.request(f'/api/equipment/export.pdf?inventory_id={inventory}')[0],200)
         content=base64.b64encode(b'ID,Location,Monitor model,Orientation\nSC-1,Lobby,LG 55,Vertical\n').decode()
         cross=self.request('/api/equipment/reconcile','POST',dict(inventory_id=inventory,filename='scala.csv',content=content))[1]

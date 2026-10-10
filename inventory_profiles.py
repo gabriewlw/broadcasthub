@@ -9,7 +9,7 @@ SCALA_PROFILE = {'columns':[
     {'key':'location','label':'Location','type':'text','important':True,'filter':'none','options':[]},
     {'key':'monitor_model','label':'Monitor model','type':'text','important':True,'filter':'dropdown','options':[]},
     {'key':'orientation','label':'Orientation','type':'buttons','important':False,'filter':'dropdown','options':['Vertical','Horizontal']},
-    {'key':'notes','label':'Notes','type':'text','important':False,'filter':'none','options':[]}], 'primary_search':'asset_id', 'identifier':'asset_id'}
+    {'key':'notes','label':'Notes','type':'text','important':False,'filter':'none','options':[]}], 'primary_search':'asset_id', 'identifier':'asset_id', 'show_status':False}
 
 
 def validate_profile(value):
@@ -41,7 +41,12 @@ def validate_profile(value):
         raise ValueError('Choose search and identifier columns from this inventory.')
     if identifier in ('location','quantity','notes'):
         raise ValueError('Choose an item ID or serial number as the identifier.')
-    return dict(columns=columns,primary_search=primary,identifier=identifier)
+    result = dict(columns=columns,primary_search=primary,identifier=identifier)
+    if 'show_status' in value:
+        if type(value['show_status']) is not bool:
+            raise ValueError('Choose whether to show location status.')
+        result['show_status'] = value['show_status']
+    return result
 
 
 def custom_values(value,profile):

@@ -7,6 +7,7 @@
   let layoutDraft = null, layoutTarget = null, layoutAfterSave = null;
   const layout = () => inventories.find(i => i.id === inventoryId)?.layout || defaultInventoryLayout;
   const displayColumns = () => layout().columns;
+  const showLocatedStatus = () => layout().show_status !== false;
   const importReports = new Map();
   const crossChecks = new Map();
   const selectedItems = new Set();
@@ -106,9 +107,9 @@
     $('equipment-review-summary').replaceChildren(
       document.createTextNode(`${items.filter(i => !i.data_checked).length} records not checked · `),
       flaggedCount ? flaggedLink : document.createTextNode('0 flagged'),
-      document.createTextNode(` · ${items.filter(i => !i.item_confirmed).length} locations not confirmed`));
+      document.createTextNode(showLocatedStatus() ? ` · ${items.filter(i => !i.item_confirmed).length} locations not confirmed` : ''));
     const results = items.filter(item => [...fields.map(field=>item[field]),...Object.values(item.custom_values || {}),
-      item.item_confirmed ? 'Located' : 'Not located',
+      ...(showLocatedStatus() ? [item.item_confirmed ? 'Located' : 'Not located'] : []),
       item.data_checked ? 'Record checked' : equipmentIssues(item).length ? 'Check flagged record' : 'Check record'
     ].some(value => String(value ?? '').toLowerCase().includes(query)) &&
       [...customFilterValues].every(([key,value]) => !value || String(inventoryValue(item,key)) === value) &&
@@ -128,7 +129,9 @@
     $('equipment-locations').textContent = new Set(items.map(i => i.location).filter(Boolean)).size;
     $('equipment-found').textContent = items.filter(item => item.item_confirmed).length;
     $('equipment-result-count').textContent = results.length;
-    $('equipment-showing').textContent = `${results.length} of ${items.length} items · ${results.filter(item => item.item_confirmed).length} located in this view`;
+    $('equipment-showing').textContent = `${results.length} of ${items.length} items`+(showLocatedStatus() ? ` · ${results.filter(item => item.item_confirmed).length} located in this view` : '');
+    $('equipment-found').closest('div').hidden=!showLocatedStatus();
+    document.querySelector('.equipment-stats').classList.toggle('without-status',!showLocatedStatus());
     $('equipment-empty').hidden = items.length > 0;
     $('equipment-no-results').hidden = !items.length || !!results.length;
     $('equipment-table').hidden = !results.length;
@@ -184,6 +187,7 @@
           };
           review.append(button); row.append(review);
 
+          if(showLocatedStatus()) {
           const status = element('td', 'equipment-status'); status.dataset.label = 'Status';
           const control = element('label', `equipment-confirm-label${item.item_confirmed ? ' confirmed' : ''}`);
           const check = element('input', 'equipment-confirm'); check.type = 'checkbox';
@@ -200,6 +204,7 @@
             finally { pendingConfirmations.delete(item.id); renderEquipment(); }
           };
           status.append(control); row.append(status);
+          }
         }
       });
       const actions = element('td', 'equipment-actions'); actions.dataset.label = 'Actions';
@@ -227,14 +232,16 @@
       const controlWidth=col.key==='orientation' ? Math.max(164,(col.options || []).reduce((width,value)=>width+value.length*6+24,8)) : col.type==='buttons' ? (col.options || []).reduce((width,value)=>width+value.length*6+24,0) : col.type==='checkbox' ? 100 : 0;
       return Math.max(baseWidths[col.key] || 120,labelWidth,controlWidth);
     });
-    widths.push(115,110,96);
+    widths.push(115,...(showLocatedStatus()?[110]:[]),96);
     const totalWidth=widths.reduce((total,width)=>total+width,0);
     const columns=displayColumns().map((col,index)=>{const th=element('th','',index===0?'':col.label);th.scope='col';if(index===0)th.append(heading);th.style.width=`${widths[index]/totalWidth*100}%`;return th;});
-    ['Record check','Status','Actions'].forEach((text,index)=>{const th=element('th','',text);th.scope='col';th.style.width=`${widths[displayColumns().length+index]/totalWidth*100}%`;columns.push(th);});
+    ['Record check',...(showLocatedStatus()?['Status']:[]),'Actions'].forEach((text,index)=>{const th=element('th','',text);th.scope='col';th.style.width=`${widths[displayColumns().length+index]/totalWidth*100}%`;columns.push(th);});
     $('equipment-table').querySelector('thead tr').replaceChildren(...columns);
     $('equipment-table').style.minWidth=`${Math.max(850,totalWidth)}px`;
     $('equipment-search').placeholder='Search all inventory columns…';
     $('equipment-search').title='Search item, brand, model, serial number, quantity, location, notes, status and custom columns.';
+    document.querySelector('.equipment-status-group').hidden=!showLocatedStatus();
+    if(!showLocatedStatus())$('equipment-status-filter').value='';
     const location=displayColumns().find(col=>col.key==='location');
     $('equipment-location-filter-label').hidden=!location || location.filter==='none';
     $('equipment-location-buttons').hidden=location?.filter!=='buttons';
@@ -270,7 +277,7 @@
       const choices=element('label','', 'Choices, separated by commas');const options=element('input');options.value=col.options.join(', ');options.setAttribute('aria-label',`Choices for ${col.label}`);options.oninput=()=>{col.options=options.value.split(',').map(x=>x.trim()).filter(Boolean);};choices.append(options);choices.hidden=!['select','buttons'].includes(col.type);
       const actions=element('div','inventory-column-actions');
       [['Up',-1],['Down',1]].forEach(([text,direction])=>{const button=element('button','quiet',text);button.type='button';button.disabled=index+direction<0||index+direction>=layoutDraft.columns.length;button.onclick=()=>{const target=index+direction;[layoutDraft.columns[index],layoutDraft.columns[target]]=[layoutDraft.columns[target],layoutDraft.columns[index]];renderColumnEditor();};actions.append(button);});
-      const remove=element('button','quiet','Remove');remove.type='button';remove.onclick=()=>{layoutDraft.columns.splice(index,1);renderColumnEditor();};actions.append(remove);row.append(name,kind,filter,important,choices,actions);return row;
+      const remove=element('button','quiet','Delete column');remove.type='button';remove.setAttribute('aria-label',`Delete ${col.label} column`);remove.onclick=()=>{layoutDraft.columns.splice(index,1);renderColumnEditor();};actions.append(remove);row.append(name,kind,filter,important,choices,actions);return row;
     }));
   }
   function openColumns({newName=null, importing=false}={}) {

@@ -637,3 +637,8 @@ main, dialog {
 #inventory-import-review .dialog-actions { position: sticky; bottom: -28px; padding: 16px 0; background: var(--panel); }
 #import-complete-options { margin: 16px 0; padding: 12px; border: 1px solid var(--border); border-radius: 8px; }
 #import-complete-options small { display: block; margin-top: 8px; line-height: 1.6; }
+.equipment-stats.without-status { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.equipment-filters:has(.equipment-status-group[hidden]) { grid-template-columns: minmax(220px,1fr) minmax(260px,1.5fr); }
+.equipment-filters:has(.equipment-status-group[hidden]) > .equipment-search-group { grid-column: 2; }
+.equipment-filters:has(.equipment-status-group[hidden]):has(.equipment-location-group[hidden]) { grid-template-columns: minmax(0,1fr); }
+.equipment-filters:has(.equipment-status-group[hidden]):has(.equipment-location-group[hidden]) > .equipment-search-group { grid-column: 1; grid-row: 1; }

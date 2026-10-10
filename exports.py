@@ -88,7 +88,7 @@ def network_xlsx(rows, record_type=None):
 def equipment_xlsx(rows, inventory_name='Equipment inventory', layout=None):
     if layout:
         from inventory_profiles import column_value
-        columns=[(col['label'],col['key'],28) for col in layout['columns']]+[('Status','found',16)]
+        columns=[(col['label'],col['key'],28) for col in layout['columns']]+([('Status','found',16)] if layout.get('show_status',True) else [])
         values=[dict({col['key']:column_value(row,col['key']) for col in layout['columns']},found='Located' if row.get('item_confirmed') else 'Not located') for row in rows]
         title=re.sub(r'[\\/*?:\[\]]','-',inventory_name)[:31].strip("'") or 'Inventory'
         return workbook([(title,columns,values)])
@@ -258,8 +258,8 @@ def equipment_pdf(rows, inventory_name='Equipment inventory', layout=None):
     if layout:
         from inventory_profiles import column_value
         columns=layout['columns']
-        labels=[col['label'] for col in columns]+['Status']
-        values=[[column_value(row,col['key']) for col in columns]+['Located' if row.get('item_confirmed') else 'Not located'] for row in rows]
+        labels=[col['label'] for col in columns]+(['Status'] if layout.get('show_status',True) else [])
+        values=[[column_value(row,col['key']) for col in columns]+(['Located' if row.get('item_confirmed') else 'Not located'] if layout.get('show_status',True) else []) for row in rows]
         return pdf_report(inventory_name,[('Inventory',labels,[1/len(labels)]*len(labels),values)])
     labels = ['ITEM','BRAND','MODEL','SERIAL NUMBER','QUANTITY','LOCATED','NOTES']
     widths = [.23,.12,.13,.15,.07,.10,.20]

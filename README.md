@@ -140,6 +140,7 @@ Optional browser check (requires Python Playwright and Chromium):
 .venv/bin/python tests/browser_inventory_controls_check.py
 .venv/bin/python tests/browser_import_batch_check.py
 .venv/bin/python tests/browser_worksheet_check.py
+.venv/bin/python tests/browser_scala_columns_check.py
 .venv/bin/python tests/browser_equipment_check.py
 .venv/bin/python tests/browser_equipment_inventories_check.py
 .venv/bin/python tests/browser_ip_copy_check.py
@@ -152,6 +153,8 @@ Excel worksheet names load before row preview, so a cover sheet or wrong header 
 The desktop layout check covers the home, AV, IPTV and inventory views at 1024, 1280, 1440 and 1920 pixels. It checks column boundaries, shared header and row heights, filter alignment, inventory form fields and column setup cards. Standard inventory columns fit together at desktop widths; additional custom columns can scroll within the table.
 
 Orientation is optional during import review. Its Vertical/Horizontal choices remain editable directly in the inventory table afterward, including existing text-based Orientation columns. The flagged count and import report's Flagged for review link clear other filters and jump to flagged records in the current inventory.
+
+Open Columns & filters, choose Delete column, then Save columns to remove a field from the inventory layout without erasing stored item values. Scala inventories omit Serial number and Located/Not located status in their tables, filters, forms and CSV/XLSX/PDF exports, including existing inventories using the old column layout. Stock inventories keep their serial and status controls.
 
 All named inventory types use the same spreadsheet workflow. Complete matched rows are imported automatically when every configured column is mapped and filled, except optional Orientation. Turn off Automatically add complete matched rows to review every row manually. Remaining rows appear in editable screens of up to eight records from one location. Select several rows to import or skip together; flagged rows start unselected. Errors stay beside the affected row for correction and retry, while successful imports remain saved. Finish the current location before moving to the next. Scala uses its configured ID and has no serial-number requirement. The batch import browser check covers Scala and stock layouts, automatic/manual import, selection, eight-row pagination, edits, validation/retry, skips, stopping, location ordering and persistence.
 
