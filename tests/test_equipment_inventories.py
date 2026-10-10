@@ -36,6 +36,35 @@ class EquipmentInventoryTests(unittest.TestCase):
         self.assertEqual(self.request('/api/equipment/inventories/999', 'PUT', {'name':'Missing'})[0], 404)
         self.assertEqual(app.equipment_inventory(tvs), [])
 
+    def test_delete_inventory_preserves_other_inventories_and_devices(self):
+        target = self.create('TVs')
+        other = self.create('Scalas')
+        app.save_equipment(dict(ITEM, inventory_id=target))
+        kept = app.save_equipment(dict(ITEM, inventory_id=other))
+        app.save_device({'name':'Camera'})
+        self.assertEqual(self.request(f'/api/equipment/inventories/{target}', 'DELETE', {'name':'Wrong name'})[0], 400)
+        self.assertEqual(len(app.equipment_inventory(target)), 1)
+        status, result = self.request(f'/api/equipment/inventories/{target}', 'DELETE', {'name':'TVs'})
+        self.assertEqual((status, result), (200, {'deleted':target,'deleted_items':1}))
+        self.assertEqual(app.equipment_inventory(other)[0]['id'], kept['id'])
+        self.assertEqual(len(app.inventory()), 1)
+        self.assertEqual(self.request(f'/api/equipment/inventories/{target}', 'DELETE', {})[0], 404)
+        self.assertNotIn(target, [inventory['id'] for inventory in app.equipment_inventories()])
+
+    def test_delete_default_and_last_inventory(self):
+        other = self.create('TVs')
+        app.save_equipment(ITEM)
+        self.assertEqual(self.request('/api/equipment/inventories/1','DELETE',{})[0], 200)
+        self.assertEqual(app.equipment_inventories(), [{'id':other,'name':'TVs'}])
+        self.assertEqual(self.request('/api/equipment?inventory_id=1')[0], 404)
+        app.save_equipment(dict(ITEM,inventory_id=other))
+        self.assertEqual(self.request(f'/api/equipment/inventories/{other}','DELETE',{})[0], 200)
+        remaining = app.equipment_inventories()
+        self.assertEqual(len(remaining), 1)
+        self.assertNotEqual(remaining[0]['id'], other)
+        self.assertEqual(app.equipment_inventory(remaining[0]['id']), [])
+        self.assertEqual(self.request('/api/equipment/inventories/0','DELETE',{})[0], 400)
+
     def test_imports_and_duplicates_are_scoped_to_inventory(self):
         tvs, scalas = self.create('TVs'), self.create('Scalas')
         stock = dict(ITEM, serial_number='', description='Cable')

@@ -101,7 +101,7 @@ def connect():
     con.execute('CREATE TABLE IF NOT EXISTS equipment_inventories (id INTEGER PRIMARY KEY, name TEXT NOT NULL COLLATE NOCASE UNIQUE)')
     if 'layout' not in {r['name'] for r in con.execute('PRAGMA table_info(equipment_inventories)')}:
         con.execute("ALTER TABLE equipment_inventories ADD COLUMN layout TEXT NOT NULL DEFAULT '{}'")
-    if not con.execute('SELECT 1 FROM equipment_inventories WHERE id=1').fetchone():
+    if not con.execute('SELECT 1 FROM equipment_inventories').fetchone():
         con.execute("INSERT OR IGNORE INTO equipment_inventories (id,name) VALUES (1,'Equipment inventory')")
         con.commit()
     con.execute(EQUIPMENT_SCHEMA.format(table='IF NOT EXISTS equipment'))
@@ -439,6 +439,23 @@ def save_equipment_inventory(value, inventory_id=None):
         if layout is not None:
             con.execute('UPDATE equipment_inventories SET layout=? WHERE id=?',(json.dumps(layout),inventory_id))
         return equipment_inventory_details(con, inventory_id)
+
+
+def delete_equipment_inventory(inventory_id, value):
+    if not isinstance(value, dict):
+        raise ValueError('Confirm the inventory to delete.')
+    with connect() as con:
+        con.execute('BEGIN IMMEDIATE')
+        inventory = equipment_inventory_details(con, inventory_id)
+        if 'name' in value and value['name'] != inventory['name']:
+            raise ValueError('The inventory name changed. Refresh and confirm deletion again.')
+        next_id = con.execute('SELECT MAX(id)+1 FROM equipment_inventories').fetchone()[0]
+        count = con.execute('DELETE FROM equipment WHERE inventory_id=?', (inventory_id,)).rowcount
+        con.execute('DELETE FROM equipment_inventories WHERE id=?', (inventory_id,))
+        # Keep the application ready for a new import after deleting the final inventory.
+        if not con.execute('SELECT 1 FROM equipment_inventories').fetchone():
+            con.execute('INSERT INTO equipment_inventories (id,name) VALUES (?,?)', (next_id, 'Equipment inventory'))
+        return {'deleted': inventory_id, 'deleted_items': count}
 
 
 def equipment_inventory(inventory_id=1):
@@ -790,6 +807,9 @@ class Handler(BaseHTTPRequestHandler):
         elif self.command == 'PUT' and path.startswith('/api/equipment/inventories/'):
             inventory_id = equipment_inventory_id(path.removeprefix('/api/equipment/inventories/'))
             return self.send(200, save_equipment_inventory(self.body(), inventory_id))
+        elif self.command == 'DELETE' and path.startswith('/api/equipment/inventories/'):
+            inventory_id = equipment_inventory_id(path.removeprefix('/api/equipment/inventories/'))
+            return self.send(200, delete_equipment_inventory(inventory_id, self.body()))
         elif self.command == 'POST' and path == '/api/equipment':
             return self.send(201, save_equipment(self.body()))
         elif self.command == 'POST' and path == '/api/equipment/reconcile':

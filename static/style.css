@@ -553,6 +553,8 @@ nav a,.eyebrow,.network-card-top,.stats span,.filters label>span,.button-filter 
 #inventory-columns-dialog .dialog-actions{position:sticky;bottom:-24px;z-index:3;padding:14px 0;background:#15191f;border-top:1px solid var(--border)}.inventory-column-actions button:not(:disabled){color:#b9c2cd}
 
 /* Shared workspace measurements; the top navigation keeps its own sizing. */
+.inventory-management .inventory-delete-button { color: #ff8b92; }
+#delete-inventory-dialog > p { font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 main, dialog {
   --control-height: 44px;
   --directory-control-height: 30px;

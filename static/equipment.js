@@ -57,12 +57,12 @@
     const version = ++loadVersion, previouslyReady = inventoryReady;
     inventoryReady = false;
     $('equipment-refresh').disabled = true;
-    ['equipment-inventory-select','new-equipment-inventory','rename-equipment-inventory','equipment-import'].forEach(id => { $(id).disabled = true; });
+    ['equipment-inventory-select','new-equipment-inventory','rename-equipment-inventory','delete-equipment-inventory','equipment-import'].forEach(id => { $(id).disabled = true; });
     $('equipment-rows').inert = true;
     try {
       await Promise.all([...pendingConfirmations.values()]);
       const catalog = (await api('/api/equipment/inventories')).inventories;
-      const target = catalog.find(inventory => inventory.id === targetId) || catalog.find(inventory => inventory.id === 1);
+      const target = catalog.find(inventory => inventory.id === targetId) || catalog.find(inventory => inventory.id === 1) || catalog[0];
       const records = (await api(`/api/equipment?inventory_id=${target.id}`)).equipment;
       if (version !== loadVersion) return false;
       if (inventoryId !== target.id) resetEquipmentFilters(true);
@@ -87,7 +87,7 @@
     } finally {
       if (version === loadVersion) {
         $('equipment-refresh').disabled = false;
-        ['equipment-inventory-select','new-equipment-inventory','rename-equipment-inventory','equipment-import'].forEach(id => { $(id).disabled = !inventoryReady; });
+        ['equipment-inventory-select','new-equipment-inventory','rename-equipment-inventory','delete-equipment-inventory','equipment-import'].forEach(id => { $(id).disabled = !inventoryReady; });
         $('equipment-rows').inert = !inventoryReady;
       }
     }
@@ -101,7 +101,10 @@
     const query = $('equipment-search').value.trim().toLowerCase();
     const reviewFilter = $('equipment-review-filter').value;
     $('equipment-review-summary').textContent = `${items.filter(i => !i.data_checked).length} records not checked · ${items.filter(i => !i.data_checked && equipmentIssues(i).length).length} flagged · ${items.filter(i => !i.item_confirmed).length} locations not confirmed`;
-    const results = items.filter(item => [...fields.map(field=>item[field]),...Object.values(item.custom_values || {})].some(value => String(value ?? '').toLowerCase().includes(query)) &&
+    const results = items.filter(item => [...fields.map(field=>item[field]),...Object.values(item.custom_values || {}),
+      item.item_confirmed ? 'Located' : 'Not located',
+      item.data_checked ? 'Record checked' : equipmentIssues(item).length ? 'Check flagged record' : 'Check record'
+    ].some(value => String(value ?? '').toLowerCase().includes(query)) &&
       [...customFilterValues].every(([key,value]) => !value || String(inventoryValue(item,key)) === value) &&
       (!$('equipment-location-filter').value || item.location === $('equipment-location-filter').value) &&
       (!$('equipment-status-filter').value || Boolean(item.item_confirmed) === ($('equipment-status-filter').value === 'found')) &&
@@ -224,7 +227,8 @@
     ['Record check','Status','Actions'].forEach((text,index)=>{const th=element('th','',text);th.scope='col';th.style.width=`${widths[displayColumns().length+index]/totalWidth*100}%`;columns.push(th);});
     $('equipment-table').querySelector('thead tr').replaceChildren(...columns);
     $('equipment-table').style.minWidth=`${Math.max(850,totalWidth)}px`;
-    $('equipment-search').placeholder=`${displayColumns().find(col=>col.key===layout().primary_search)?.label || 'Item'} first, then other details…`;
+    $('equipment-search').placeholder='Search all inventory columns…';
+    $('equipment-search').title='Search item, brand, model, serial number, quantity, location, notes, status and custom columns.';
     const location=displayColumns().find(col=>col.key==='location');
     $('equipment-location-filter-label').hidden=!location || location.filter==='none';
     $('equipment-location-buttons').hidden=location?.filter!=='buttons';
@@ -298,8 +302,8 @@
     const selected = $('equipment-location-filter').value;
     $('equipment-manage-locations').disabled = !inventoryReady || !locations().length;
     if(!displayColumns().some(col=>col.key==='location'&&col.filter==='buttons')){$('equipment-location-buttons').replaceChildren();return;}
-    $('equipment-location-buttons').replaceChildren(...['', ...locations()].map(location => {
-      const button = element('button', 'choice-button', location || 'All locations');
+    $('equipment-location-buttons').replaceChildren(...locations().map(location => {
+      const button = element('button', 'choice-button', location);
       button.type = 'button'; button.setAttribute('aria-pressed', String(selected === location));
       if (location) colorVenueButton(button, location);
       button.onclick = () => { $('equipment-location-filter').value = location; renderEquipment(); };
@@ -382,6 +386,41 @@
   }
   $('new-equipment-inventory').onclick = () => openInventoryForm();
   $('rename-equipment-inventory').onclick = () => openInventoryForm(true);
+  let deletingInventory = null, inventoryDeletionPending = false;
+  $('delete-equipment-inventory').onclick = () => {
+    if (!inventoryReady) return;
+    deletingInventory = currentInventory();
+    $('delete-inventory-description').textContent = `Delete “${deletingInventory.name}” and all ${items.length} item${items.length === 1 ? '' : 's'} in it?`;
+    $('delete-inventory-last').hidden = inventories.length !== 1;
+    $('delete-inventory-error').hidden = true;
+    $('delete-inventory-dialog').showModal();
+    $('cancel-delete-inventory').focus();
+  };
+  $('cancel-delete-inventory').onclick = () => $('delete-inventory-dialog').close();
+  $('delete-inventory-dialog').addEventListener('cancel', event => { if (inventoryDeletionPending) event.preventDefault(); });
+  $('confirm-delete-inventory').onclick = async () => {
+    if (!deletingInventory || inventoryDeletionPending) return;
+    inventoryDeletionPending = true;
+    $('confirm-delete-inventory').disabled = true;
+    $('cancel-delete-inventory').disabled = true;
+    $('delete-inventory-error').hidden = true;
+    try {
+      await Promise.all([...pendingConfirmations.values()]);
+      await api(`/api/equipment/inventories/${deletingInventory.id}`, 'DELETE', {name:deletingInventory.name});
+      importReports.delete(deletingInventory.id); crossChecks.delete(deletingInventory.id);
+      resetEquipmentFilters(true);
+      $('delete-inventory-dialog').close();
+      await loadEquipment();
+      toast('Inventory deleted.');
+    } catch(error) {
+      $('delete-inventory-error').textContent = error.message;
+      $('delete-inventory-error').hidden = false;
+    } finally {
+      inventoryDeletionPending = false;
+      $('confirm-delete-inventory').disabled = false;
+      $('cancel-delete-inventory').disabled = false;
+    }
+  };
   for (const id of ['close-equipment-inventory','cancel-equipment-inventory']) $(id).onclick = () => $('equipment-inventory-dialog').close();
   $('equipment-inventory-form').onsubmit = async event => {
     event.preventDefault(); $('save-equipment-inventory').disabled = true;
@@ -397,7 +436,7 @@
   };
   $('equipment-import').onclick = () => openColumns({importing:true});
   for (const id of ['equipment-search','equipment-location-filter','equipment-review-filter']) $(id).addEventListener(id.endsWith('search') ? 'input' : 'change', renderEquipment);
-  for (const [value, text] of [['','All items'], ['pending','Not located'], ['found','Located']]) {
+  for (const [value, text] of [['','All items'], ['found','Located'], ['pending','Not located']]) {
     const button = element('button', 'choice-button', text); button.type = 'button';
     button.dataset.value = value; button.setAttribute('aria-pressed', String(value === ''));
     button.onclick = () => {
